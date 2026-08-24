@@ -35,7 +35,8 @@ describe("CSRF origin check (mutations only)", () => {
     // but Bearer-token machine clients have an exemption
     const res = checkCsrfOrigin(req({ method: "POST", origin: null }), { hasBearer: true });
     expect(res).toBeNull();
-    expect(checkCsrfOrigin(req({ method: "POST", origin: null })))?.toBeTruthy();
+    const rejected = checkCsrfOrigin(req({ method: "POST", origin: null }));
+    expect(rejected?.status).toBe(403);
   });
 
   it("allows localhost dev origins when configured", () => {
