@@ -17,17 +17,22 @@ import {
   errorToResponse,
   getActor,
 } from "@/lib/api/helpers";
+import { hashPassword, createSessionToken } from "@/lib/auth";
+
+const SECRET = process.env.AUTH_SECRET ?? "dev-secret-change-me";
+const authCookie = (userId: string) =>
+  `hexprocure_session=${createSessionToken(userId, SECRET)}`;
 
 const req = (url: string, init?: RequestInit) => new Request(url, init);
 
 async function seed() {
   const [requester] = await db
     .insert(users)
-    .values({ name: "R", email: `r-${Date.now()}@hex.test` })
+    .values({ name: "R", email: `r-${Date.now()}@hex.test`, passwordHash: hashPassword("password123") })
     .returning();
   const [manager] = await db
     .insert(users)
-    .values({ name: "M", email: `m-${Date.now()}@hex.test`, role: "MANAGER" })
+    .values({ name: "M", email: `m-${Date.now()}@hex.test`, role: "MANAGER", passwordHash: hashPassword("password123") })
     .returning();
   const [supplier] = await db.insert(suppliers).values({ name: "S" }).returning();
   const [cc] = await db.insert(costCenters).values({ name: "Ops" }).returning();
@@ -75,7 +80,7 @@ describe("POST /api/v1/requisitions", () => {
     const res = await createRequisition(
       req("http://localhost/api/v1/requisitions", {
         method: "POST",
-        headers: { "content-type": "application/json", "x-user-id": s.requester.id },
+        headers: { "content-type": "application/json", "cookie": authCookie(s.requester.id) },
         body: JSON.stringify({
           supplierId: s.supplier.id,
           costCenterId: s.cc.id,
@@ -105,7 +110,7 @@ describe("POST /api/v1/requisitions", () => {
     const res = await createRequisition(
       req("http://localhost/api/v1/requisitions", {
         method: "POST",
-        headers: { "content-type": "application/json", "x-user-id": s.requester.id },
+        headers: { "content-type": "application/json", "cookie": authCookie(s.requester.id) },
         body: JSON.stringify({ lines: [{ quantity: -1 }] }),
       }),
     );
@@ -121,7 +126,7 @@ describe("full HTTP flow: create → submit → decide → order", () => {
     const created = await createRequisition(
       req("http://localhost/api/v1/requisitions", {
         method: "POST",
-        headers: { "content-type": "application/json", "x-user-id": s.requester.id },
+        headers: { "content-type": "application/json", "cookie": authCookie(s.requester.id) },
         body: JSON.stringify({
           supplierId: s.supplier.id,
           costCenterId: s.cc.id,
@@ -131,7 +136,7 @@ describe("full HTTP flow: create → submit → decide → order", () => {
     );
     const { id } = await created.json();
 
-    const submitted = await submit(req(`http://localhost/x`, { method: "POST", headers: { "x-user-id": s.requester.id } }), {
+    const submitted = await submit(req(`http://localhost/x`, { method: "POST", headers: { "cookie": authCookie(s.requester.id) } }), {
       params: Promise.resolve({ id }),
     } as never);
     expect(submitted.status).toBe(200);
@@ -140,7 +145,7 @@ describe("full HTTP flow: create → submit → decide → order", () => {
     const decided = await decide(
       req("http://localhost/x", {
         method: "POST",
-        headers: { "content-type": "application/json", "x-user-id": s.manager.id },
+        headers: { "content-type": "application/json", "cookie": authCookie(s.manager.id) },
         body: JSON.stringify({ decision: "approve" }),
       }),
       { params: Promise.resolve({ id: approval.id }) } as never,
@@ -148,7 +153,7 @@ describe("full HTTP flow: create → submit → decide → order", () => {
     expect((await decided.json()).requisitionStatus).toBe("APPROVED");
 
     const ordered = await order(
-      req("http://localhost/x", { method: "POST", headers: { "x-user-id": s.requester.id } }),
+      req("http://localhost/x", { method: "POST", headers: { "cookie": authCookie(s.requester.id) } }),
       { params: Promise.resolve({ id }) } as never,
     );
     expect(ordered.status).toBe(201);
@@ -162,7 +167,7 @@ describe("full HTTP flow: create → submit → decide → order", () => {
     const created = await createRequisition(
       req("http://localhost/api/v1/requisitions", {
         method: "POST",
-        headers: { "content-type": "application/json", "x-user-id": s.requester.id },
+        headers: { "content-type": "application/json", "cookie": authCookie(s.requester.id) },
         body: JSON.stringify({
           supplierId: s.supplier.id,
           costCenterId: s.cc.id,
@@ -171,21 +176,21 @@ describe("full HTTP flow: create → submit → decide → order", () => {
       }),
     );
     const { id } = await created.json();
-    await submit(req("http://x", { method: "POST", headers: { "x-user-id": s.requester.id } }), {
+    await submit(req("http://x", { method: "POST", headers: { "cookie": authCookie(s.requester.id) } }), {
       params: Promise.resolve({ id }),
     } as never);
     const [approval] = await db.select().from(approvals);
     await decide(
       req("http://x", {
         method: "POST",
-        headers: { "content-type": "application/json", "x-user-id": s.manager.id },
+        headers: { "content-type": "application/json", "cookie": authCookie(s.manager.id) },
         body: JSON.stringify({ decision: "approve" }),
       }),
       { params: Promise.resolve({ id: approval.id }) } as never,
     );
 
     const ordered = await order(
-      req("http://x", { method: "POST", headers: { "x-user-id": s.requester.id } }),
+      req("http://x", { method: "POST", headers: { "cookie": authCookie(s.requester.id) } }),
       { params: Promise.resolve({ id }) } as never,
     );
     expect(ordered.status).toBe(422);
@@ -193,11 +198,46 @@ describe("full HTTP flow: create → submit → decide → order", () => {
     expect(err.error.code).toBe("BUDGET_EXCEEDED");
   });
 
-  it("getActor rejects unknown user ids", async () => {
+  it("getActor rejects missing, invalid, and unknown sessions", async () => {
     await expect(async () =>
-      getActor(req("http://x", { headers: { "x-user-id": crypto.randomUUID() } })),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+      getActor(req("http://x", {})),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(async () =>
+      getActor(req("http://x", { headers: { cookie: "hexprocure_session=garbage" } })),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const stale = createSessionToken(crypto.randomUUID(), SECRET, -10);
+    await expect(async () =>
+      getActor(req("http://x", { headers: { cookie: `hexprocure_session=${stale}` } })),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(errorToResponse(new Error("boom")).status).toBe(500);
+  });
+
+  it("login endpoint issues a working session cookie end-to-end", async () => {
+    const s = await seed();
+    const { POST: loginRoute } = await import("@/app/api/v1/auth/login/route");
+    const res = await loginRoute(
+      req("http://x/api/v1/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: s.requester.email, password: "password123" }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const setCookie = res.headers.get("set-cookie")!;
+    expect(setCookie).toContain("HttpOnly");
+
+    const created = await createRequisition(
+      req("http://localhost/api/v1/requisitions", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: setCookie.split(";")[0] },
+        body: JSON.stringify({
+          supplierId: s.supplier.id,
+          costCenterId: s.cc.id,
+          lines: [{ description: "Keyboard", quantity: 2, unitPriceMinor: 4900 }],
+        }),
+      }),
+    );
+    expect(created.status).toBe(201);
   });
 });
 

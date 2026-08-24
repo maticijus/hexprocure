@@ -38,6 +38,7 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   role: userRole("role").notNull().default("REQUESTER"),
+  passwordHash: text("password_hash"),
 });
 
 export const suppliers = pgTable("suppliers", {
