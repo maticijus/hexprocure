@@ -10,7 +10,6 @@ import {
   requisitions,
   requisitionLines,
   approvals,
-  purchaseOrders,
   invoices,
 } from "@/lib/db/schema";
 import {
@@ -218,9 +217,6 @@ describe("authorization and state guards", () => {
     const [approval] = await db.select().from(approvals);
     await decideApproval(approval.id, s.manager.id, "approve");
     const poResult = await createPurchaseOrder(req.id, s.manager.id);
-    const [poLine] = (
-      await db.execute(sql`SELECT id FROM po_lines WHERE purchase_order_id = ${poResult.purchaseOrderId}`)
-    ).rows as { id: string }[];
 
     const [invoice] = await db
       .insert(invoices)

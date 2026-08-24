@@ -56,20 +56,6 @@ async function audit(
   });
 }
 
-export async function loadBudgetState(costCenterId: string, yearMonth: string) {
-  const [budget] = await db
-    .select()
-    .from(budgets)
-    .where(and(eq(budgets.costCenterId, costCenterId), eq(budgets.yearMonth, yearMonth)));
-  if (!budget) return null;
-  const reservations = await db
-    .select()
-    .from(budgetReservations)
-    .where(eq(budgetReservations.budgetId, budget.id));
-  const reserved = reservations.reduce((sum, r) => sum + r.amountMinor, 0);
-  return { budget, reserved };
-}
-
 export async function submitRequisition(requisitionId: string, actorUserId: string) {
   return db.transaction(async (tx) => {
     const [req] = await tx
@@ -248,7 +234,6 @@ async function loadBudgetStateWithin(tx: Tx, costCenterId: string, yearMonth: st
     .select()
     .from(budgetReservations)
     .where(eq(budgetReservations.budgetId, budget.id));
-  const reserved = reservations.reduce((sum, r) => sum + r.amountMinor, 0);
   const state = { entries: new Map([[`${costCenterId}::${yearMonth}`, {
     budgetedMinor: budget.budgetedMinor,
     currency: budget.currency,
@@ -363,7 +348,6 @@ export async function matchInvoiceById(invoiceId: string, actorUserId: string) {
     const poLineRows = referencedPoLineIds.length
       ? await tx.select().from(poLines).where(inArray(poLines.id, referencedPoLineIds))
       : [];
-    const poLineById = new Map(poLineRows.map((p) => [p.id, p]));
 
     const receivedQtyByPoLine: Record<string, number> = {};
     if (poLineRows.length) {
