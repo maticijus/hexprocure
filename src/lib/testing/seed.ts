@@ -49,7 +49,7 @@ export async function seedOrg() {
     .insert(users)
     .values({ name: "Finance Fiona", email: uniqueEmail("fiona"), role: "FINANCE" })
     .returning();
-  const [supplier] = await db.insert(suppliers).values({ name: "Acme GmbH" }).returning();
+  const [supplier] = await db.insert(suppliers).values({ name: "Acme GmbH", email: "orders@acme.test" }).returning();
   const [cc] = await db.insert(costCenters).values({ name: "IT" }).returning();
   const yearMonth = new Date().toISOString().slice(0, 7);
   const [budget] = await db

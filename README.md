@@ -181,6 +181,7 @@ Dependency rule: `app → lib → domain`; the domain layer is pure and fully un
 - Integration dispatch is pull-based (`POST /api/v1/integrations/dispatch`) — needs a scheduler in production
 - Single-currency display (EUR); money stored currency-aware but UI assumes EUR
 - Invoice line items are entered manually after extraction; automatic line-item extraction from OCR text is future work
+- PO PDF download and email-to-supplier are API-only (`GET …/pdf`, `POST …/send`); UI buttons are future work
 
 ## License
 

@@ -7,11 +7,10 @@ import {
   submitRequisition,
   decideApproval,
   createPurchaseOrder,
-  buildPurchaseOrderPdf,
-  sendPurchaseOrder,
-  toPdfData,
+  cancelPurchaseOrder,
   DomainError,
-} from "./po-document";
+} from "./p2p";
+import { buildPurchaseOrderPdf, sendPurchaseOrder, toPdfData } from "./po-document";
 
 beforeEach(async () => {
   await truncateAll();
@@ -28,10 +27,11 @@ async function approvedPoId(s = seedOrg()) {
   );
   await submitRequisition(req.id, org.requester.id);
   const approvalRows = (
-    await db.execute(sql`SELECT id FROM approvals ORDER BY sequence`)
-  ).rows as { id: string }[];
+    await db.execute(sql`SELECT id, approver_role FROM approvals ORDER BY sequence`)
+  ).rows as { id: string; approver_role: string }[];
   for (const a of approvalRows) {
-    await decideApproval(a.id, org.manager.id, "approve");
+    const decider = a.approver_role === "FINANCE" ? org.finance.id : org.manager.id;
+    await decideApproval(a.id, decider, "approve");
   }
   const po = await createPurchaseOrder(req.id, org.manager.id);
   return { org, poId: po.purchaseOrderId, totalMinor: po.totalMinor };
@@ -113,10 +113,19 @@ describe("sendPurchaseOrder", () => {
     expect(result.sentTo).toEqual(["buyer@vendor.com"]);
   });
 
-  it("refuses to send a non-OPEN PO twice", async () => {
+  it("allows re-sending an OPEN PO and audits each send", async () => {
     const { poId, org } = await approvedPoId();
     const transport = vi.fn().mockResolvedValue({});
     await sendPurchaseOrder(poId, org.manager.id, undefined, transport);
+    await sendPurchaseOrder(poId, org.manager.id, undefined, transport);
+    const sends = (await db.select().from(auditEvents)).filter((a) => a.action === "PO_SENT");
+    expect(sends).toHaveLength(2);
+  });
+
+  it("refuses to send a CANCELLED PO", async () => {
+    const { poId, org } = await approvedPoId();
+    await cancelPurchaseOrder(poId, org.manager.id);
+    const transport = vi.fn().mockResolvedValue({});
     await expect(
       sendPurchaseOrder(poId, org.manager.id, undefined, transport),
     ).rejects.toMatchObject({ code: "INVALID_STATE" });
