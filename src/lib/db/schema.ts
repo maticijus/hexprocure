@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   integer,
   jsonb,
   pgEnum,
@@ -208,6 +209,40 @@ export const invoiceLines = pgTable("invoice_lines", {
   unitPriceMinor: integer("unit_price_minor").notNull(),
   /** Authoritative billed amount for SERVICE lines. */
   amountMinor: integer("amount_minor"),
+});
+
+export const orderCadence = pgEnum("order_cadence", [
+  "MONTHLY",
+  "QUARTERLY",
+  "YEARLY",
+]);
+
+export const orderTemplates = pgTable("order_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  requesterId: uuid("requester_id")
+    .notNull()
+    .references(() => users.id),
+  supplierId: uuid("supplier_id")
+    .notNull()
+    .references(() => suppliers.id),
+  costCenterId: uuid("cost_center_id")
+    .notNull()
+    .references(() => costCenters.id),
+  cadence: orderCadence("cadence").notNull().default("MONTHLY"),
+  nextRunDate: text("next_run_date").notNull(),
+  active: boolean("active").notNull().default(true),
+});
+
+export const orderTemplateLines = pgTable("order_template_lines", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  templateId: uuid("template_id")
+    .notNull()
+    .references(() => orderTemplates.id, { onDelete: "cascade" }),
+  description: text("description").notNull(),
+  quantity: integer("quantity").notNull(),
+  unitPriceMinor: integer("unit_price_minor").notNull(),
+  kind: poLineKind("kind").notNull().default("GOODS"),
 });
 
 export const attachmentEntityType = pgEnum("attachment_entity_type", [
