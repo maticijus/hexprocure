@@ -25,7 +25,7 @@ export default async function RequisitionsPage() {
       FROM requisitions r
       LEFT JOIN suppliers s ON s.id = r.supplier_id
       LEFT JOIN requisition_lines rl ON rl.requisition_id = r.id
-      GROUP BY r.id ORDER BY r.created_at DESC
+      GROUP BY r.id, s.name ORDER BY r.created_at DESC
     `)
   ).rows as { id: string; status: string; created_at: string; supplier: string; total_minor: string }[];
 

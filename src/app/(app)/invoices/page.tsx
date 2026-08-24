@@ -20,7 +20,7 @@ export default async function InvoicesPage() {
       FROM invoices i
       LEFT JOIN suppliers s ON s.id = i.supplier_id
       LEFT JOIN invoice_lines il ON il.invoice_id = i.id
-      GROUP BY i.id ORDER BY i.created_at DESC
+      GROUP BY i.id, s.name ORDER BY i.created_at DESC
     `)
   ).rows as { id: string; number: string; status: string; supplier: string; total_minor: string }[];
 

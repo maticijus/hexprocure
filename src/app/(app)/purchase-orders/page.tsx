@@ -19,7 +19,7 @@ export default async function PurchaseOrdersPage() {
       FROM purchase_orders po
       LEFT JOIN suppliers s ON s.id = po.supplier_id
       LEFT JOIN po_lines pl ON pl.purchase_order_id = po.id
-      GROUP BY po.id ORDER BY po.created_at DESC
+      GROUP BY po.id, s.name ORDER BY po.created_at DESC
     `)
   ).rows as { id: string; status: string; created_at: string; supplier: string; total_minor: string }[];
 

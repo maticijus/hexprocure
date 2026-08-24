@@ -18,7 +18,7 @@ export default async function ApprovalsPage() {
       LEFT JOIN requisition_lines rl ON rl.requisition_id = r.id
       WHERE a.decision IS NULL
         AND (a.approver_role = ${user.role} OR ${user.role} = 'ADMIN')
-      GROUP BY a.id, r.id ORDER BY r.created_at
+      GROUP BY a.id, r.id, s.name ORDER BY r.created_at
     `)
   ).rows as { id: string; approver_role: string; req_id: string; supplier: string; total_minor: string }[];
 
