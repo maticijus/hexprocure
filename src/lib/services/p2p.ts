@@ -17,6 +17,7 @@ import {
   suppliers,
   users,
   auditEvents,
+  integrationEvents,
 } from "@/lib/db/schema";
 import { Money } from "@/domain/money";
 import { resolveApprovalChain } from "@/domain/approval";
@@ -217,6 +218,26 @@ export async function createPurchaseOrder(requisitionId: string, actorUserId: st
     });
 
     await audit(tx, "purchase_order", po.id, "CREATED", actorUserId, { total });
+
+    const [supplierRow] = await tx.select().from(suppliers).where(eq(suppliers.id, req.supplierId));
+    const [ccName] = await tx.select({ name: costCenters.name }).from(costCenters).where(eq(costCenters.id, req.costCenterId));
+    await tx.insert(integrationEvents).values({
+      eventType: "PO_CREATED",
+      payload: {
+        purchaseOrderId: po.id,
+        supplier: supplierRow?.name ?? "",
+        costCenter: ccName?.name ?? "",
+        currency: req.currency,
+        issuedOn: new Date().toISOString().slice(0, 10),
+        totalMinor: total,
+        lines: lines.map((l) => ({
+          description: l.description,
+          quantity: l.quantity,
+          unitPriceMinor: l.unitPriceMinor,
+        })),
+      },
+    });
+
     return { purchaseOrderId: po.id, totalMinor: total };
   });
 }
@@ -420,6 +441,25 @@ export async function approveInvoice(invoiceId: string, actorUserId: string) {
     }
     await tx.update(invoices).set({ status: "APPROVED" }).where(eq(invoices.id, invoiceId));
     await audit(tx, "invoice", invoiceId, "APPROVED", actorUserId);
+
+    const [invSupplier] = await tx.select().from(suppliers).where(eq(suppliers.id, invoice.supplierId));
+    await tx.insert(integrationEvents).values({
+      eventType: "INVOICE_APPROVED",
+      payload: {
+        invoiceId,
+        invoiceNumber: invoice.number,
+        supplier: invSupplier?.name ?? "",
+        currency: "EUR",
+        totalMinor: (
+          await tx
+            .select({ total: sql<number>`COALESCE(SUM(${invoiceLines.quantity} * ${invoiceLines.unitPriceMinor}), 0)` })
+            .from(invoiceLines)
+            .where(eq(invoiceLines.invoiceId, invoiceId))
+        )[0].total,
+        purchaseOrderId: invoice.purchaseOrderId,
+      },
+    });
+
     return { status: "APPROVED" as const };
   });
 }

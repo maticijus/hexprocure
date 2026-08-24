@@ -214,3 +214,22 @@ export const auditEvents = pgTable("audit_events", {
     .notNull()
     .defaultNow(),
 });
+
+export const integrationEventStatus = pgEnum("integration_event_status", [
+  "PENDING",
+  "DELIVERED",
+  "FAILED",
+]);
+
+export const integrationEvents = pgTable("integration_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  eventType: text("event_type").notNull(),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+  status: integrationEventStatus("status").notNull().default("PENDING"),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+});

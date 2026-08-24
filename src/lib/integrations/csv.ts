@@ -1,4 +1,4 @@
-import type { IntegrationEvent } from "./types";
+import type { Connector, IntegrationEvent } from "./types";
 
 const COLUMNS = [
   "record_type",
@@ -86,3 +86,17 @@ export function poToCsv(event: IntegrationEvent): string {
 export function invoiceToCsv(event: IntegrationEvent): string {
   return toCsv(eventToCsvRows(event));
 }
+
+/** Universal CSV connector: renders events as ERP-importable flat files. */
+export const csvConnector: Connector = {
+  name: "csv",
+  handles: ["PO_CREATED", "INVOICE_APPROVED"],
+  async deliver(event) {
+    try {
+      const csv = toCsv(eventToCsvRows(event));
+      return { ok: true, response: { bytes: csv.length } };
+    } catch (error) {
+      return { ok: false, error: String(error), retryable: false };
+    }
+  },
+};
