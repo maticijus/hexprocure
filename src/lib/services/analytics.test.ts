@@ -143,7 +143,7 @@ describe("analyticsSummary", () => {
     await approvedInvoice({ supplierName: "Acme", ccName: "IT", amountMinor: 250_000 });
     const s = await analyticsSummary();
     expect(s.approvedTotalMinor).toBe(250_000);
-    expect(s.topSupplier.key).toBe("Acme");
+    expect(s.topSupplier!.key).toBe("Acme");
     expect(typeof s.invoiceCount).toBe("number");
   });
 });
