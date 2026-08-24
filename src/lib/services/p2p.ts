@@ -106,6 +106,24 @@ export async function submitRequisition(requisitionId: string, actorUserId: stri
       .set({ status: "SUBMITTED" })
       .where(eq(requisitions.id, requisitionId));
     await audit(tx, "requisition", requisitionId, "SUBMITTED", actorUserId, { total });
+
+    const [supplierRow] = await tx.select().from(suppliers).where(eq(suppliers.id, req.supplierId));
+    const roleUsers = await tx.select({ email: users.email, role: users.role }).from(users);
+    for (const step of chain) {
+      const recipients = roleUsers.filter((u) => u.role === step.approverRole).map((u) => u.email);
+      if (recipients.length === 0) continue;
+      await tx.insert(integrationEvents).values({
+        eventType: "APPROVAL_REQUESTED",
+        payload: {
+          to: recipients,
+          requisitionId,
+          supplier: supplierRow?.name ?? "",
+          totalMinor: total,
+          currency: req.currency,
+        },
+      });
+    }
+
     return { status: "SUBMITTED" as const, totalMinor: total, steps: chain.length };
   });
 }
@@ -131,10 +149,22 @@ export async function decideApproval(
     if (approval.decision) {
       throw new DomainError("INVALID_STATE", "Approval already decided");
     }
+    async function notifyRequester(tx2: Tx, outcome: "APPROVED" | "REJECTED") {
+      const [req] = await tx2.select().from(requisitions).where(eq(requisitions.id, approval.requisitionId));
+      if (!req) return;
+      const [requester] = await tx2.select().from(users).where(eq(users.id, req.requesterId));
+      if (!requester) return;
+      await tx2.insert(integrationEvents).values({
+        eventType: "REQUISITION_DECIDED",
+        payload: { to: [requester.email], requisitionId: approval.requisitionId, decision: outcome },
+      });
+    }
+
     if (decision === "reject") {
       await tx.update(approvals).set({ decision: "REJECT", decidedByUserId: actorUserId, comment, decidedAt: new Date() }).where(eq(approvals.id, approvalId));
       await tx.update(requisitions).set({ status: "REJECTED" }).where(eq(requisitions.id, approval.requisitionId));
       await audit(tx, "requisition", approval.requisitionId, "REJECTED", actorUserId);
+      await notifyRequester(tx, "REJECTED");
       return { requisitionStatus: "REJECTED" as const };
     }
 
@@ -154,6 +184,7 @@ export async function decideApproval(
       await tx.update(requisitions).set({ status: "APPROVED" }).where(eq(requisitions.id, approval.requisitionId));
       requisitionStatus = "APPROVED";
       await audit(tx, "requisition", approval.requisitionId, "APPROVED", actorUserId);
+      await notifyRequester(tx, "APPROVED");
     }
     return { requisitionStatus };
   });
@@ -423,6 +454,21 @@ export async function matchInvoiceById(invoiceId: string, actorUserId: string) {
     await audit(tx, "invoice", invoiceId, status, actorUserId, {
       exceptions: result.exceptions,
     });
+
+    if (status === "EXCEPTION") {
+      const financeUsers = await tx.select({ email: users.email }).from(users).where(eq(users.role, "FINANCE"));
+      if (financeUsers.length > 0) {
+        await tx.insert(integrationEvents).values({
+          eventType: "INVOICE_EXCEPTION",
+          payload: {
+            to: financeUsers.map((f) => f.email),
+            invoiceId,
+            invoiceNumber: invoice.number,
+            exceptions: result.exceptions,
+          },
+        });
+      }
+    }
     return { status, exceptions: result.exceptions as MatchException[] };
   });
 }

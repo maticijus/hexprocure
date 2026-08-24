@@ -54,6 +54,7 @@ async function seed() {
 beforeEach(async () => {
   for (const table of [
     "audit_events",
+    "integration_events",
     "invoice_lines",
     "invoices",
     "receipt_lines",

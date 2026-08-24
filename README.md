@@ -65,6 +65,7 @@ Domain events (`PO_CREATED`, `PO_CANCELLED`, `INVOICE_APPROVED`) are written to 
 |---|---|---|
 | **CSV flat-file** | Any ERP/AP with a file import | Wide-format rows (header + line records), RFC-4180 escaping, stable column order |
 | **Generic webhook** | Zapier/Make/custom HTTP endpoints | Signed POSTs (`X-HexProcure-Signature`, HMAC-SHA256), 4xx = non-retryable, 5xx/429/network = retryable |
+| **Email notifications** | Approvers, requesters, finance | Approval requests, decisions, and invoice exceptions via SMTP (`SMTP_URL`); log-only mode when unset |
 | **QuickBooks Online mappers** | QBO `PurchaseOrder` / `Bill` payloads | Minor-unit→decimal conversion at the boundary only |
 
 Failed deliveries stay `PENDING` with attempt counts and last error, retried on next dispatch. Dispatch is triggered via `POST /api/v1/integrations/dispatch` (FINANCE/ADMIN).

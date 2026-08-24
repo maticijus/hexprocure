@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { dispatchPendingEvents } from "@/lib/integrations/dispatch";
 import { csvConnector } from "@/lib/integrations/csv";
+import { createEmailConnector } from "@/lib/integrations/email";
 import { createWebhookConnector } from "@/lib/integrations/webhook";
 import { registerConnector, clearConnectors } from "@/lib/integrations/dispatch";
 import { DomainError } from "@/lib/services/p2p";
@@ -23,6 +24,7 @@ export async function POST(request: Request) {
 function configureConnectors() {
   clearConnectors();
   registerConnector(csvConnector);
+  registerConnector(createEmailConnector());
   const webhookUrl = process.env.INTEGRATION_WEBHOOK_URL;
   if (webhookUrl) {
     registerConnector(
