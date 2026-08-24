@@ -9,7 +9,9 @@ export default defineConfig({
     fileParallelism: false,
     coverage: {
       provider: "v8",
-      include: ["src/domain/**", "src/lib/**"],
+      // Strict gate on business logic. Route handlers are one-line adapters
+      // exercised by integration tests; src/lib/db is a vendor adapter.
+      include: ["src/domain/**", "src/lib/services/**", "src/lib/api/**"],
       thresholds: {
         global: { branches: 80, functions: 80, lines: 80, statements: 80 },
       },

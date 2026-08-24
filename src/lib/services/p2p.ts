@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db, pool } from "@/lib/db";
 import {
   approvalRules,
@@ -230,6 +230,8 @@ async function loadBudgetStateWithin(tx: Tx, costCenterId: string, yearMonth: st
     .from(budgets)
     .where(and(eq(budgets.costCenterId, costCenterId), eq(budgets.yearMonth, yearMonth)));
   if (!budget) return null;
+  // Serialize concurrent PO creation against the same budget (TOCTOU guard).
+  await tx.execute(sql`SELECT id FROM budgets WHERE id = ${budget.id} FOR UPDATE`);
   const reservations = await tx
     .select()
     .from(budgetReservations)
@@ -362,12 +364,14 @@ export async function matchInvoiceById(invoiceId: string, actorUserId: string) {
 
     const previouslyInvoicedQtyByPoLine: Record<string, number> = {};
     if (poLineRows.length) {
+      const poId = invoice.purchaseOrderId;
       const priorInvLines = await tx
         .select({ poLineId: invoiceLines.poLineId, qty: invoiceLines.quantity, invoiceId: invoiceLines.invoiceId })
         .from(invoiceLines)
-        .where(inArray(invoiceLines.poLineId, poLineRows.map((p) => p.id)));
+        .innerJoin(invoices, eq(invoiceLines.invoiceId, invoices.id))
+        .where(and(inArray(invoiceLines.poLineId, poLineRows.map((p) => p.id)), eq(invoices.purchaseOrderId, poId)));
       for (const l of priorInvLines) {
-        if (l.poLineId && l.invoiceId !== invoiceId && (await isOnSamePo(l.invoiceId, poLineRows[0].purchaseOrderId, tx))) {
+        if (l.poLineId && l.invoiceId !== invoiceId) {
           previouslyInvoicedQtyByPoLine[l.poLineId] = (previouslyInvoicedQtyByPoLine[l.poLineId] ?? 0) + l.qty;
         }
       }
@@ -402,10 +406,6 @@ export async function matchInvoiceById(invoiceId: string, actorUserId: string) {
   });
 }
 
-async function isOnSamePo(otherInvoiceId: string, poId: string, tx: Tx): Promise<boolean> {
-  const [inv] = await tx.select().from(invoices).where(eq(invoices.id, otherInvoiceId));
-  return inv?.purchaseOrderId === poId;
-}
 
 export async function approveInvoice(invoiceId: string, actorUserId: string) {
   return db.transaction(async (tx) => {
