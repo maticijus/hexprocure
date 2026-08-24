@@ -1,4 +1,4 @@
-# ProcureLite
+# HexProcure
 
 SMB procure-to-pay: requisition → approval → PO → receipt → invoice matching, budget control, spend analytics.
 

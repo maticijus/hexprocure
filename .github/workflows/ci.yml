@@ -12,12 +12,12 @@ jobs:
         image: postgres:16
         env:
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: procurelite_test
+          POSTGRES_DB: hexprocure_test
         ports: ["5432:5432"]
         options: >-
           --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/procurelite_test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hexprocure_test
       AUTH_SECRET: ci-test-secret
     steps:
       - uses: actions/checkout@v4

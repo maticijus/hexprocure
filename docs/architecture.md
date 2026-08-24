@@ -1,4 +1,4 @@
-# ProcureLite — Architecture
+# HexProcure — Architecture
 
 SMB procure-to-pay: Requisition → Approval → PO → Receipt → Invoice match, with budget control and spend analytics.
 

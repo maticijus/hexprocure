@@ -1,4 +1,4 @@
-# ProcureLite — API Contract v1
+# HexProcure — API Contract v1
 
 Base: `/api/v1`. JSON in/out. Auth: session cookie (v1: single-tenant, simple login).
 Errors: `{ "error": { "code": string, "message": string } }` with proper status codes
