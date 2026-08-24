@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   matchInvoice,
+  type MatchContext,
   type PoLine,
   type InvoiceLine,
 } from "./matching";
@@ -17,9 +18,9 @@ const inv = (poLineId: string | null, qty: number, unitPrice: number): InvoiceLi
   unitPriceMinor: unitPrice,
 });
 
-const baseScenario = () => ({
+const baseScenario = (): MatchContext => ({
   poLines: [po("pl-1", 10, 1999)],
-  receivedQtyByPoLine: { "pl-1": 10 },
+  receivedQtyByPoLine: { "pl-1": 10 } as Record<string, number>,
   previouslyInvoicedQtyByPoLine: {} as Record<string, number>,
 });
 
@@ -71,8 +72,8 @@ describe("matchInvoice", () => {
   });
 
   it("accepts price within 2% tolerance", () => {
-    // 2% of 1999 = ~40; 2020 is within tolerance
-    const r = matchInvoice(baseScenario(), [inv("pl-1", 10, 2039)]);
+    // 2% of 1999 = 39.98 → max accepted invoice price is 2038
+    const r = matchInvoice(baseScenario(), [inv("pl-1", 10, 2038)]);
     expect(r.status).toBe("MATCHED");
   });
 
