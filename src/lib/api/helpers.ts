@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { verifySessionToken, SESSION_COOKIE } from "@/lib/auth";
+import { verifyApiToken } from "@/lib/services/api-tokens";
 import { DomainError } from "@/lib/services/p2p";
 
 const STATUS_BY_CODE: Record<DomainError["code"], number> = {
@@ -46,6 +47,18 @@ function readSessionCookie(request: Request): string | null {
 }
 
 export async function getActor(request: Request) {
+  // machine path first: Authorization: Bearer hxp_...
+  const authHeader = request.headers.get("authorization");
+  if (authHeader?.startsWith("Bearer hxp_")) {
+    const actor = await verifyApiToken(authHeader.slice("Bearer ".length));
+    if (!actor) {
+      throw new DomainError("FORBIDDEN", "Invalid or revoked API token");
+    }
+    const [user] = await db.select().from(users).where(eq(users.id, actor.id));
+    if (!user) throw new DomainError("NOT_FOUND", "Unknown user");
+    return user;
+  }
+
   const token = readSessionCookie(request);
   if (!token) {
     throw new DomainError("FORBIDDEN", "Authentication required");

@@ -71,7 +71,10 @@ describe("listing + revocation", () => {
 
     const tokens = await listApiTokens(s.requester.id);
     expect(tokens.map((t) => t.name).sort()).toEqual(["one", "two"]);
-    for (const t of tokens) expect(t.tokenHash).toBeUndefined();
+    for (const t of tokens) {
+      expect(t).not.toHaveProperty("tokenHash");
+      expect(JSON.stringify(t)).not.toMatch(/[a-z0-9]{43}/);
+    }
   });
 
   it("revokes by id", async () => {

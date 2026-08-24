@@ -153,16 +153,22 @@ systemctl daemon-reload && systemctl enable --now hexprocure
 
 ### 5.1 Scheduled jobs (cron as the hexprocure user)
 
-```cron
-# drain integration outbox (CSV/webhook/email/QBO) every 5 minutes
-*/5 * * * * cd /opt/hexprocure/app && curl -s -X POST http://localhost:3000/api/v1/integrations/dispatch -H "cookie: <admin-session>" >/dev/null
-# generate recurring requisitions daily at 06:00
-0 6 * * * curl -s -X POST http://localhost:3000/api/v1/order-templates/run -H "cookie: <admin-session>" >/dev/null
+Create a machine token once as an admin:
+
+```bash
+curl -X POST https://procure.yourcompany.com/api/v1/auth/tokens   -H "content-type: application/json"   -H "cookie: <your admin session>"   -d '{"name":"cron"}'
+# → {"id":"…","plaintext":"hxp_…"} — store it, it is shown only once
 ```
 
-> The run endpoints authenticate with an admin session cookie. For unattended
-> cron, create a dedicated ADMIN account, log in once, and store its cookie;
-> a machine-token endpoint is on the roadmap (see Known gaps).
+```cron
+# drain integration outbox (CSV/webhook/email/QBO) every 5 minutes
+*/5 * * * * curl -s -X POST http://localhost:3000/api/v1/integrations/dispatch -H "Authorization: Bearer hxp_…" >/dev/null
+# generate recurring requisitions daily at 06:00
+0 6 * * * curl -s -X POST http://localhost:3000/api/v1/order-templates/run -H "Authorization: Bearer hxp_…" >/dev/null
+```
+
+The token carries the role of the admin who created it; revoke and rotate from
+`GET/DELETE /api/v1/auth/tokens` without touching cron schedules.
 
 ### 5.2 OCR sidecar (optional)
 
