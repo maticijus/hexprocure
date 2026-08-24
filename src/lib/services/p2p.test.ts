@@ -11,6 +11,7 @@ import {
   requisitionLines,
   approvals,
   invoices,
+  integrationEvents as integrationEventsTable,
 } from "@/lib/db/schema";
 import {
   submitRequisition,
@@ -268,4 +269,57 @@ describe("authorization and state guards", () => {
 
 afterAll(async () => {
   await pool.end();
+});
+
+describe("notification event emission", () => {
+  it("enqueues APPROVAL_REQUESTED per step with approver-role recipients", async () => {
+    const s = await seed();
+    const req = await createRequisitionWithLine(s.requester.id, s.supplier.id, s.cc.id, 2, 1999);
+    await submitRequisition(req.id, s.requester.id);
+
+    const events = await db.select().from(integrationEventsTable);
+    const requested = events.filter((e) => e.eventType === "APPROVAL_REQUESTED");
+    expect(requested).toHaveLength(1);
+    expect(requested[0].payload.to).toEqual([s.manager.email]);
+  });
+
+  it("enqueues REQUISITION_DECIDED to the requester on rejection", async () => {
+    const s = await seed();
+    const req = await createRequisitionWithLine(s.requester.id, s.supplier.id, s.cc.id, 1, 1000);
+    await submitRequisition(req.id, s.requester.id);
+    const [approval] = await db.select().from(approvals);
+
+    await decideApproval(approval.id, s.manager.id, "reject");
+
+    const decided = (await db.select().from(integrationEventsTable))
+      .filter((e) => e.eventType === "REQUISITION_DECIDED");
+    expect(decided).toHaveLength(1);
+    expect(decided[0].payload.to).toEqual([s.requester.email]);
+    expect(decided[0].payload.decision).toBe("REJECTED");
+  });
+
+  it("notifies FINANCE users when matching produces exceptions", async () => {
+    const s = await seed();
+    const req = await createRequisitionWithLine(s.requester.id, s.supplier.id, s.cc.id, 5, 2000);
+    await submitRequisition(req.id, s.requester.id);
+    const [approval] = await db.select().from(approvals);
+    await decideApproval(approval.id, s.manager.id, "approve");
+    const poResult = await createPurchaseOrder(req.id, s.manager.id);
+
+    const [invoice] = await db
+      .insert(invoices)
+      .values({ supplierId: s.supplier.id, purchaseOrderId: poResult.purchaseOrderId, number: "INV-X" })
+      .returning();
+    const { invoiceLines } = await import("@/lib/db/schema");
+    await db.insert(invoiceLines).values({
+      invoiceId: invoice.id, poLineId: null, quantity: 9, unitPriceMinor: 1,
+    });
+    await matchInvoiceById(invoice.id, s.finance.id);
+
+    const events = (await db.select().from(integrationEventsTable))
+      .filter((e) => e.eventType === "INVOICE_EXCEPTION");
+    expect(events).toHaveLength(1);
+    expect(events[0].payload.to).toEqual([s.finance.email]);
+    expect(events[0].payload.invoiceNumber).toBe("INV-X");
+  });
 });
