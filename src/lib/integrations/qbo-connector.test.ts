@@ -56,7 +56,12 @@ async function seedConnectionAndEvent(eventType: "PO_CREATED" | "INVOICE_APPROVE
             },
     })
     .returning();
-  return { event };
+  const normalized = {
+    id: event.id,
+    type: event.eventType,
+    payload: event.payload,
+  } as typeof event;
+  return { event: normalized };
 }
 
 describe("createQboConnector", () => {
