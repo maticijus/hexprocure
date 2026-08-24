@@ -3,6 +3,7 @@ import { StatusPill, formatEur } from "@/components/ui";
 import { eq as eq_, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
+import { QboStatusCard } from "@/components/QboStatusCard";
 import {
 
 
@@ -88,6 +89,8 @@ export default async function DashboardPage() {
           </div>
         ))}
       </div>
+
+      {(user.role === "FINANCE" || user.role === "ADMIN") && <QboStatusCard isAdmin={user.role === "ADMIN"} />}
 
       {budget && (
         <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100 mb-8">

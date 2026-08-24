@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 interface TemplateRow {
@@ -32,20 +32,27 @@ export default function RecurringPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(() => {
-    fetch("/api/v1/order-templates")
-      .then((r) => r.json())
-      .then((d) => setTemplates(d.templates ?? []))
-      .catch(() => {});
-  }, []);
+  const [templatesTick, setTemplatesTick] = useState(0);
 
   useEffect(() => {
-    load();
+    let cancelled = false;
+    fetch("/api/v1/order-templates")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setTemplates(d.templates ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [templatesTick]);
+
+  useEffect(() => {
     fetch("/api/v1/meta/options")
       .then((r) => r.json())
       .then(setOptions)
       .catch(() => {});
-  }, [load]);
+  }, []);
 
   async function create() {
     setBusy(true);
@@ -70,7 +77,7 @@ export default function RecurringPage() {
     });
     if (res.status === 201) {
       setMessage("Template created ✓");
-      load();
+      setTemplatesTick((t) => t + 1);
       router.refresh();
     } else {
       const d = await res.json().catch(() => null);

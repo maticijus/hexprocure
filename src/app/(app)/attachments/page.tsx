@@ -27,16 +27,21 @@ export default function AttachmentsPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const loadList = useCallback(() => {
-    fetch("/api/v1/attachments")
-      .then((r) => r.json())
-      .then((d) => setRows(d.attachments ?? []))
-      .catch(() => {});
-  }, []);
+  const [listTick, setListTick] = useState(0);
+  const reloadList = () => setListTick((t) => t + 1);
 
   useEffect(() => {
-    loadList();
-  }, [loadList]);
+    let cancelled = false;
+    fetch("/api/v1/attachments")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setRows(d.attachments ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [listTick]);
 
   const loadEntities = useCallback((type: string) => {
     if (!type) return;
@@ -64,7 +69,7 @@ export default function AttachmentsPage() {
       setFile(null);
       const input = document.getElementById("file-input") as HTMLInputElement | null;
       if (input) input.value = "";
-      loadList();
+      reloadList();
       router.refresh();
     } else {
       const d = await res.json().catch(() => null);
@@ -76,7 +81,7 @@ export default function AttachmentsPage() {
   async function remove(id: string) {
     if (!confirm("Delete this attachment?")) return;
     const res = await fetch(`/api/v1/attachments/${id}`, { method: "DELETE" });
-    if (res.ok) loadList();
+    if (res.ok) reloadList();
     else setMessage("Delete failed");
   }
 
