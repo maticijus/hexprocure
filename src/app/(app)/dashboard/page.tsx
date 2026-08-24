@@ -3,7 +3,6 @@ import { eq as eq_, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import {
-  requisitions,
 
 
   budgets,
@@ -53,21 +52,21 @@ export default async function DashboardPage() {
     open_reqs: number; budget_minor: string; reserved_minor: string; exception_invoices: number;
   }[];
 
-  const recentReqs = await db
-    .select({
-      id: requisitions.id,
-      status: requisitions.status,
-      currency: requisitions.currency,
-      createdAt: requisitions.createdAt,
-      supplier: { name: sql<string>`s.name` },
-      totalMinor: sql<number>`COALESCE(SUM(${sql.raw("rl.quantity * rl.unit_price_minor")}), 0)`,
-    })
-    .from(requisitions)
-    .leftJoin(sql`suppliers s`, sql`s.id = ${requisitions.supplierId}`)
-    .leftJoin(sql`requisition_lines rl`, sql`rl.requisition_id = ${requisitions.id}`)
-    .groupBy(requisitions.id)
-    .orderBy(sql`${requisitions.createdAt} DESC`)
-    .limit(6);
+  const recentReqs = (
+    await db.execute(sql`
+      SELECT r.id, r.status, r.created_at,
+             s.name AS supplier_name,
+             COALESCE(SUM(rl.quantity * rl.unit_price_minor), 0) AS total_minor
+      FROM requisitions r
+      LEFT JOIN suppliers s ON s.id = r.supplier_id
+      LEFT JOIN requisition_lines rl ON rl.requisition_id = r.id
+      GROUP BY r.id, s.name
+      ORDER BY r.created_at DESC
+      LIMIT 6
+    `)
+  ).rows as {
+    id: string; status: string; created_at: string; supplier_name: string | null; total_minor: string;
+  }[];
 
   const [budget] = await db
     .select({ cc: costCenters.name, minor: budgets.budgetedMinor })
@@ -146,11 +145,11 @@ export default async function DashboardPage() {
           <tbody>
             {recentReqs.map((r) => (
               <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50/60">
-                <td className="px-5 py-3 font-medium">{r.supplier?.name ?? "—"}</td>
-                <td className="px-5 py-3">{eur(Number(r.totalMinor))}</td>
+                <td className="px-5 py-3 font-medium">{r.supplier_name ?? "—"}</td>
+                <td className="px-5 py-3">{eur(Number(r.total_minor))}</td>
                 <td className="px-5 py-3"><StatusPill status={r.status} /></td>
                 <td className="px-5 py-3 text-gray-500">
-                  {new Date(r.createdAt).toLocaleDateString("en-GB")}
+                  {new Date(r.created_at).toLocaleDateString("en-GB")}
                 </td>
               </tr>
             ))}
