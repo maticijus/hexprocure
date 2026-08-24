@@ -29,6 +29,13 @@
       "when": 1787587092780,
       "tag": "0003_recurring",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787589381210,
+      "tag": "0004_qbo",
+      "breakpoints": true
     }
   ]
 }

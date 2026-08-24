@@ -245,6 +245,39 @@ export const orderTemplateLines = pgTable("order_template_lines", {
   kind: poLineKind("kind").notNull().default("GOODS"),
 });
 
+export const integrationConnectionStatus = pgEnum("integration_connection_status", [
+  "ACTIVE",
+  "EXPIRED",
+  "REVOKED",
+  "ERROR",
+]);
+
+export const integrationsConnections = pgTable("integrations_connections", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  provider: text("provider").notNull(),
+  realmId: text("realm_id").notNull(),
+  accessTokenEnc: text("access_token_enc").notNull(),
+  refreshTokenEnc: text("refresh_token_enc").notNull(),
+  accessExpiresAt: timestamp("access_expires_at", { withTimezone: true }).notNull(),
+  refreshExpiresAt: timestamp("refresh_expires_at", { withTimezone: true }).notNull(),
+  status: integrationConnectionStatus("status").notNull().default("ACTIVE"),
+  lastError: text("last_error"),
+  connectedByUserId: uuid("connected_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const qboSyncMap = pgTable("qbo_sync_map", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  eventId: uuid("event_id")
+    .notNull()
+    .references(() => integrationEvents.id),
+  entityType: text("entity_type").notNull(),
+  localEntityId: uuid("local_entity_id").notNull(),
+  qboEntityId: text("qbo_entity_id").notNull(),
+  syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const attachmentEntityType = pgEnum("attachment_entity_type", [
   "requisition",
   "purchase_order",
