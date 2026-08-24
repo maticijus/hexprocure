@@ -89,7 +89,7 @@ describe("POST /api/v1/requisitions", () => {
   });
 
   it("rejects missing actor header with 403", async () => {
-    const s = await seed();
+    await seed();
     const res = await createRequisition(
       req("http://localhost/api/v1/requisitions", {
         method: "POST",

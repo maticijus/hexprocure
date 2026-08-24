@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auditEvents, requisitionLines, requisitions } from "@/lib/db/schema";
-import { DomainError } from "@/lib/services/p2p";
 import { errorToResponse, getActor, readJson } from "@/lib/api/helpers";
 
 async function audit(
