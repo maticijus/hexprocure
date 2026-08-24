@@ -107,6 +107,12 @@ Email + password registration and login. Passwords are hashed with scrypt (uniqu
 
 Coupa-inspired enterprise layout: sidebar navigation, dashboard KPI cards (open requisitions, monthly budget, reserved spend, invoice exceptions), budget utilization bar, approval inbox with inline approve/reject, and list views with color-coded status pills throughout.
 
+## Deployment
+
+Full step-by-step production guide — server prep, configuration reference, role
+model, systemd/cron setup, nginx+TLS, backups and a go-live checklist — lives in
+[docs/deployment.md](docs/deployment.md).
+
 ## Stack
 
 Next.js 16 (App Router) · TypeScript · PostgreSQL · Drizzle ORM · Tailwind CSS 4 · Vitest · FastAPI sidecar for OCR
