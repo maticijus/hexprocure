@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { attachments, invoices, purchaseOrders, requisitions, users } from "@/lib/db/schema";
 import { DomainError } from "./p2p";
@@ -101,6 +101,10 @@ export async function uploadAttachment(
     })
     .returning();
   return row;
+}
+
+export async function listAttachments() {
+  return db.select().from(attachments).orderBy(desc(attachments.createdAt)).limit(100);
 }
 
 export async function getAttachmentContent(

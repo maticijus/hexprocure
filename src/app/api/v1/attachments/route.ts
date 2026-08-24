@@ -1,8 +1,28 @@
 import { NextResponse } from "next/server";
-import { uploadAttachment, type AttachmentEntityType } from "@/lib/services/attachments";
+import { listAttachments, uploadAttachment, type AttachmentEntityType } from "@/lib/services/attachments";
 import { errorToResponse, getActor } from "@/lib/api/helpers";
 
 const ENTITY_TYPES = new Set(["requisition", "purchase_order", "invoice"]);
+
+export async function GET(request: Request) {
+  try {
+    await getActor(request);
+    const rows = await listAttachments();
+    return NextResponse.json({
+      attachments: rows.map((r) => ({
+        id: r.id,
+        entityType: r.entityType,
+        entityId: r.entityId,
+        filename: r.filename,
+        sizeBytes: r.sizeBytes,
+        uploadedByUserId: r.uploadedByUserId,
+        createdAt: r.createdAt,
+      })),
+    });
+  } catch (error) {
+    return errorToResponse(error);
+  }
+}
 
 export async function POST(request: Request) {
   try {
