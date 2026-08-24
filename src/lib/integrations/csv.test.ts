@@ -53,7 +53,7 @@ describe("CSV connector", () => {
     expect(header.split(",").indexOf("record_type")).toBeLessThan(
       header.split(",").indexOf("reference"),
     );
-    for (const line of csv.split("\n").slice(1)) {
+    for (const line of csv.split("\n").filter((l) => l.length > 0).slice(1)) {
       expect(line.split(",").length).toBe(header.split(",").length);
     }
   });
