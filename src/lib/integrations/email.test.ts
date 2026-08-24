@@ -16,10 +16,10 @@ const approvalEvent: IntegrationEvent = {
 
 describe("renderNotification", () => {
   it("renders an approval request with amount and link path", () => {
-    const mail = renderNotification(approvalEvent);
+    const mail = renderNotification(approvalEvent)!;
     expect(mail.subject).toContain("Approval needed");
     expect(mail.text).toContain("Acme GmbH");
-    expect(mail.text).toContain("199.90");
+    expect(mail.text).toContain("199,90");
     expect(mail.to).toEqual(["max@hex.test"]);
   });
 
@@ -28,7 +28,7 @@ describe("renderNotification", () => {
       id: "e2",
       type: "REQUISITION_DECIDED",
       payload: { to: ["rita@hex.test"], requisitionId: "req-1", decision: "APPROVED" },
-    });
+    })!;
     expect(mail.subject).toMatch(/APPROVED/i);
     expect(mail.to).toEqual(["rita@hex.test"]);
   });
@@ -42,7 +42,7 @@ describe("renderNotification", () => {
         invoiceNumber: "INV-9",
         exceptions: [{ type: "PRICE_MISMATCH" }, { type: "QUANTITY_MISMATCH" }],
       },
-    });
+    })!;
     expect(mail.subject).toContain("INV-9");
     expect(mail.text).toContain("PRICE_MISMATCH");
   });

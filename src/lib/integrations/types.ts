@@ -1,6 +1,12 @@
 export interface IntegrationEvent {
   id: string;
-  type: "PO_CREATED" | "PO_CANCELLED" | "INVOICE_APPROVED";
+  type:
+    | "PO_CREATED"
+    | "PO_CANCELLED"
+    | "INVOICE_APPROVED"
+    | "APPROVAL_REQUESTED"
+    | "REQUISITION_DECIDED"
+    | "INVOICE_EXCEPTION";
   payload: Record<string, unknown>;
 }
 
