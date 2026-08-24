@@ -6,6 +6,7 @@ import { verifySessionToken, SESSION_COOKIE } from "@/lib/auth";
 import { DomainError } from "@/lib/services/p2p";
 
 const STATUS_BY_CODE: Record<DomainError["code"], number> = {
+  VALIDATION: 400,
   NOT_FOUND: 404,
   INVALID_STATE: 409,
   BUDGET_EXCEEDED: 422,

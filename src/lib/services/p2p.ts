@@ -30,7 +30,8 @@ export class DomainError extends Error {
       | "NOT_FOUND"
       | "INVALID_STATE"
       | "BUDGET_EXCEEDED"
-      | "FORBIDDEN",
+      | "FORBIDDEN"
+    | "VALIDATION",
     message: string,
     readonly details?: unknown,
   ) {
