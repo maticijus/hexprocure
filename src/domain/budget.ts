@@ -90,6 +90,7 @@ export function reserve(
   amount: Money,
   reservationId: string,
 ): BudgetState {
+  requireEntry(state, costCenterId, month);
   const result = guard(state, costCenterId, month, amount);
   if (result.status === "exceeded") {
     throw new Error(
