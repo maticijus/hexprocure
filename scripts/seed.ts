@@ -16,10 +16,12 @@ async function main() {
   }
 
   const pw = hashPassword("password123");
-  const [rita] = await db.insert(users).values({ name: "Rita Requester", email: "rita@hexprocure.dev", passwordHash: pw }).returning();
-  const [max] = await db.insert(users).values({ name: "Max Manager", email: "max@hexprocure.dev", role: "MANAGER", passwordHash: pw }).returning();
-  const [fiona] = await db.insert(users).values({ name: "Fiona Finance", email: "fiona@hexprocure.dev", role: "FINANCE", passwordHash: pw }).returning();
-  const [admin] = await db.insert(users).values({ name: "Ada Admin", email: "admin@hexprocure.dev", role: "ADMIN", passwordHash: pw }).returning();
+  const ritaRows = await db.insert(users).values({ name: "Rita Requester", email: "rita@hexprocure.dev", passwordHash: pw }).returning();
+  const [rita] = ritaRows;
+  const maxRows = await db.insert(users).values({ name: "Max Manager", email: "max@hexprocure.dev", role: "MANAGER", passwordHash: pw }).returning();
+  const [max] = maxRows;
+  await db.insert(users).values({ name: "Fiona Finance", email: "fiona@hexprocure.dev", role: "FINANCE", passwordHash: pw });
+  await db.insert(users).values({ name: "Ada Admin", email: "admin@hexprocure.dev", role: "ADMIN", passwordHash: pw });
 
   const [acme] = await db.insert(suppliers).values({ name: "Acme Office GmbH", email: "orders@acme.de" }).returning();
   const [tech] = await db.insert(suppliers).values({ name: "TechSupply AG", email: "sales@techsupply.ch" }).returning();
