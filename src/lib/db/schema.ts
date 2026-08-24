@@ -204,6 +204,26 @@ export const invoiceLines = pgTable("invoice_lines", {
   unitPriceMinor: integer("unit_price_minor").notNull(),
 });
 
+export const attachmentEntityType = pgEnum("attachment_entity_type", [
+  "requisition",
+  "purchase_order",
+  "invoice",
+]);
+
+export const attachments = pgTable("attachments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  entityType: attachmentEntityType("entity_type").notNull(),
+  entityId: uuid("entity_id").notNull(),
+  filename: text("filename").notNull(),
+  mimeType: text("mime_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  storageKey: text("storage_key").notNull(),
+  uploadedByUserId: uuid("uploaded_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const auditEvents = pgTable("audit_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   entityType: text("entity_type").notNull(),
