@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { eq, sql } from "drizzle-orm";
+import type { Connector } from "./types";
 import { db } from "@/lib/db";
 import { integrationEvents } from "@/lib/db/schema";
 import {
@@ -7,7 +8,6 @@ import {
   registerConnector,
   clearConnectors,
 } from "./dispatch";
-import type { Connector, IntegrationEvent } from "./types";
 import { csvConnector } from "./csv";
 
 beforeEach(async () => {
