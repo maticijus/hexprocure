@@ -7,7 +7,7 @@ import {
 
 const req = (opts: { method?: string; origin?: string | null; host?: string; ip?: string }) => {
   const headers = new Headers({ host: opts.host ?? "procure.example.com" });
-  if (opts.origin !== undefined) headers.set("origin", opts.origin);
+  if (opts.origin !== undefined && opts.origin !== null) headers.set("origin", opts.origin);
   if (opts.ip) headers.set("x-forwarded-for", opts.ip);
   return new Request("https://procure.example.com/api/v1/x", {
     method: opts.method ?? "POST",
