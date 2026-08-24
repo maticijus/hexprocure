@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { matchInvoice, type MatchContext, type PoLine, type InvoiceLine } from "./matching";
+import { matchInvoice, type MatchContext } from "./matching";
 
 const svcScenario = (): MatchContext => ({
   poLines: [{ id: "svc-1", quantityOrdered: 1, unitPriceMinor: 1_000_000, kind: "SERVICE" }],

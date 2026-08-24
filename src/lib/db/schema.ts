@@ -26,6 +26,8 @@ export const requisitionStatus = pgEnum("requisition_status", [
 
 export const poStatus = pgEnum("po_status", ["OPEN", "CLOSED", "CANCELLED"]);
 
+export const poLineKind = pgEnum("po_line_kind", ["GOODS", "SERVICE"]);
+
 export const invoiceStatus = pgEnum("invoice_status", [
   "PENDING",
   "MATCHED",
@@ -110,6 +112,7 @@ export const requisitionLines = pgTable("requisition_lines", {
   description: text("description").notNull(),
   quantity: integer("quantity").notNull(),
   unitPriceMinor: integer("unit_price_minor").notNull(),
+  kind: poLineKind("kind").notNull().default("GOODS"),
 });
 
 export const approvals = pgTable("approvals", {
@@ -150,6 +153,7 @@ export const poLines = pgTable("po_lines", {
   description: text("description").notNull(),
   quantityOrdered: integer("quantity_ordered").notNull(),
   unitPriceMinor: integer("unit_price_minor").notNull(),
+  kind: poLineKind("kind").notNull().default("GOODS"),
 });
 
 export const receipts = pgTable("receipts", {
@@ -202,6 +206,8 @@ export const invoiceLines = pgTable("invoice_lines", {
   poLineId: uuid("po_line_id").references(() => poLines.id),
   quantity: integer("quantity").notNull(),
   unitPriceMinor: integer("unit_price_minor").notNull(),
+  /** Authoritative billed amount for SERVICE lines. */
+  amountMinor: integer("amount_minor"),
 });
 
 export const attachmentEntityType = pgEnum("attachment_entity_type", [

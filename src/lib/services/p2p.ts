@@ -240,6 +240,7 @@ export async function createPurchaseOrder(requisitionId: string, actorUserId: st
         description: l.description,
         quantityOrdered: l.quantity,
         unitPriceMinor: l.unitPriceMinor,
+        kind: (l as { kind?: "GOODS" | "SERVICE" }).kind ?? "GOODS",
       })),
     );
 
@@ -320,7 +321,7 @@ export async function cancelPurchaseOrder(purchaseOrderId: string, actorUserId: 
 
 export async function addReceipt(
   purchaseOrderId: string,
-  lines: { poLineId: string; quantityReceived: number }[],
+  lines: { poLineId: string; quantityReceived: number; accepted?: boolean }[],
   actorUserId: string,
 ) {
   return db.transaction(async (tx) => {
@@ -340,6 +341,13 @@ export async function addReceipt(
       const poLine = orderedById.get(line.poLineId);
       if (!poLine || poLine.purchaseOrderId !== purchaseOrderId) {
         throw new DomainError("NOT_FOUND", `Unknown PO line ${line.poLineId}`);
+      }
+      const kind = (poLine as { kind?: "GOODS" | "SERVICE" }).kind ?? "GOODS";
+      if (kind === "SERVICE") {
+        if (!line.accepted) {
+          throw new DomainError("INVALID_STATE", `Service line ${line.poLineId} requires accepted:true`);
+        }
+        continue;
       }
       const priorReceipts = await tx
         .select({ qty: receiptLines.quantityReceived })
@@ -367,15 +375,18 @@ export async function addReceipt(
       })),
     );
 
-    const poLineIds = (await tx.select().from(poLines).where(eq(poLines.purchaseOrderId, purchaseOrderId))).map((p) => p.id);
+    const allPoLines = await tx.select().from(poLines).where(eq(poLines.purchaseOrderId, purchaseOrderId));
+    const poLineIds = allPoLines.map((p) => p.id);
     const allReceipts = await tx
       .select({ poLineId: receiptLines.poLineId, qty: receiptLines.quantityReceived })
       .from(receiptLines)
       .where(inArray(receiptLines.poLineId, poLineIds.length ? poLineIds : ["00000000-0000-0000-0000-000000000000"]));
-    const fullyReceived = poLineIds.length > 0 && poLineIds.every((id) => {
-      const ordered = orderedById.get(id)?.quantityOrdered;
-      const got = allReceipts.filter((r) => r.poLineId === id).reduce((s, r) => s + r.qty, 0);
-      return ordered !== undefined && got >= ordered;
+    const fullyReceived = allPoLines.length > 0 && allPoLines.every((pl) => {
+      if (pl.kind === "SERVICE") {
+        return allReceipts.some((r) => r.poLineId === pl.id);
+      }
+      const got = allReceipts.filter((r) => r.poLineId === pl.id).reduce((sum, r) => sum + r.qty, 0);
+      return got >= pl.quantityOrdered;
     });
     if (fullyReceived) {
       await tx.update(purchaseOrders).set({ status: "CLOSED" }).where(eq(purchaseOrders.id, purchaseOrderId));
@@ -430,20 +441,45 @@ export async function matchInvoiceById(invoiceId: string, actorUserId: string) {
       }
     }
 
+    const previouslyInvoicedAmountByPoLine: Record<string, number> = {};
+    const serviceIds = new Set(poLineRows.filter((p) => p.kind === "SERVICE").map((p) => p.id));
+    if (serviceIds.size > 0) {
+      const priorAmountRows = await tx
+        .select({
+          poLineId: invoiceLines.poLineId,
+          invoiceId: invoiceLines.invoiceId,
+          amountMinor: invoiceLines.amountMinor,
+          qty: invoiceLines.quantity,
+          unit: invoiceLines.unitPriceMinor,
+        })
+        .from(invoiceLines)
+        .innerJoin(invoices, eq(invoiceLines.invoiceId, invoices.id))
+        .where(and(inArray(invoiceLines.poLineId, [...serviceIds]), eq(invoices.purchaseOrderId, invoice.purchaseOrderId)));
+      for (const row of priorAmountRows) {
+        if (!row.poLineId || row.invoiceId === invoiceId) continue;
+        const amount = row.amountMinor ?? row.qty * row.unit;
+        previouslyInvoicedAmountByPoLine[row.poLineId] =
+          (previouslyInvoicedAmountByPoLine[row.poLineId] ?? 0) + amount;
+      }
+    }
+
     const result = matchInvoice(
       {
         poLines: poLineRows.map((p) => ({
           id: p.id,
           quantityOrdered: p.quantityOrdered,
           unitPriceMinor: p.unitPriceMinor,
+          kind: p.kind,
         })),
         receivedQtyByPoLine,
         previouslyInvoicedQtyByPoLine,
+        previouslyInvoicedAmountByPoLine,
       },
       invLines.map((l) => ({
         poLineId: l.poLineId,
         quantity: l.quantity,
         unitPriceMinor: l.unitPriceMinor,
+        amountMinor: l.amountMinor ?? undefined,
       })),
     );
 
