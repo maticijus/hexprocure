@@ -95,15 +95,11 @@ export function createEmailConnector(
   };
 }
 
+import nodemailer from "nodemailer";
+
 function defaultTransport(): MailTransport | null {
   const smtpUrl = process.env.SMTP_URL;
   if (!smtpUrl) return null;
-  // Lazy require keeps nodemailer out of every test path; only loaded when
-  // SMTP_URL is configured. Kept dynamic so the dependency stays optional at runtime.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports -- see comment above
-  const nodemailer = require("nodemailer") as {
-    createTransport: (url: string) => { sendMail: (m: MailMessage) => Promise<unknown> };
-  };
   const sender = nodemailer.createTransport(smtpUrl);
   return (message) =>
     sender.sendMail({ ...message, from: process.env.SMTP_FROM } as MailMessage & {
