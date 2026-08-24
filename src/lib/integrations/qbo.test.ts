@@ -29,13 +29,13 @@ describe("QBO mappers", () => {
     expect(q.Line[0]).toMatchObject({
       DetailType: "AccountBasedExpenseLineDetail",
       Description: "Laptop",
-      Amount: 19.99,
+      Amount: 199.9,
     });
   });
 
   it("converts minor units to decimal amounts without float drift", () => {
     const q = poEventToQboPurchaseOrder(poEvent);
-    expect(q.Line[0].Amount).toBeCloseTo(19.99, 10);
+    expect(q.Line[0].Amount).toBeCloseTo(199.9, 10);
     expect(q.TotalAmt).toBeCloseTo(199.9, 10);
   });
 

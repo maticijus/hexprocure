@@ -21,7 +21,7 @@ function escapeCell(value: string | number | undefined | null): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-type Row = Record<(typeof COLUMNS)[number], string | number | undefined>;
+type Row = Partial<Record<(typeof COLUMNS)[number], string | number | undefined>>;
 
 export function eventToCsvRows(event: IntegrationEvent): Row[] {
   switch (event.type) {
