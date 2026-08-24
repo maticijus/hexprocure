@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# HexProcure
 
-## Getting Started
+Lightweight, open procure-to-pay for SMBs: requisitions → rule-based approvals → purchase orders → goods receipt → invoice matching, with budget control and ERP/AP integrations.
 
-First, run the development server:
+**Status:** MVP / not production-hardened. See [Known gaps](#known-gaps) before deploying.
+
+## Features
+
+- **P2P core** — requisitions with line items, amount-banded approval chains with escalation, PO generation, partial/full goods receipt, invoice capture with 2/3-way matching (quantity, cumulative over-invoicing, price tolerance)
+- **Budget control** — monthly budgets per cost center; POs reserve budget atomically (`SELECT … FOR UPDATE`), cancellation releases
+- **Integrations** — transactional outbox + pluggable connectors: universal CSV flat-file export, HMAC-signed generic webhooks, QuickBooks Online payload mappers
+- **Auth** — email/password (scrypt), HttpOnly HMAC-signed session cookies
+- **UI** — Coupa-inspired: dashboard KPIs, approval inbox, list views with status pills
+
+## Stack
+
+Next.js 16 (App Router) · TypeScript · PostgreSQL · Drizzle ORM · Tailwind CSS 4 · Vitest
+
+## Quick start
+
+Prereqs: Node 22+, a local PostgreSQL.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env            # then edit DATABASE_URL / AUTH_SECRET
+npx drizzle-kit generate        # create migration SQL from schema
+psql "$DATABASE_URL" -f drizzle/0000_init.sql -f drizzle/0001_integrations.sql -f drizzle/0002_auth.sql
+npx tsx scripts/seed.ts         # demo users + data
+npm run dev                     # http://localhost:3000/login
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Demo logins (password `password123`): `rita@hexprocure.dev` (requester), `max@…` (manager), `fiona@…` (finance), `admin@…` (admin).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run dev          # dev server
+npm run build        # production build
+npm run lint         # eslint
+npx tsc --noEmit     # typecheck
+npx vitest run             # all tests
+npx vitest run --coverage  # with coverage gate on business logic
+```
 
-## Learn More
+Tests use their own database via `.env.test` so they never touch dev data.
 
-To learn more about Next.js, take a look at the following resources:
+## Architecture
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+src/
+  domain/       Pure business logic (money, approvals, budgets, matching). No I/O.
+  lib/
+    services/   Transactional flows wiring domain ↔ Postgres
+    api/        Auth + error mapping for route handlers
+    integrations/ Outbox dispatch + connectors (CSV, webhook, QBO mappers)
+    db/         Drizzle schema + client
+  app/          Next.js routes & API handlers (thin adapters)
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Dependency rule: `app → lib → domain`; the domain layer is pure and fully unit-tested. API contract and product brief live in [`docs/`](docs/).
 
-## Deploy on Vercel
+## Known gaps
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- No CSRF tokens beyond `SameSite=Lax` cookies; no rate limiting
+- Session revocation (stateless tokens until a session store lands)
+- QBO connector ships payload mappers only — OAuth client not implemented
+- Integration dispatch is pull-based (`POST /api/v1/integrations/dispatch`) — needs a scheduler in production
+- Single-currency display (EUR); money stored currency-aware but UI assumes EUR
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+
+MIT — see [LICENSE](LICENSE).

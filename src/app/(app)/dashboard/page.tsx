@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { StatusPill, formatEur } from "@/components/ui";
 import { eq as eq_, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
@@ -11,31 +12,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const STATUS_STYLES: Record<string, string> = {
-  DRAFT: "bg-gray-100 text-gray-700",
-  SUBMITTED: "bg-blue-50 text-blue-700",
-  APPROVED: "bg-green-50 text-green-700",
-  REJECTED: "bg-red-50 text-red-700",
-  OPEN: "bg-blue-50 text-blue-700",
-  CLOSED: "bg-gray-100 text-gray-600",
-  CANCELLED: "bg-red-50 text-red-700",
-  MATCHED: "bg-green-50 text-green-700",
-  EXCEPTION: "bg-amber-50 text-amber-700",
-};
 
-function StatusPill({ status }: { status: string }) {
-  return (
-    <span
-      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[status] ?? "bg-gray-100"}`}
-    >
-      {status}
-    </span>
-  );
-}
 
-function eur(minor: number) {
-  return `€${(minor / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })}`;
-}
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
@@ -82,8 +60,8 @@ export default async function DashboardPage() {
 
   const cards = [
     { label: "Open Requisitions", value: String(counts?.open_reqs ?? 0), accent: "text-[var(--brand)]" },
-    { label: "Monthly Budget", value: eur(Number(counts?.budget_minor ?? 0)), accent: "" },
-    { label: "Reserved This Month", value: eur(Number(counts?.reserved_minor ?? 0)), accent: "" },
+    { label: "Monthly Budget", value: formatEur(Number(counts?.budget_minor ?? 0)), accent: "" },
+    { label: "Reserved This Month", value: formatEur(Number(counts?.reserved_minor ?? 0)), accent: "" },
     { label: "Invoice Exceptions", value: String(counts?.exception_invoices ?? 0), accent: "text-amber-600" },
   ];
 
@@ -146,7 +124,7 @@ export default async function DashboardPage() {
             {recentReqs.map((r) => (
               <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50/60">
                 <td className="px-5 py-3 font-medium">{r.supplier_name ?? "—"}</td>
-                <td className="px-5 py-3">{eur(Number(r.total_minor))}</td>
+                <td className="px-5 py-3">{formatEur(Number(r.total_minor))}</td>
                 <td className="px-5 py-3"><StatusPill status={r.status} /></td>
                 <td className="px-5 py-3 text-gray-500">
                   {new Date(r.created_at).toLocaleDateString("en-GB")}

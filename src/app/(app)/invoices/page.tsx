@@ -1,15 +1,10 @@
 import { sql } from "drizzle-orm";
+import { StatusPill, formatEur } from "@/components/ui";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_STYLES: Record<string, string> = {
-  PENDING: "bg-gray-100 text-gray-700",
-  MATCHED: "bg-green-50 text-green-700",
-  EXCEPTION: "bg-amber-50 text-amber-700",
-  APPROVED: "bg-emerald-50 text-emerald-700",
-};
 
 export default async function InvoicesPage() {
   await getCurrentUser();
@@ -42,9 +37,9 @@ export default async function InvoicesPage() {
               <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50/60">
                 <td className="px-5 py-3 font-medium">{r.number}</td>
                 <td className="px-5 py-3">{r.supplier ?? "—"}</td>
-                <td className="px-5 py-3">€{(Number(r.total_minor) / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })}</td>
+                <td className="px-5 py-3">{formatEur(Number(r.total_minor))}</td>
                 <td className="px-5 py-3">
-                  <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[r.status] ?? ""}`}>{r.status}</span>
+                  <StatusPill status={r.status} />
                 </td>
               </tr>
             ))}

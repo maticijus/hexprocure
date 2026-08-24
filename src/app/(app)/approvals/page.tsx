@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { ApprovalActions } from "@/components/ApprovalActions";
+import { formatEur } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,7 @@ export default async function ApprovalsPage() {
               <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50/60">
                 <td className="px-5 py-3 font-mono text-xs">{r.req_id.slice(0, 8)}…</td>
                 <td className="px-5 py-3 font-medium">{r.supplier ?? "—"}</td>
-                <td className="px-5 py-3">€{(Number(r.total_minor) / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })}</td>
+                <td className="px-5 py-3">{formatEur(Number(r.total_minor))}</td>
                 <td className="px-5 py-3"><ApprovalActions approvalId={r.id} /></td>
               </tr>
             ))}

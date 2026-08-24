@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import { db, pool } from "@/lib/db";
+import { db } from "@/lib/db";
 import {
   approvalRules,
   approvals,
@@ -464,4 +464,3 @@ export async function approveInvoice(invoiceId: string, actorUserId: string) {
   });
 }
 
-export { pool, suppliers, users, costCenters, budgets, approvalRules, requisitions, requisitionLines, invoices, invoiceLines };

@@ -1,19 +1,11 @@
 import { sql } from "drizzle-orm";
+import { StatusPill, formatEur } from "@/components/ui";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-function eur(minor: number) {
-  return `€${(minor / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })}`;
-}
 
-const STATUS_STYLES: Record<string, string> = {
-  DRAFT: "bg-gray-100 text-gray-700",
-  SUBMITTED: "bg-blue-50 text-blue-700",
-  APPROVED: "bg-green-50 text-green-700",
-  REJECTED: "bg-red-50 text-red-700",
-};
 
 export default async function RequisitionsPage() {
   await getCurrentUser();
@@ -54,11 +46,9 @@ export default async function RequisitionsPage() {
             {rows.map((r) => (
               <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50/60">
                 <td className="px-5 py-3 font-medium">{r.supplier ?? "—"}</td>
-                <td className="px-5 py-3">{eur(Number(r.total_minor))}</td>
+                <td className="px-5 py-3">{formatEur(Number(r.total_minor))}</td>
                 <td className="px-5 py-3">
-                  <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[r.status] ?? ""}`}>
-                    {r.status}
-                  </span>
+                  <StatusPill status={r.status} />
                 </td>
                 <td className="px-5 py-3 text-gray-500">
                   {new Date(r.created_at).toLocaleDateString("en-GB")}
