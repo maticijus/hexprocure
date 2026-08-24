@@ -24,7 +24,7 @@ interface CreateRequisitionBody {
   supplierId?: string;
   costCenterId?: string;
   currency?: string;
-  lines?: { description?: string; quantity?: number; unitPriceMinor?: number }[];
+  lines?: { description?: string; quantity?: number; unitPriceMinor?: number; kind?: string }[];
 }
 
 export async function POST(request: Request) {
@@ -67,6 +67,7 @@ export async function POST(request: Request) {
           description: l.description!.trim(),
           quantity: l.quantity!,
           unitPriceMinor: l.unitPriceMinor!,
+          kind: l.kind === "SERVICE" ? ("SERVICE" as const) : ("GOODS" as const),
         })),
       );
       await audit(tx, "requisition", req.id, "CREATED", actor.id, {

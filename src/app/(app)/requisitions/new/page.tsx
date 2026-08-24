@@ -17,6 +17,7 @@ export default function NewRequisitionPage() {
   const [description, setDescription] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [unitPrice, setUnitPrice] = useState("");
+  const [kind, setKind] = useState<"GOODS" | "SERVICE">("GOODS");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -42,7 +43,12 @@ export default function NewRequisitionPage() {
         costCenterId,
         currency: "EUR",
         lines: [
-          { description, quantity, unitPriceMinor: Math.round(parseFloat(unitPrice) * 100) },
+          {
+            description,
+            quantity,
+            unitPriceMinor: Math.round(parseFloat(unitPrice) * 100),
+            kind,
+          },
         ],
       }),
     });
@@ -82,13 +88,20 @@ export default function NewRequisitionPage() {
           Description
           <input required value={description} onChange={(e) => setDescription(e.target.value)} className={input} placeholder="What are you buying?" />
         </label>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <label className={label}>
-            Quantity
+            Kind
+            <select value={kind} onChange={(e) => setKind(e.target.value as "GOODS" | "SERVICE")} className={input}>
+              <option value="GOODS">Goods</option>
+              <option value="SERVICE">Service</option>
+            </select>
+          </label>
+          <label className={label}>
+            {kind === "SERVICE" ? "Total Amount (€)" : "Quantity"}
             <input type="number" min={1} required value={quantity} onChange={(e) => setQuantity(parseInt(e.target.value))} className={input} />
           </label>
           <label className={label}>
-            Unit Price (€)
+            {kind === "SERVICE" ? "Ordered Amount (€)" : "Unit Price (€)"}
             <input type="number" step="0.01" min="0" required value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} className={input} placeholder="0.00" />
           </label>
         </div>
