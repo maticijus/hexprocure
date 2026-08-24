@@ -1,6 +1,6 @@
 # MVP2 Spec — Daily-Usage Blockers & Scope Boundary
 
-Status: PROPOSED · Derived from the product-critical review of v1 (2026-08-24)
+Status: §1–§5 SHIPPED · §6 specced separately in [qbo-live-spec.md](qbo-live-spec.md) · Derived from the product-critical review of v1 (2026-08-24)
 Goal: turn HexProcure from *pilot-able* into *habit-forming* for the target SME
 (20–100 employees, indirect-heavy spend, QuickBooks/Xero/Lexware accounting).
 
