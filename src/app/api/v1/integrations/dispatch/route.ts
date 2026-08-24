@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { dispatchPendingEvents } from "@/lib/integrations/dispatch";
 import { csvConnector } from "@/lib/integrations/csv";
 import { createEmailConnector } from "@/lib/integrations/email";
+import { createQboConnector } from "@/lib/integrations/qbo-connector";
+import { hasHealthyQboConnection } from "@/lib/integrations/qbo-connection";
 import { createWebhookConnector } from "@/lib/integrations/webhook";
 import { registerConnector, clearConnectors } from "@/lib/integrations/dispatch";
 import { DomainError } from "@/lib/services/p2p";
@@ -25,6 +27,10 @@ function configureConnectors() {
   clearConnectors();
   registerConnector(csvConnector);
   registerConnector(createEmailConnector());
+  if (process.env.QBO_CLIENT_ID && process.env.QBO_CLIENT_SECRET) {
+    registerConnector(createQboConnector());
+  }
+  void hasHealthyQboConnection;
   const webhookUrl = process.env.INTEGRATION_WEBHOOK_URL;
   if (webhookUrl) {
     registerConnector(

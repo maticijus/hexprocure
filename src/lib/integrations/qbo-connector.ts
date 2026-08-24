@@ -18,9 +18,9 @@ function apiBase(): string {
 function mapEventToQboPayload(event: IntegrationEvent): Record<string, unknown> {
   switch (event.type) {
     case "PO_CREATED":
-      return poEventToQboPurchaseOrder(event);
+      return { ...poEventToQboPurchaseOrder(event) };
     case "INVOICE_APPROVED":
-      return invoiceEventToQboBill(event);
+      return { ...invoiceEventToQboBill(event) };
     default:
       throw new Error(`QBO connector does not handle ${event.type}`);
   }

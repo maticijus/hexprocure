@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { eq } from "drizzle-orm";
-import { db, pool } from "@/lib/db";
+import { db } from "@/lib/db";
 import { integrationsConnections } from "@/lib/db/schema";
 import { seedOrg, truncateAll } from "@/lib/testing/seed";
 import {
@@ -10,7 +9,6 @@ import {
   revokeConnection,
 } from "./qbo-connection";
 
-const KEYS = { current: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" };
 
 beforeEach(async () => {
   await truncateAll();
@@ -35,7 +33,7 @@ describe("upsertQboConnection", () => {
       accessToken: "PLAINTEXT-ACCESS-123",
       refreshToken: "PLAINTEXT-REFRESH-456",
       accessExpiresIn: 3600,
-      userId: s.admin?.id ?? s.requester.id,
+      userId: s.requester.id,
     });
 
     const [row] = await db.select().from(integrationsConnections);

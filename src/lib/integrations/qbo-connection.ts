@@ -33,7 +33,8 @@ export async function upsertQboConnection(input: {
   accessToken: string;
   refreshToken: string;
   accessExpiresIn: number;
-  userId: string;
+  /** Intuit's redirect carries no session; recorded when initiated server-side. */
+  userId?: string;
 }): Promise<StoredConnection> {
   const keys = await requireKeys();
   const now = Date.now();
@@ -46,7 +47,7 @@ export async function upsertQboConnection(input: {
     refreshExpiresAt: new Date(now + REFRESH_TOKEN_LIFETIME_DAYS * 24 * 3600 * 1000),
     status: "ACTIVE" as const,
     lastError: null,
-    connectedByUserId: input.userId,
+    connectedByUserId: input.userId ?? null,
     updatedAt: new Date(),
   };
 

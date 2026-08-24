@@ -8,6 +8,7 @@ import {
 import { seedOrg, truncateAll } from "@/lib/testing/seed";
 import { upsertQboConnection } from "./qbo-connection";
 import { createQboConnector } from "./qbo-connector";
+import type { IntegrationEvent } from "./types";
 
 const KEYS = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
 
@@ -21,6 +22,9 @@ beforeEach(async () => {
 function qboOk(qboId: string) {
   return new Response(JSON.stringify({ PurchaseOrder: { Id: qboId }, Id: qboId }), { status: 200 });
 }
+
+const PO_ID = crypto.randomUUID();
+const INV_ID = crypto.randomUUID();
 
 async function seedConnectionAndEvent(eventType: "PO_CREATED" | "INVOICE_APPROVED") {
   const s = await seedOrg();
@@ -38,7 +42,7 @@ async function seedConnectionAndEvent(eventType: "PO_CREATED" | "INVOICE_APPROVE
       payload:
         eventType === "PO_CREATED"
           ? {
-              purchaseOrderId: "po-1",
+              purchaseOrderId: PO_ID,
               supplier: "Acme",
               costCenter: "IT",
               currency: "EUR",
@@ -47,12 +51,12 @@ async function seedConnectionAndEvent(eventType: "PO_CREATED" | "INVOICE_APPROVE
               lines: [{ description: "Laptop", quantity: 1, unitPriceMinor: 10000 }],
             }
           : {
-              invoiceId: "inv-1",
+              invoiceId: INV_ID,
               invoiceNumber: "INV-1",
               supplier: "Acme",
               currency: "EUR",
               totalMinor: 10000,
-              purchaseOrderId: "po-1",
+              purchaseOrderId: PO_ID,
             },
     })
     .returning();
@@ -60,7 +64,7 @@ async function seedConnectionAndEvent(eventType: "PO_CREATED" | "INVOICE_APPROVE
     id: event.id,
     type: event.eventType,
     payload: event.payload,
-  } as typeof event;
+  } as unknown as IntegrationEvent;
   return { event: normalized };
 }
 
