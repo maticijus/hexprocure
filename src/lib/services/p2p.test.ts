@@ -4,15 +4,13 @@ import { db, pool } from "@/lib/db";
 import {
   users,
   suppliers,
-  costCenters,
   budgets,
-  approvalRules,
-  requisitions,
-  requisitionLines,
   approvals,
   invoices,
   integrationEvents as integrationEventsTable,
 } from "@/lib/db/schema";
+import { seedOrg, createRequisitionWithLine, truncateAll } from "@/lib/testing/seed";
+
 import {
   submitRequisition,
   decideApproval,
@@ -24,86 +22,13 @@ import {
   DomainError,
 } from "@/lib/services/p2p";
 
-async function seed() {
-  const [requester] = await db
-    .insert(users)
-    .values({ name: "Requester Rita", email: `rita-${Date.now()}@hex.test` })
-    .returning();
-  const [manager] = await db
-    .insert(users)
-    .values({ name: "Manager Max", email: `max-${Date.now()}@hex.test`, role: "MANAGER" })
-    .returning();
-  const [finance] = await db
-    .insert(users)
-    .values({ name: "Finance Fiona", email: `fiona-${Date.now()}@hex.test`, role: "FINANCE" })
-    .returning();
-  const [supplier] = await db
-    .insert(suppliers)
-    .values({ name: "Acme GmbH" })
-    .returning();
-  const [cc] = await db.insert(costCenters).values({ name: "IT" }).returning();
-  const yearMonth = new Date().toISOString().slice(0, 7);
-  const [budget] = await db
-    .insert(budgets)
-    .values({ costCenterId: cc.id, yearMonth, budgetedMinor: 1_000_000, currency: "EUR" })
-    .returning();
-  const rules = await db
-    .insert(approvalRules)
-    .values([
-      { sequence: 1, minMinor: 0, maxMinor: 50000, approverRole: "MANAGER", currency: "EUR" },
-      { sequence: 2, minMinor: 50000, maxMinor: null, approverRole: "FINANCE", currency: "EUR" },
-    ])
-    .returning();
-  return { requester, manager, finance, supplier, cc, yearMonth, budget, rules };
-}
-
-async function createRequisitionWithLine(
-  requesterId: string,
-  supplierId: string,
-  costCenterId: string,
-  qty: number,
-  unitPriceMinor: number,
-) {
-  const [req] = await db
-    .insert(requisitions)
-    .values({ requesterId, supplierId, costCenterId, currency: "EUR" })
-    .returning();
-  await db.insert(requisitionLines).values({
-    requisitionId: req.id,
-    description: "Laptops",
-    quantity: qty,
-    unitPriceMinor,
-  });
-  return req;
-}
-
 beforeEach(async () => {
-  for (const table of [
-    "audit_events",
-    "integration_events",
-    "invoice_lines",
-    "invoices",
-    "receipt_lines",
-    "receipts",
-    "po_lines",
-    "purchase_orders",
-    "budget_reservations",
-    "approvals",
-    "requisition_lines",
-    "requisitions",
-    "approval_rules",
-    "budgets",
-    "cost_centers",
-    "suppliers",
-    "users",
-  ]) {
-    await db.execute(sql.raw(`TRUNCATE ${table} CASCADE`));
-  }
+  await truncateAll();
 });
 
 describe("P2P happy path", () => {
   it("walks requisition → approval → PO → receipt → invoice MATCHED → APPROVED", async () => {
-    const s = await seed();
+    const s = await seedOrg();
 
     const req = await createRequisitionWithLine(
       s.requester.id,
@@ -159,7 +84,7 @@ describe("P2P happy path", () => {
 
 describe("budget guard at PO time", () => {
   it("rejects PO creation exceeding remaining budget with BUDGET_EXCEEDED", async () => {
-    const s = await seed();
+    const s = await seedOrg();
     await db
       .update(budgets)
       .set({ budgetedMinor: 10000 })
@@ -190,7 +115,7 @@ describe("budget guard at PO time", () => {
 
 describe("authorization and state guards", () => {
   it("forbids a MANAGER deciding a FINANCE step", async () => {
-    const s = await seed();
+    const s = await seedOrg();
     const req = await createRequisitionWithLine(
       s.requester.id,
       s.supplier.id,
@@ -207,7 +132,7 @@ describe("authorization and state guards", () => {
   });
 
   it("refuses to approve an EXCEPTION invoice", async () => {
-    const s = await seed();
+    const s = await seedOrg();
     const req = await createRequisitionWithLine(
       s.requester.id,
       s.supplier.id,
@@ -244,7 +169,7 @@ describe("authorization and state guards", () => {
   });
 
   it("cancelling a PO releases its budget reservation", async () => {
-    const s = await seed();
+    const s = await seedOrg();
     await db.update(budgets).set({ budgetedMinor: 30000 }).where(eq(budgets.id, s.budget.id));
     const req = await createRequisitionWithLine(s.requester.id, s.supplier.id, s.cc.id, 10, 2500);
     await submitRequisition(req.id, s.requester.id);
@@ -274,7 +199,7 @@ afterAll(async () => {
 
 describe("notification event emission", () => {
   it("enqueues APPROVAL_REQUESTED per step with approver-role recipients", async () => {
-    const s = await seed();
+    const s = await seedOrg();
     const req = await createRequisitionWithLine(s.requester.id, s.supplier.id, s.cc.id, 2, 1999);
     await submitRequisition(req.id, s.requester.id);
 
@@ -285,7 +210,7 @@ describe("notification event emission", () => {
   });
 
   it("enqueues REQUISITION_DECIDED to the requester on rejection", async () => {
-    const s = await seed();
+    const s = await seedOrg();
     const req = await createRequisitionWithLine(s.requester.id, s.supplier.id, s.cc.id, 1, 1000);
     await submitRequisition(req.id, s.requester.id);
     const [approval] = await db.select().from(approvals);
@@ -300,7 +225,7 @@ describe("notification event emission", () => {
   });
 
   it("notifies FINANCE users when matching produces exceptions", async () => {
-    const s = await seed();
+    const s = await seedOrg();
     const req = await createRequisitionWithLine(s.requester.id, s.supplier.id, s.cc.id, 5, 2000);
     await submitRequisition(req.id, s.requester.id);
     const [approval] = await db.select().from(approvals);
