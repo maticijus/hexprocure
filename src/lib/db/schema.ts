@@ -211,6 +211,18 @@ export const invoiceLines = pgTable("invoice_lines", {
   amountMinor: integer("amount_minor"),
 });
 
+export const apiTokens = pgTable("api_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  tokenHash: text("token_hash").notNull().unique(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+});
+
 export const orderCadence = pgEnum("order_cadence", [
   "MONTHLY",
   "QUARTERLY",
