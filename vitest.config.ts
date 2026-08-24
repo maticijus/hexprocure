@@ -6,6 +6,7 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.ts"],
     setupFiles: ["dotenv/config"],
+    fileParallelism: false,
     coverage: {
       provider: "v8",
       include: ["src/domain/**", "src/lib/**"],
