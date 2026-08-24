@@ -1,25 +1,33 @@
+export type PoLineKind = "GOODS" | "SERVICE";
+
 export interface PoLine {
   id: string;
   quantityOrdered: number;
   unitPriceMinor: number;
+  kind?: PoLineKind;
 }
 
 export interface InvoiceLine {
   poLineId: string | null;
   quantity: number;
   unitPriceMinor: number;
+  /** Authoritative billed amount for SERVICE lines. */
+  amountMinor?: number;
 }
 
 export interface MatchContext {
   poLines: PoLine[];
   receivedQtyByPoLine: Record<string, number>;
   previouslyInvoicedQtyByPoLine: Record<string, number>;
+  /** Cumulative prior invoiced amounts for SERVICE lines. */
+  previouslyInvoicedAmountByPoLine?: Record<string, number>;
 }
 
 export type MatchExceptionType =
   | "UNMATCHED_LINE"
   | "QUANTITY_MISMATCH"
   | "OVER_INVOICED"
+  | "OVER_INVOICED_AMOUNT"
   | "PRICE_MISMATCH";
 
 export interface MatchException {
@@ -71,6 +79,21 @@ export function matchInvoice(
           : "Invoice line has no PO reference",
       });
       return;
+    }
+
+    if (poLine.kind === "SERVICE") {
+      const orderedAmount = poLine.quantityOrdered * poLine.unitPriceMinor;
+      const priorAmount = ctx.previouslyInvoicedAmountByPoLine?.[poLine.id] ?? 0;
+      const thisAmount = line.amountMinor ?? line.quantity * line.unitPriceMinor;
+      if (priorAmount + thisAmount > orderedAmount) {
+        exceptions.push({
+          type: "OVER_INVOICED_AMOUNT",
+          invoiceLineIndex: i,
+          poLineId: poLine.id,
+          detail: `Cumulative invoiced ${priorAmount + thisAmount} exceeds ordered ${orderedAmount}`,
+        });
+      }
+      return; // services: no quantity or price checks
     }
 
     const received = ctx.receivedQtyByPoLine[poLine.id] ?? 0;
