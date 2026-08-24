@@ -107,6 +107,13 @@ Email + password registration and login. Passwords are hashed with scrypt (uniqu
 
 Coupa-inspired enterprise layout: sidebar navigation, dashboard KPI cards (open requisitions, monthly budget, reserved spend, invoice exceptions), budget utilization bar, approval inbox with inline approve/reject, and list views with color-coded status pills throughout.
 
+## Roadmap
+
+Next iteration specced in [docs/mvp3-spec.md](docs/mvp3-spec.md): machine API
+tokens, CSRF + rate limiting, spend analytics, full UI surfaces, Playwright E2E,
+Docker Compose — leading to the v0.1.0 release. QBO live OAuth is specced and
+waiting only on Intuit credentials ([docs/qbo-live-spec.md](docs/qbo-live-spec.md)).
+
 ## Deployment
 
 Full step-by-step production guide — server prep, configuration reference, role
