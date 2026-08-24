@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { addMonthsIso, cadenceStepMonths } from "./recurring";
+import { addMonthsIso, cadenceStepMonths } from "./recurring-cadence";
 
 describe("cadenceStepMonths", () => {
   it("maps cadences to month steps", () => {

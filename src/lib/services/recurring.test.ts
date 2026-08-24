@@ -6,7 +6,6 @@ import {
   orderTemplates,
   requisitionLines,
   requisitions,
-  users,
 } from "@/lib/db/schema";
 import { seedOrg, truncateAll } from "@/lib/testing/seed";
 import { createOrderTemplate, generateDueRequisitions } from "./recurring";
