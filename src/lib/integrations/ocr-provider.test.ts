@@ -40,3 +40,25 @@ describe("PaddleOcrProvider", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("PaddleOcrProvider response validation", () => {
+  const png = Buffer.from("bytes");
+
+  it("throws on malformed sidecar JSON (missing text field)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ foo: 1 }), { status: 200 }));
+    const provider = new PaddleOcrProvider("http://x", fetchMock as unknown as typeof fetch);
+    await expect(provider.extract(png, "a.pdf")).rejects.toThrow(/malformed/i);
+  });
+
+  it("still binds correctly when the method is called detached", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ text: "ok", lines: [] }), { status: 200 }),
+    );
+    const provider = new PaddleOcrProvider("http://x", fetchMock as unknown as typeof fetch);
+    const detached = provider.extract;
+    const result = await detached(png, "a.pdf");
+    expect(result.text).toBe("ok");
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe("http://x/ocr");
+  });
+});

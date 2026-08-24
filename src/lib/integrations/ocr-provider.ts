@@ -15,12 +15,15 @@ export interface OcrProvider {
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 export class PaddleOcrProvider implements OcrProvider {
-  constructor(
-    private readonly baseUrl: string,
-    private readonly fetchImpl: typeof fetch = fetch,
-  ) {}
+  private readonly baseUrl: string;
+  private readonly fetchImpl: typeof fetch;
 
-  async extract(file: Buffer, filename: string): Promise<OcrResult> {
+  constructor(baseUrl: string, fetchImpl: typeof fetch = fetch) {
+    this.baseUrl = baseUrl;
+    this.fetchImpl = fetchImpl;
+  }
+
+  extract = async (file: Buffer, filename: string): Promise<OcrResult> => {
     if (file.length === 0) throw new Error("Cannot OCR an empty file");
     if (file.length > MAX_FILE_BYTES) throw new Error("File exceeds the 10 MB OCR limit");
 
@@ -34,6 +37,10 @@ export class PaddleOcrProvider implements OcrProvider {
     if (!res.ok) {
       throw new Error(`OCR service failed with HTTP ${res.status}`);
     }
-    return (await res.json()) as OcrResult;
-  }
+    const data = (await res.json()) as Partial<OcrResult>;
+    if (typeof data.text !== "string" || !Array.isArray(data.lines)) {
+      throw new Error("OCR service returned a malformed response");
+    }
+    return { text: data.text, lines: data.lines };
+  };
 }

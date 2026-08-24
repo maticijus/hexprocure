@@ -24,8 +24,7 @@ export async function POST(request: Request) {
       );
     }
     const buffer = Buffer.from(await file.arrayBuffer());
-    const ocr = new PaddleOcrProvider(ocrUrl).extract;
-    const result = await ocr(buffer, file.name);
+    const result = await new PaddleOcrProvider(ocrUrl).extract(buffer, file.name);
     const draft = parseInvoiceText(result.text);
     return NextResponse.json({ draft, rawText: result.text.slice(0, 5000) });
   } catch (error) {
