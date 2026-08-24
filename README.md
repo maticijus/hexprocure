@@ -23,8 +23,7 @@ Prereqs: Node 22+, a local PostgreSQL.
 ```bash
 npm install
 cp .env.example .env            # then edit DATABASE_URL / AUTH_SECRET
-npx drizzle-kit generate        # create migration SQL from schema
-psql "$DATABASE_URL" -f drizzle/0000_init.sql -f drizzle/0001_integrations.sql -f drizzle/0002_auth.sql
+npx drizzle-kit migrate         # apply schema to your database
 npx tsx scripts/seed.ts         # demo users + data
 npm run dev                     # http://localhost:3000/login
 ```

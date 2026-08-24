@@ -1,3 +1,4 @@
+CREATE TYPE "public"."integration_event_status" AS ENUM('PENDING', 'DELIVERED', 'FAILED');--> statement-breakpoint
 CREATE TYPE "public"."invoice_status" AS ENUM('PENDING', 'MATCHED', 'EXCEPTION', 'APPROVED');--> statement-breakpoint
 CREATE TYPE "public"."po_status" AS ENUM('OPEN', 'CLOSED', 'CANCELLED');--> statement-breakpoint
 CREATE TYPE "public"."requisition_status" AS ENUM('DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED');--> statement-breakpoint
@@ -51,6 +52,17 @@ CREATE TABLE "budgets" (
 CREATE TABLE "cost_centers" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"name" text NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "integration_events" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"event_type" text NOT NULL,
+	"payload" jsonb NOT NULL,
+	"status" "integration_event_status" DEFAULT 'PENDING' NOT NULL,
+	"attempts" integer DEFAULT 0 NOT NULL,
+	"last_error" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"delivered_at" timestamp with time zone
 );
 --> statement-breakpoint
 CREATE TABLE "invoice_lines" (
@@ -132,6 +144,7 @@ CREATE TABLE "users" (
 	"name" text NOT NULL,
 	"email" text NOT NULL,
 	"role" "user_role" DEFAULT 'REQUESTER' NOT NULL,
+	"password_hash" text,
 	CONSTRAINT "users_email_unique" UNIQUE("email")
 );
 --> statement-breakpoint
