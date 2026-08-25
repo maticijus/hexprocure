@@ -254,9 +254,55 @@ migration must be undone.
 
 ## 9. Alternative: Docker Compose
 
-A compose file wrapping app + Postgres + OCR sidecar is a welcome contribution
-(roadmap). The pieces above map 1:1: three services, one volume each, same env
-vars, same cron entry points.
+Replaces §2 (server prep), §3 (application setup) and §5 (process management):
+one command brings up app + Postgres 16 + the OCR sidecar, with healthchecks
+and persistent volumes. You still need §4 (role model), §6 (reverse proxy —
+point it at `localhost:3000`), §7–§8 and §10.
+
+### 9.1 Prerequisites
+
+- Docker Engine ≥ 24 and Compose v2 (`docker compose version`)
+- Port 3000 free for the app
+
+### 9.2 Configuration
+
+```bash
+git clone https://github.com/maticijus/hexprocure.git && cd hexprocure
+cp .env.example .env && chmod 600 .env
+```
+
+Edit `.env`: set `AUTH_SECRET` (`openssl rand -base64 32`) and any optional
+integration variables. Ignore `DATABASE_URL` from the example — Compose
+overrides it to point at the `db` service, and wires `INTEGRATION_OCR_URL` to
+`http://ocr:8100`. Non-default Postgres credentials: set `POSTGRES_USER`,
+`POSTGRES_PASSWORD`, `POSTGRES_DB`.
+
+### 9.3 Start & verify
+
+```bash
+docker compose up -d --build   # db → one-shot migrate → app (+ OCR sidecar)
+curl -s localhost:3000/api/health   # {"status":"ok","database":true}
+```
+
+Migrations run automatically before the app starts (`_migrations` table tracks
+applied files). Register your first admin as in §3.3. Cron jobs (§5.1) can run
+on the host against `localhost:3000` exactly as documented.
+
+### 9.4 Data & lifecycle
+
+| Volume | Contents | Survives `down` |
+|---|---|---|
+| `pgdata` | database | yes |
+| `uploads` | attachments (`DATA_DIR`) | yes |
+
+```bash
+docker compose logs -f app     # troubleshoot
+docker compose pull && docker compose up -d --build   # update
+docker compose down            # keeps volumes; add -v to wipe everything
+```
+
+Backups: `docker compose exec db pg_dump -U hexprocure hexprocure > backup.sql`
+(replaces the bare-metal pg_dump in §8).
 
 ## 10. Security checklist before go-live
 

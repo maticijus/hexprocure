@@ -35,6 +35,12 @@ class OcrResponse(BaseModel):
     lines: list[OcrLine]
 
 
+@app.get("/health")
+async def health() -> dict:
+    """Cheap liveness probe — must not trigger PaddleOCR model loading."""
+    return {"status": "ok"}
+
+
 def pdf_to_images(data: bytes) -> list[bytes]:
     import fitz  # PyMuPDF
 

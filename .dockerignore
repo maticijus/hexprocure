@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.github
+.data
+coverage
+test-results
+playwright-report
+.env*
+!.env.example
+*.md
+!docs/*.md
+Dockerfile
+compose.yaml
+.agents
