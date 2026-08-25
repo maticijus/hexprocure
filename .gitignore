@@ -45,3 +45,7 @@ coverage/
 
 # local upload artifacts
 .data/
+
+# playwright
+/test-results/
+/playwright-report/

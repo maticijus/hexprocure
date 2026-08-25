@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { StatusPill, formatEur } from "@/components/ui";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
+import { RequisitionRowActions } from "@/components/RequisitionRowActions";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,7 @@ export default async function RequisitionsPage() {
               <th className="px-5 py-3">Total</th>
               <th className="px-5 py-3">Status</th>
               <th className="px-5 py-3">Created</th>
+              <th className="px-5 py-3"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody>
@@ -53,10 +55,13 @@ export default async function RequisitionsPage() {
                 <td className="px-5 py-3 text-gray-500">
                   {new Date(r.created_at).toLocaleDateString("en-GB")}
                 </td>
+                <td className="px-5 py-3">
+                  <RequisitionRowActions requisitionId={r.id} status={r.status} />
+                </td>
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={4} className="px-5 py-8 text-center text-gray-400">No requisitions yet</td></tr>
+              <tr><td colSpan={5} className="px-5 py-8 text-center text-gray-400">No requisitions yet</td></tr>
             )}
           </tbody>
         </table>
