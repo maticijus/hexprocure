@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { db, pool } from "@/lib/db";
-import { TRUNCATE_TABLES, truncateAll } from "@/lib/testing/seed";
+import { truncateAll } from "@/lib/testing/seed";
 import {
   users,
   suppliers,
