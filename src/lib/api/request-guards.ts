@@ -66,6 +66,20 @@ export function resetRateLimits(): void {
   windows.clear();
 }
 
+/** Spec classes (auth 10 · mutations 60 · reads 300 per minute) with env
+ *  overrides so load tests and E2E can raise them without code changes. */
+export function limitsPerMinute(): { auth: number; mutation: number; read: number } {
+  const positive = (raw: string | undefined, fallback: number) => {
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+  };
+  return {
+    auth: positive(process.env.RATE_LIMIT_AUTH_PER_MIN, 10),
+    mutation: positive(process.env.RATE_LIMIT_MUTATION_PER_MIN, 60),
+    read: positive(process.env.RATE_LIMIT_READ_PER_MIN, 300),
+  };
+}
+
 export function checkRateLimit(
   request: Request,
   limit: number,

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   checkCsrfOrigin,
   checkRateLimit,
+  limitsPerMinute,
   resetRateLimits,
 } from "./request-guards";
 
@@ -78,5 +79,24 @@ describe("rate limiting", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("limitsPerMinute", () => {
+  it("defaults to the spec classes: auth 10, mutations 60, reads 300", () => {
+    delete process.env.RATE_LIMIT_AUTH_PER_MIN;
+    delete process.env.RATE_LIMIT_MUTATION_PER_MIN;
+    delete process.env.RATE_LIMIT_READ_PER_MIN;
+    expect(limitsPerMinute()).toEqual({ auth: 10, mutation: 60, read: 300 });
+  });
+
+  it("honours env overrides (E2E/load-test escape hatch)", () => {
+    process.env.RATE_LIMIT_AUTH_PER_MIN = "1000";
+    process.env.RATE_LIMIT_MUTATION_PER_MIN = "9999";
+    process.env.RATE_LIMIT_READ_PER_MIN = "0";
+    expect(limitsPerMinute()).toEqual({ auth: 1000, mutation: 9999, read: 300 });
+    delete process.env.RATE_LIMIT_AUTH_PER_MIN;
+    delete process.env.RATE_LIMIT_MUTATION_PER_MIN;
+    delete process.env.RATE_LIMIT_READ_PER_MIN;
   });
 });
