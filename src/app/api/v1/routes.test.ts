@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { db, pool } from "@/lib/db";
+import { TRUNCATE_TABLES, truncateAll } from "@/lib/testing/seed";
 import {
   users,
   suppliers,
@@ -54,27 +55,7 @@ async function seed() {
 }
 
 beforeEach(async () => {
-  for (const table of [
-    "audit_events",
-    "integration_events",
-    "invoice_lines",
-    "invoices",
-    "receipt_lines",
-    "receipts",
-    "po_lines",
-    "purchase_orders",
-    "budget_reservations",
-    "approvals",
-    "requisition_lines",
-    "requisitions",
-    "approval_rules",
-    "budgets",
-    "cost_centers",
-    "suppliers",
-    "users",
-  ]) {
-    await db.execute(sql.raw(`TRUNCATE ${table} CASCADE`));
-  }
+  await truncateAll();
 });
 
 describe("POST /api/v1/requisitions", () => {

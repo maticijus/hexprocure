@@ -10,26 +10,36 @@ import {
   requisitionLines,
 } from "@/lib/db/schema";
 
+/** Leaf-to-root order so FKs never block; must cover EVERY table in the
+ *  schema or tests leak state across runs (see seed.test.ts guard). */
+export const TRUNCATE_TABLES = [
+  "integration_events",
+  "qbo_sync_map",
+  "integrations_connections",
+  "audit_events",
+  "attachments",
+  "api_tokens",
+  "invoice_lines",
+  "invoices",
+  "receipt_lines",
+  "receipts",
+  "po_lines",
+  "purchase_orders",
+  "order_template_lines",
+  "order_templates",
+  "budget_reservations",
+  "approvals",
+  "requisition_lines",
+  "requisitions",
+  "approval_rules",
+  "budgets",
+  "cost_centers",
+  "suppliers",
+  "users",
+];
+
 export async function truncateAll() {
-  for (const table of [
-    "integration_events",
-    "audit_events",
-    "invoice_lines",
-    "invoices",
-    "receipt_lines",
-    "receipts",
-    "po_lines",
-    "purchase_orders",
-    "budget_reservations",
-    "approvals",
-    "requisition_lines",
-    "requisitions",
-    "approval_rules",
-    "budgets",
-    "cost_centers",
-    "suppliers",
-    "users",
-  ]) {
+  for (const table of TRUNCATE_TABLES) {
     await db.execute(sql.raw(`TRUNCATE ${table} CASCADE`));
   }
 }
