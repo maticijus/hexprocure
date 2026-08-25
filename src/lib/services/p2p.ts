@@ -398,6 +398,90 @@ export async function addReceipt(
   });
 }
 
+export interface CreateInvoiceInput {
+  supplierId: string;
+  purchaseOrderId: string;
+  number: string;
+  lines: { poLineId?: string; quantity?: number; unitPriceMinor?: number; amountMinor?: number }[];
+}
+
+export async function createInvoice(input: CreateInvoiceInput, actorUserId: string) {
+  if (!input.supplierId) throw new DomainError("VALIDATION", "supplierId is required");
+  if (!input.purchaseOrderId) throw new DomainError("VALIDATION", "purchaseOrderId is required");
+  const number = input.number?.trim();
+  if (!number) throw new DomainError("VALIDATION", "number is required");
+  if (!Array.isArray(input.lines) || input.lines.length === 0) {
+    throw new DomainError("VALIDATION", "at least one invoice line is required");
+  }
+  for (const [i, line] of input.lines.entries()) {
+    if (typeof line.quantity !== "number" || !Number.isInteger(line.quantity) || line.quantity <= 0) {
+      throw new DomainError("VALIDATION", `line ${i}: quantity must be a positive integer`);
+    }
+    if (
+      typeof line.unitPriceMinor !== "number" ||
+      !Number.isInteger(line.unitPriceMinor) ||
+      line.unitPriceMinor < 0
+    ) {
+      throw new DomainError("VALIDATION", `line ${i}: unitPriceMinor must be a non-negative integer`);
+    }
+    if (line.amountMinor !== undefined && (!Number.isInteger(line.amountMinor) || line.amountMinor < 0)) {
+      throw new DomainError("VALIDATION", `line ${i}: amountMinor must be a non-negative integer`);
+    }
+  }
+
+  return db.transaction(async (tx) => {
+    const [po] = await tx.select().from(purchaseOrders).where(eq(purchaseOrders.id, input.purchaseOrderId));
+    if (!po) throw new DomainError("NOT_FOUND", "PO not found");
+    if (po.supplierId !== input.supplierId) {
+      throw new DomainError("VALIDATION", "supplierId does not match the PO supplier");
+    }
+
+    const referencedPoLineIds = input.lines
+      .map((l) => l.poLineId)
+      .filter((id): id is string => typeof id === "string");
+    const poLineRows = referencedPoLineIds.length
+      ? await tx.select().from(poLines).where(inArray(poLines.id, referencedPoLineIds))
+      : [];
+    const poLineById = new Map(poLineRows.map((p) => [p.id, p]));
+    for (const [i, line] of input.lines.entries()) {
+      if (line.poLineId && !poLineById.has(line.poLineId)) {
+        throw new DomainError("VALIDATION", `line ${i}: poLineId does not belong to this PO`);
+      }
+    }
+
+    try {
+      const [invoice] = await tx
+        .insert(invoices)
+        .values({
+          supplierId: po.supplierId,
+          purchaseOrderId: po.id,
+          number,
+          status: "PENDING",
+        })
+        .returning();
+      await tx.insert(invoiceLines).values(
+        input.lines.map((l) => ({
+          invoiceId: invoice.id,
+          poLineId: l.poLineId ?? null,
+          quantity: l.quantity!,
+          unitPriceMinor: l.unitPriceMinor!,
+          amountMinor: l.amountMinor ?? null,
+        })),
+      );
+      await audit(tx, "invoice", invoice.id, "CREATED", actorUserId, { number });
+      return invoice;
+    } catch (error) {
+      const pgCode =
+        (error as { code?: string }).code ??
+        (error as { cause?: { code?: string } }).cause?.code;
+      if (pgCode === "23505") {
+        throw new DomainError("INVALID_STATE", "Invoice number already exists for this supplier");
+      }
+      throw error;
+    }
+  });
+}
+
 export async function matchInvoiceById(invoiceId: string, actorUserId: string) {
   return db.transaction(async (tx) => {
     const [invoice] = await tx.select().from(invoices).where(eq(invoices.id, invoiceId));

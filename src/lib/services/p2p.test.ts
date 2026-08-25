@@ -15,6 +15,7 @@ import {
   createPurchaseOrder,
   cancelPurchaseOrder,
   addReceipt,
+  createInvoice,
   matchInvoiceById,
   approveInvoice,
   DomainError,
@@ -22,6 +23,98 @@ import {
 
 beforeEach(async () => {
   await truncateAll();
+});
+
+describe("createInvoice", () => {
+  async function openPoWithLine() {
+    const s = await seedOrg();
+    const req = await createRequisitionWithLine(s.requester.id, s.supplier.id, s.cc.id, 10, 1999);
+    await submitRequisition(req.id, s.requester.id);
+    const [approval] = await db.select().from(approvals);
+    await decideApproval(approval.id, s.manager.id, "approve");
+    const po = await createPurchaseOrder(req.id, s.manager.id);
+    const [poLine] = (
+      await db.execute(sql`SELECT id FROM po_lines WHERE purchase_order_id = ${po.purchaseOrderId}`)
+    ).rows as { id: string }[];
+    return { s, po, poLine };
+  }
+
+  it("creates a PENDING invoice with lines against an existing PO", async () => {
+    const { s, po, poLine } = await openPoWithLine();
+
+    const inv = await createInvoice(
+      {
+        supplierId: s.supplier.id,
+        purchaseOrderId: po.purchaseOrderId,
+        number: "INV-100",
+        lines: [{ poLineId: poLine.id, quantity: 10, unitPriceMinor: 1999 }],
+      },
+      s.finance.id,
+    );
+    expect(inv.status).toBe("PENDING");
+
+    const rows = await db.execute(sql`
+      SELECT i.number, l.po_line_id, l.quantity, l.unit_price_minor
+      FROM invoices i JOIN invoice_lines l ON l.invoice_id = i.id
+      WHERE i.id = ${inv.id}
+    `);
+    expect(rows.rows).toHaveLength(1);
+    expect(rows.rows[0]).toMatchObject({
+      number: "INV-100",
+      po_line_id: poLine.id,
+      quantity: 10,
+      unit_price_minor: 1999,
+    });
+  });
+
+  it("rejects supplier mismatch, unknown PO line, and duplicate number", async () => {
+    const { s, po, poLine } = await openPoWithLine();
+
+    await expect(
+      createInvoice(
+        {
+          supplierId: crypto.randomUUID(),
+          purchaseOrderId: po.purchaseOrderId,
+          number: "INV-X1",
+          lines: [{ poLineId: poLine.id, quantity: 1, unitPriceMinor: 1999 }],
+        },
+        s.finance.id,
+      ),
+    ).rejects.toMatchObject({ code: "VALIDATION" });
+
+    await expect(
+      createInvoice(
+        {
+          supplierId: s.supplier.id,
+          purchaseOrderId: po.purchaseOrderId,
+          number: "INV-X2",
+          lines: [{ poLineId: crypto.randomUUID(), quantity: 1, unitPriceMinor: 1999 }],
+        },
+        s.finance.id,
+      ),
+    ).rejects.toMatchObject({ code: "VALIDATION" });
+
+    await createInvoice(
+      {
+        supplierId: s.supplier.id,
+        purchaseOrderId: po.purchaseOrderId,
+        number: "INV-DUP",
+        lines: [{ quantity: 1, unitPriceMinor: 1999 }],
+      },
+      s.finance.id,
+    );
+    await expect(
+      createInvoice(
+        {
+          supplierId: s.supplier.id,
+          purchaseOrderId: po.purchaseOrderId,
+          number: "INV-DUP",
+          lines: [{ quantity: 1, unitPriceMinor: 1999 }],
+        },
+        s.finance.id,
+      ),
+    ).rejects.toMatchObject({ code: "INVALID_STATE" });
+  });
 });
 
 describe("P2P happy path", () => {

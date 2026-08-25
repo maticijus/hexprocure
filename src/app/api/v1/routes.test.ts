@@ -14,6 +14,7 @@ import { POST as submit } from "@/app/api/v1/requisitions/[id]/submit/route";
 import { POST as decide } from "@/app/api/v1/approvals/[id]/decide/route";
 import { POST as order } from "@/app/api/v1/requisitions/[id]/order/route";
 import { POST as addReceiptRoute } from "@/app/api/v1/purchase-orders/[id]/receipts/route";
+import { POST as createInvoiceRoute } from "@/app/api/v1/invoices/route";
 import {
   errorToResponse,
   getActor,
@@ -123,6 +124,43 @@ describe("POST /api/v1/requisitions", () => {
 });
 
 describe("full HTTP flow: create → submit → decide → order", () => {
+  async function orderToOpenPo() {
+    const s = await seed();
+    const created = await createRequisition(
+      req("http://localhost/api/v1/requisitions", {
+        method: "POST",
+        headers: { "content-type": "application/json", "cookie": authCookie(s.requester.id) },
+        body: JSON.stringify({
+          supplierId: s.supplier.id,
+          costCenterId: s.cc.id,
+          lines: [{ description: "Chairs", quantity: 4, unitPriceMinor: 5000 }],
+        }),
+      }),
+    );
+    const { id } = await created.json();
+    await submit(req("http://x", { method: "POST", headers: { cookie: authCookie(s.requester.id) } }), {
+      params: Promise.resolve({ id }),
+    } as never);
+    const [approval] = await db.select().from(approvals);
+    await decide(
+      req("http://x", {
+        method: "POST",
+        headers: { "content-type": "application/json", "cookie": authCookie(s.manager.id) },
+        body: JSON.stringify({ decision: "approve" }),
+      }),
+      { params: Promise.resolve({ id: approval.id }) } as never,
+    );
+    const ordered = await order(
+      req("http://x", { method: "POST", headers: { cookie: authCookie(s.requester.id) } }),
+      { params: Promise.resolve({ id }) } as never,
+    );
+    const { purchaseOrderId } = (await ordered.json()) as { purchaseOrderId: string };
+    const poLines = (
+      await db.execute(sql`SELECT id FROM po_lines WHERE purchase_order_id = ${purchaseOrderId}`)
+    ).rows as { id: string }[];
+    return { s, purchaseOrderId, poLineId: poLines[0].id };
+  }
+
   it("returns 201 for PO creation after approval", async () => {
     const s = await seed();
     const created = await createRequisition(
@@ -201,43 +239,6 @@ describe("full HTTP flow: create → submit → decide → order", () => {
   });
 
 describe("POST /api/v1/purchase-orders/[id]/receipts", () => {
-  async function orderToOpenPo() {
-    const s = await seed();
-    const created = await createRequisition(
-      req("http://localhost/api/v1/requisitions", {
-        method: "POST",
-        headers: { "content-type": "application/json", "cookie": authCookie(s.requester.id) },
-        body: JSON.stringify({
-          supplierId: s.supplier.id,
-          costCenterId: s.cc.id,
-          lines: [{ description: "Chairs", quantity: 4, unitPriceMinor: 5000 }],
-        }),
-      }),
-    );
-    const { id } = await created.json();
-    await submit(req("http://x", { method: "POST", headers: { cookie: authCookie(s.requester.id) } }), {
-      params: Promise.resolve({ id }),
-    } as never);
-    const [approval] = await db.select().from(approvals);
-    await decide(
-      req("http://x", {
-        method: "POST",
-        headers: { "content-type": "application/json", "cookie": authCookie(s.manager.id) },
-        body: JSON.stringify({ decision: "approve" }),
-      }),
-      { params: Promise.resolve({ id: approval.id }) } as never,
-    );
-    const ordered = await order(
-      req("http://x", { method: "POST", headers: { cookie: authCookie(s.requester.id) } }),
-      { params: Promise.resolve({ id }) } as never,
-    );
-    const { purchaseOrderId } = (await ordered.json()) as { purchaseOrderId: string };
-    const poLines = (
-      await db.execute(sql`SELECT id FROM po_lines WHERE purchase_order_id = ${purchaseOrderId}`)
-    ).rows as { id: string }[];
-    return { s, purchaseOrderId, poLineId: poLines[0].id };
-  }
-
   it("records a receipt against an OPEN PO and closes it when fully received", async () => {
     const { s, purchaseOrderId, poLineId } = await orderToOpenPo();
 
@@ -291,6 +292,35 @@ describe("POST /api/v1/purchase-orders/[id]/receipts", () => {
     expect(again.status).toBe(409);
   });
 });
+
+  it("POST /api/v1/invoices creates a PENDING invoice (201) and validates body", async () => {
+    const { s, purchaseOrderId, poLineId } = await orderToOpenPo();
+
+    const res = await createInvoiceRoute(
+      req("http://localhost/x", {
+        method: "POST",
+        headers: { "content-type": "application/json", "cookie": authCookie(s.requester.id) },
+        body: JSON.stringify({
+          supplierId: s.supplier.id,
+          purchaseOrderId,
+          number: "INV-E2E-1",
+          lines: [{ poLineId, quantity: 4, unitPriceMinor: 5000 }],
+        }),
+      }),
+    );
+    expect(res.status).toBe(201);
+    const data = await res.json();
+    expect(data.status).toBe("PENDING");
+
+    const badRequest = await createInvoiceRoute(
+      req("http://localhost/x", {
+        method: "POST",
+        headers: { "content-type": "application/json", "cookie": authCookie(s.requester.id) },
+        body: JSON.stringify({ number: "X" }),
+      }),
+    );
+    expect(badRequest.status).toBe(400);
+  });
 
   it("getActor rejects missing, invalid, and unknown sessions", async () => {
     await expect(async () =>
