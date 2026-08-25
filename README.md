@@ -2,7 +2,7 @@
 
 Lightweight, open procure-to-pay for SMBs: requisitions → rule-based approvals → purchase orders → goods receipt → invoice matching — with budget control, ERP/AP integrations, and AI-assisted invoice intake.
 
-**Status:** MVP / not production-hardened. See [Known gaps](#known-gaps) before deploying.
+**Status:** v0.1.0 — feature-complete for the indirect procure-to-pay loop, in production use behind a reverse proxy. See [Known gaps](#known-gaps) before deploying. Changes are tracked in the [CHANGELOG](CHANGELOG.md).
 
 ## Why
 
@@ -109,20 +109,23 @@ Coupa-inspired enterprise layout: sidebar navigation, dashboard KPI cards (open 
 
 ## Roadmap
 
-Next iteration specced in [docs/mvp3-spec.md](docs/mvp3-spec.md): machine API
-tokens, CSRF + rate limiting, spend analytics, full UI surfaces, Playwright E2E,
-Docker Compose — leading to the v0.1.0 release. QBO live OAuth is specced and
-waiting only on Intuit credentials ([docs/qbo-live-spec.md](docs/qbo-live-spec.md)).
+Delivered in v0.1.0: machine API tokens, CSRF + rate limiting, spend analytics,
+full UI surfaces, Playwright E2E suite, Docker Compose deployment (§7–§12 of
+[docs/mvp3-spec.md](docs/mvp3-spec.md)). Next candidates: QBO live OAuth sync —
+specced and waiting only on Intuit credentials
+([docs/qbo-live-spec.md](docs/qbo-live-spec.md)) — plus multi-currency display,
+Redis-backed rate limiting for multi-node installs, and S3 attachment storage.
 
 ## Deployment
 
 Full step-by-step production guide — server prep, configuration reference, role
 model, systemd/cron setup, nginx+TLS, backups and a go-live checklist — lives in
-[docs/deployment.md](docs/deployment.md).
+[docs/deployment.md](docs/deployment.md), which also documents a **Docker
+Compose variant** (app + Postgres 16 + OCR sidecar, `docker compose up -d`).
 
 ## Stack
 
-Next.js 16 (App Router) · TypeScript · PostgreSQL · Drizzle ORM · Tailwind CSS 4 · Vitest · FastAPI sidecar for OCR
+Next.js 16 (App Router) · TypeScript · PostgreSQL · Drizzle ORM · Tailwind CSS 4 · Vitest · Playwright · FastAPI sidecar for OCR
 
 ## Quick start
 
@@ -163,10 +166,11 @@ npm run lint         # eslint
 npx tsc --noEmit     # typecheck
 npx vitest run             # all tests
 npx vitest run --coverage  # with coverage gate on business logic
+npm run test:e2e           # Playwright suite (builds, boots on :3100, hexprocure_e2e DB)
 npx drizzle-kit migrate    # apply schema migrations
 ```
 
-Tests use their own database via `.env.test` so they never touch dev data.
+Tests use their own databases via `.env.test` / `.env.e2e` so they never touch dev data.
 
 ## Architecture
 
@@ -188,13 +192,12 @@ Dependency rule: `app → lib → domain`; the domain layer is pure and fully un
 
 ## Known gaps
 
-- No CSRF tokens beyond `SameSite=Lax` cookies; no rate limiting
 - Session revocation (stateless tokens until a session store lands)
 - QBO live sync not implemented yet — payload mappers exist; OAuth + token encryption specced in [docs/qbo-live-spec.md](docs/qbo-live-spec.md) (needs Intuit sandbox credentials for the contract test only — everything else is buildable now)
 - Integration dispatch is pull-based (`POST /api/v1/integrations/dispatch`); wire it to a scheduler in production
 - Single-currency display (EUR); money stored currency-aware but UI assumes EUR
 - Invoice line items are entered manually after extraction; automatic line-item extraction from OCR text is future work
-- PO PDF download, send-to-supplier, attachments upload widget and service-line picker are API-first; UI surfaces are being added incrementally
+- Rate limiting is single-instance in-memory; multi-node deployments need the Redis adapter
 
 ## License
 
