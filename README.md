@@ -97,9 +97,12 @@ Design decisions worth knowing:
 
 - **Self-hosted OCR.** The sidecar wraps [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR); documents never leave your infrastructure. It runs as an isolated FastAPI service (`services/ocr/`, Dockerfile included) so the heavy ML dependencies stay out of the main app. Enable by setting `INTEGRATION_OCR_URL=http://localhost:8100`.
 - **Human-in-the-loop by design.** Extraction produces a *draft*, never an auto-created invoice. Low-confidence fields are surfaced as `null` rather than guessed.
-- **Deterministic structuring.** Field extraction from OCR text uses tested regex rules, not an LLM — same input, same output, no per-invoice API cost, no data sent to third parties. (An optional LLM connector slot exists in the integration layer if you later want LLM-based line-item extraction.)
+- **Deterministic header, optional LLM lines.** Header fields (number, date, total, VAT ID) use tested regex rules. Line items are extracted by an LLM only when `ANTHROPIC_API_KEY` is set; `POST /api/v1/invoices/extract` then accepts an optional `purchaseOrderId` and also returns `lines` mapped to that PO's lines, with `linesSource: "llm"`. Without the key, `linesSource` is `"none"` and nothing leaves the server.
 
-## Auth
+### What leaves the server when the LLM provider is on
+
+With `ANTHROPIC_API_KEY` set, the OCR text of each uploaded invoice and the line descriptions, quantities and unit prices of the selected purchase order are sent to Anthropic's API. Invoice text is treated as untrusted data in the prompt. Every call, successful or failed, is recorded in the `llm_usage` table (model, token counts, duration, acting user). Set `INTEGRATION_LLM_MODEL` to change the model; leave the key unset to keep all processing on your infrastructure. Proposed lines are never saved automatically: a person reviews them and creates the invoice as usual.
+
 
 Email + password registration and login. Passwords are hashed with scrypt (unique per-user salt). Sessions are HMAC-SHA256–signed tokens stored in `HttpOnly` / `SameSite=Lax` cookies with 7-day expiry; signature and expiry checks use timing-safe comparison. Role-based authorization (REQUESTER / MANAGER / FINANCE / ADMIN) is enforced per endpoint and in the UI.
 
