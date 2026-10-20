@@ -203,6 +203,37 @@ describe("POST /api/v1/invoices/extract", () => {
       errorSpy.mockRestore();
     });
 
+    it("degrades to the header draft on any provider error, without logging invoice text", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      useFakeLlm.on = true;
+      llmExtractMock.mockRejectedValue(new TypeError("kaboom"));
+      const res = await post();
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.draft.invoiceNumber).toBe("ACME-9");
+      expect(data.linesSource).toBe("none");
+      expect(data.lines).toEqual([]);
+      expect(data.warnings).toEqual(["LLM line extraction failed"]);
+      expect(recordUsageMock).toHaveBeenCalledWith(expect.objectContaining({ error: "TypeError: kaboom" }));
+      expect(JSON.stringify(errorSpy.mock.calls)).not.toContain("Laptop stand");
+      errorSpy.mockRestore();
+    });
+
+    it("surfaces provider truncation warnings and dropped-line counts", async () => {
+      useFakeLlm.on = true;
+      llmExtractMock.mockResolvedValue({
+        lines: [
+          { description: "Widget", quantity: 1, unitPrice: "1,00", lineTotal: null, poLineRef: null },
+          { description: "Bad", quantity: 1, unitPrice: "99999999999999999999,99", lineTotal: null, poLineRef: null },
+        ],
+        usage: { inputTokens: 1, outputTokens: 1, model: "m" },
+        warnings: ["PO lines truncated to 200"],
+      });
+      const data = await (await post()).json();
+      expect(data.lines).toHaveLength(1);
+      expect(data.warnings).toEqual(["PO lines truncated to 200", "1 extracted line dropped as invalid"]);
+    });
+
     it("returns 404 for an unknown purchaseOrderId", async () => {
       useFakeLlm.on = true;
       const res = await post(randomUUID());

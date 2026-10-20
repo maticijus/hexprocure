@@ -27,6 +27,9 @@ describe("parseAmount", () => {
   it("parses US format", () => {
     expect(parseAmount("1,234.50")).toBe(123_450);
   });
+  it("returns null beyond the safe integer range", () => {
+    expect(parseAmount("99999999999999999999,99")).toBeNull();
+  });
   it("returns null for garbage", () => {
     expect(parseAmount("abc")).toBeNull();
   });
@@ -88,5 +91,29 @@ describe("normaliseExtractedLines", () => {
   it("caps at 200 lines", () => {
     const many = Array.from({ length: 250 }, (_, i) => raw({ description: `Item ${i}`, poLineRef: null }));
     expect(normaliseExtractedLines(many, po, "EUR")).toHaveLength(200);
+  });
+
+  it("drops lines whose price is not a safe integer", () => {
+    const lines = [
+      raw({ unitPrice: "99999999999999999999,99", lineTotal: null }),
+      raw({ unitPrice: "1e400", lineTotal: null }),
+      raw({ unitPrice: "1,00", lineTotal: null }),
+    ];
+    expect(normaliseExtractedLines(lines, po, "EUR")).toHaveLength(1);
+  });
+
+  it("drops lines whose quantity or product overflows", () => {
+    const lines = [
+      raw({ quantity: 1e300, unitPrice: "1,00", lineTotal: null }),
+      raw({ quantity: 9_000_000_000_000_000, unitPrice: "100,00", lineTotal: null }),
+      raw({ quantity: Infinity, unitPrice: "1,00", lineTotal: null }),
+    ];
+    expect(normaliseExtractedLines(lines, po, "EUR")).toEqual([]);
+  });
+
+  it("ignores an unsafe lineTotal and flags it LOW", () => {
+    const [l] = normaliseExtractedLines([raw({ lineTotal: "99999999999999999999,99" })], po, "EUR");
+    expect(l.amountMinor).toBe(24_690);
+    expect(l.confidence).toBe("LOW");
   });
 });
