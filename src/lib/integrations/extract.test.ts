@@ -1,6 +1,25 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
+import { randomUUID } from "node:crypto";
+import { db, pool } from "@/lib/db";
+import { poLines, purchaseOrders } from "@/lib/db/schema";
+import { seedOrg, truncateAll } from "@/lib/testing/seed";
+import { DomainError } from "@/lib/services/p2p";
 
 const extractMock = vi.hoisted(() => vi.fn());
+const llmExtractMock = vi.hoisted(() => vi.fn());
+const recordUsageMock = vi.hoisted(() => vi.fn());
+const useFakeLlm = vi.hoisted(() => ({ on: false }));
+
+vi.mock("@/lib/integrations/llm-provider", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/integrations/llm-provider")>();
+  return {
+    ...actual,
+    getLlmProvider: () =>
+      useFakeLlm.on ? { name: "fake", extractInvoiceLines: llmExtractMock } : new actual.NoopLlmProvider(),
+  };
+});
+
+vi.mock("@/lib/integrations/llm-usage", () => ({ recordLlmUsage: recordUsageMock }));
 
 vi.mock("@/lib/api/helpers", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api/helpers")>();
@@ -21,9 +40,37 @@ vi.mock("@/lib/integrations/ocr-provider", () => ({
 
 import { POST } from "@/app/api/v1/invoices/extract/route";
 
-beforeEach(() => {
+beforeEach(async () => {
   extractMock.mockReset();
+  llmExtractMock.mockReset();
+  recordUsageMock.mockReset();
+  useFakeLlm.on = false;
+  await truncateAll();
 });
+
+afterAll(async () => {
+  await pool.end();
+});
+
+async function seedPo() {
+  const s = await seedOrg();
+  const [po] = await db
+    .insert(purchaseOrders)
+    .values({ supplierId: s.supplier.id, costCenterId: s.cc.id, currency: "EUR" })
+    .returning();
+  const [line] = await db
+    .insert(poLines)
+    .values({ purchaseOrderId: po.id, description: "Laptop stand", quantityOrdered: 2, unitPriceMinor: 12_345 })
+    .returning();
+  return { po, line };
+}
+
+function post(purchaseOrderId?: string) {
+  const form = new FormData();
+  form.append("file", new Blob([Buffer.from("%PDF-1.4 fake")]), "invoice.pdf");
+  if (purchaseOrderId) form.append("purchaseOrderId", purchaseOrderId);
+  return POST(new Request("http://x", { method: "POST", body: form }));
+}
 
 describe("POST /api/v1/invoices/extract", () => {
   it("returns 501 when OCR sidecar is not configured", async () => {
@@ -62,5 +109,72 @@ describe("POST /api/v1/invoices/extract", () => {
     const res = await POST(new Request("http://x", { method: "POST", body: form }));
     expect(res.status).toBe(400);
     expect(extractMock).not.toHaveBeenCalled();
+  });
+
+  describe("line extraction", () => {
+    beforeEach(() => {
+      process.env.INTEGRATION_OCR_URL = "http://fake:8100";
+      extractMock.mockResolvedValue({ text: "Rechnung ACME-9\n2 x Laptop stand 123,45 246,90", lines: [] });
+    });
+
+    it("returns Noop result as linesSource none", async () => {
+      const data = await (await post()).json();
+      expect(data.linesSource).toBe("none");
+      expect(data.lines).toEqual([]);
+      expect(recordUsageMock).not.toHaveBeenCalled();
+    });
+
+    it("returns normalised lines mapped to the PO and logs usage", async () => {
+      const { po, line } = await seedPo();
+      useFakeLlm.on = true;
+      llmExtractMock.mockResolvedValue({
+        lines: [{ description: "Laptop stand", quantity: 2, unitPrice: "123,45", lineTotal: "246,90", poLineRef: line.id }],
+        usage: { inputTokens: 10, outputTokens: 5, model: "m" },
+      });
+      const res = await post(po.id);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.linesSource).toBe("llm");
+      expect(data.lines[0]).toMatchObject({ poLineId: line.id, unitPriceMinor: 12_345, amountMinor: 24_690, confidence: "HIGH" });
+      expect(llmExtractMock.mock.calls[0][0].poLines[0]).toMatchObject({ id: line.id, quantityOrdered: 2 });
+      expect(recordUsageMock).toHaveBeenCalledWith(
+        expect.objectContaining({ purpose: "invoice_lines", inputTokens: 10, outputTokens: 5, actorUserId: "u1" }),
+      );
+    });
+
+    it("works without a purchaseOrderId", async () => {
+      useFakeLlm.on = true;
+      llmExtractMock.mockResolvedValue({ lines: [], usage: { inputTokens: 1, outputTokens: 1, model: "m" } });
+      const data = await (await post()).json();
+      expect(llmExtractMock.mock.calls[0][0].poLines).toEqual([]);
+      expect(data.linesSource).toBe("llm");
+    });
+
+    it("still returns the header draft with a warning when the LLM is unavailable", async () => {
+      useFakeLlm.on = true;
+      llmExtractMock.mockRejectedValue(new DomainError("LLM_UNAVAILABLE", "LLM rate limit reached"));
+      const res = await post();
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.draft.invoiceNumber).toBe("ACME-9");
+      expect(data.lines).toEqual([]);
+      expect(data.linesSource).toBe("none");
+      expect(data.warnings).toEqual(["LLM unavailable: LLM rate limit reached"]);
+      expect(recordUsageMock).toHaveBeenCalledWith(
+        expect.objectContaining({ inputTokens: 0, outputTokens: 0, error: "LLM rate limit reached" }),
+      );
+    });
+
+    it("returns 404 for an unknown purchaseOrderId", async () => {
+      useFakeLlm.on = true;
+      const res = await post(randomUUID());
+      expect(res.status).toBe(404);
+      expect(llmExtractMock).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 for a malformed purchaseOrderId", async () => {
+      useFakeLlm.on = true;
+      expect((await post("not-a-uuid")).status).toBe(400);
+    });
   });
 });
