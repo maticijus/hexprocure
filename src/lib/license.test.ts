@@ -96,6 +96,19 @@ describe("parseLicense", () => {
     expect(parseLicense(t, k.publicPem)).toBeNull();
   });
 
+  it("rejects Object.prototype keys as tier", () => {
+    const k = newKeys();
+    for (const tier of ["toString", "valueOf", "constructor"]) {
+      expect(parseLicense(mint(k.privateKey, { tier }), k.publicPem)).toBeNull();
+    }
+  });
+
+  it("rejects an Ed448 public key", () => {
+    const { publicKey, privateKey } = generateKeyPairSync("ed448");
+    const pem = publicKey.export({ type: "spki", format: "pem" }).toString();
+    expect(parseLicense(mint(privateKey), pem)).toBeNull();
+  });
+
   it("returns null for a garbage public key without throwing", () => {
     const k = newKeys();
     expect(parseLicense(mint(k.privateKey), "not a pem")).toBeNull();
@@ -121,6 +134,23 @@ describe("getLicense", () => {
     expect(first.tier).toBe("team");
     delete process.env.HEXPROCURE_LICENSE;
     expect(getLicense()).toBe(first);
+  });
+
+  it("falls back to community and warns once when a cached licence expires", () => {
+    vi.useFakeTimers();
+    try {
+      const k = newKeys();
+      process.env.HEXPROCURE_LICENSE = mint(k.privateKey);
+      process.env.HEXPROCURE_LICENSE_PUBLIC_KEY = k.publicPem;
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      expect(getLicense().tier).toBe("team");
+      vi.setSystemTime(Date.now() + 2 * 3600_000);
+      expect(getLicense()).toEqual(COMMUNITY);
+      getLicense();
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("accepts a PEM with escaped newlines", () => {
