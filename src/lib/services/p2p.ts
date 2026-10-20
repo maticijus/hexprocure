@@ -453,7 +453,10 @@ export async function createInvoice(input: CreateInvoiceInput, actorUserId: stri
       .map((l) => l.poLineId)
       .filter((id): id is string => typeof id === "string");
     const poLineRows = referencedPoLineIds.length
-      ? await tx.select().from(poLines).where(inArray(poLines.id, referencedPoLineIds))
+      ? await tx
+          .select()
+          .from(poLines)
+          .where(and(inArray(poLines.id, referencedPoLineIds), eq(poLines.purchaseOrderId, po.id)))
       : [];
     const poLineById = new Map(poLineRows.map((p) => [p.id, p]));
     for (const [i, line] of input.lines.entries()) {
@@ -509,7 +512,15 @@ export async function matchInvoiceById(invoiceId: string, actorUserId: string) {
       .where(eq(invoiceLines.invoiceId, invoiceId));
     const referencedPoLineIds = invLines.map((l) => l.poLineId).filter((v): v is string => v !== null);
     const poLineRows = referencedPoLineIds.length
-      ? await tx.select().from(poLines).where(inArray(poLines.id, referencedPoLineIds))
+      ? await tx
+          .select()
+          .from(poLines)
+          .where(
+            and(
+              inArray(poLines.id, referencedPoLineIds),
+              eq(poLines.purchaseOrderId, invoice.purchaseOrderId),
+            ),
+          )
       : [];
 
     const receivedQtyByPoLine: Record<string, number> = {};
