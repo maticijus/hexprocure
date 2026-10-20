@@ -1,13 +1,38 @@
 import { NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { poLines, purchaseOrders } from "@/lib/db/schema";
 import { PaddleOcrProvider } from "@/lib/integrations/ocr-provider";
 import { parseInvoiceText } from "@/lib/integrations/invoice-parser";
+import { getLlmProvider, NoopLlmProvider } from "@/lib/integrations/llm-provider";
+import { recordLlmUsage } from "@/lib/integrations/llm-usage";
+import { normaliseExtractedLines, type PoLineContext, type ProposedInvoiceLine } from "@/domain/invoice-lines";
+import { DomainError } from "@/lib/services/p2p";
 import { errorToResponse, getActor } from "@/lib/api/helpers";
 
 export const maxDuration = 60;
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function loadPoContext(purchaseOrderId: string): Promise<{ currency: string; lines: PoLineContext[] }> {
+  const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, purchaseOrderId));
+  if (!po) throw new DomainError("NOT_FOUND", "Purchase order not found");
+  const rows = await db.select().from(poLines).where(eq(poLines.purchaseOrderId, purchaseOrderId));
+  return {
+    currency: po.currency,
+    lines: rows.map((r) => ({
+      id: r.id,
+      description: r.description,
+      quantityOrdered: r.quantityOrdered,
+      unitPriceMinor: r.unitPriceMinor,
+      kind: r.kind,
+    })),
+  };
+}
+
 export async function POST(request: Request) {
   try {
-    await getActor(request);
+    const actor = await getActor(request);
     const ocrUrl = process.env.INTEGRATION_OCR_URL;
     if (!ocrUrl) {
       return NextResponse.json(
@@ -23,10 +48,61 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+    const rawPoId = form.get("purchaseOrderId");
+    const purchaseOrderId = typeof rawPoId === "string" && rawPoId !== "" ? rawPoId : null;
+    if (purchaseOrderId !== null && !UUID_RE.test(purchaseOrderId)) {
+      throw new DomainError("VALIDATION", "purchaseOrderId must be a UUID");
+    }
+
+    const provider = getLlmProvider();
+    const useLlm = !(provider instanceof NoopLlmProvider);
+    const po = useLlm && purchaseOrderId ? await loadPoContext(purchaseOrderId) : null;
+
     const buffer = Buffer.from(await file.arrayBuffer());
     const result = await new PaddleOcrProvider(ocrUrl).extract(buffer, file.name);
     const draft = parseInvoiceText(result.text);
-    return NextResponse.json({ draft, rawText: result.text.slice(0, 5000) });
+
+    let lines: ProposedInvoiceLine[] = [];
+    let linesSource: "llm" | "none" = "none";
+    const warnings: string[] = [];
+
+    if (useLlm) {
+      const currency = po?.currency ?? draft.currency;
+      const started = Date.now();
+      try {
+        const llm = await provider.extractInvoiceLines({ text: result.text, poLines: po?.lines ?? [], currency });
+        lines = normaliseExtractedLines(llm.lines, po?.lines ?? [], currency);
+        linesSource = "llm";
+        await recordLlmUsage({
+          purpose: "invoice_lines",
+          model: llm.usage.model,
+          inputTokens: llm.usage.inputTokens,
+          outputTokens: llm.usage.outputTokens,
+          durationMs: Date.now() - started,
+          actorUserId: actor.id,
+        });
+      } catch (error) {
+        if (!(error instanceof DomainError) || error.code !== "LLM_UNAVAILABLE") throw error;
+        warnings.push(`LLM unavailable: ${error.message}`);
+        await recordLlmUsage({
+          purpose: "invoice_lines",
+          model: provider.name,
+          inputTokens: 0,
+          outputTokens: 0,
+          durationMs: Date.now() - started,
+          actorUserId: actor.id,
+          error: error.message,
+        });
+      }
+    }
+
+    return NextResponse.json({
+      draft,
+      lines,
+      linesSource,
+      ...(warnings.length ? { warnings } : {}),
+      rawText: result.text.slice(0, 5000),
+    });
   } catch (error) {
     return errorToResponse(error);
   }
