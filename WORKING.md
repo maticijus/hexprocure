@@ -10,8 +10,8 @@ Protocol: ~/.claude/rules/common/parallel-sessions.md
   **machine:** local-mac
   **scope:** main (merged feat/ai-roadmap, maticijus/ai-line-items, maticijus/ee-license); fix lanes in Orca worktrees sec-lane-a and fix-lane-b off main
   **started:** 2026-10-20T16:05:00Z
-  **heartbeat:** 2026-10-20T18:27:15Z
-  **next:** security fix lane A and money-integrity lane B running (branches maticijus/sec-lane-a, maticijus/fix-lane-b); Cursor review of licence gate running; merge those to main when green, then return docs/security-review to main
+  **heartbeat:** 2026-10-20T18:49:40Z
+  **next:** lane A merged to main locally (c1ec96f, 317 tests green), push blocked until the GitHub token gets the workflow scope; lane B (money integrity) still running in fix-lane-b; Gemini Cursor review of licence gate running; then merge B, return docs/security-review to main, release lock
 
 ## History
 <!-- released claims, trimmed periodically -->
