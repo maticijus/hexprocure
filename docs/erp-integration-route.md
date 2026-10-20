@@ -55,33 +55,43 @@ identical across ERPs.
 
 ## 3. Target ERPs and priority
 
-Priority order is driven by SME and scaleup adoption in the EU, API quality,
-and whether an MCP server already exists. The market research pass of
-2026-10-20 fills the table below; the structure is fixed.
+Priority order comes from the 2026-10-20 market research pass
+(`research/market-2026-10-20.md`): EU SME adoption first, API openness second,
+existence of an official MCP server third. No source gave a reliable
+SME-segment market share, so regional dominance is the ranking signal.
 
-| Priority | System | Segment | Public API | MCP server today | Pack |
-|---|---|---|---|---|---|
-| 1 | QuickBooks Online | accounting, SMB global | REST, OAuth2 | to confirm | Community |
-| 2 | Xero | accounting, SMB UK/AU/EU | REST, OAuth2 | to confirm | Community |
-| 3 | Pohoda (Stormware) | accounting, CZ | mServer XML | none, HexProcure builds | Team |
-| 4 | DATEV | accounting, DE | DATEVconnect, partner programme | none, export first | Team |
-| 5 | Sage (50, 200, Intacct) | accounting to mid-market | REST per product | to confirm | Team |
-| 6 | Microsoft Dynamics 365 Business Central | mid-market, scaleups | OData/REST, Entra OAuth | to confirm | Business |
-| 7 | Odoo | mid-market, open source | XML-RPC/JSON-RPC | community servers exist | Business |
-| 8 | NetSuite | mid-market, scaleups US/EU | SuiteTalk REST, OAuth2 | to confirm | Business |
-| 9 | SAP Business One / S/4HANA Cloud Public | mid-market | Service Layer / OData | to confirm | Business |
-| 10 | Exact Online | accounting, NL/BE | REST, OAuth2 | to confirm | Team |
+| Priority | System | Where it dominates | Public API | Official MCP server (2026-10) | Auth | Pack |
+|---|---|---|---|---|---|---|
+| 1 | Odoo | ES, LU, AT, Benelux; widest EU SME spread | JSON-2 and XML-RPC | none official, community projects only | API key | Business |
+| 2 | Microsoft Dynamics 365 Business Central | Nordics, AT, DACH mid-market | OData and API v2 | Microsoft-hosted, public preview since 2026-04 | Entra ID OAuth2 | Business |
+| 3 | Xero | UK, ANZ | REST | official `@xeroapi/xero-mcp-server` | OAuth2 | Community |
+| 3 | QuickBooks Online | US, UK, global | REST | official from Intuit, local and hosted | OAuth2 | Community |
+| 4 | DATEV | Germany (47 % survey share, likely understated) | partner and marketplace APIs, gated | none | OAuth2/OIDC | Team (export first) |
+| 5 | Pohoda (Stormware) | CZ, SK (about 34 % of SK SMBs) | mServer XML, no REST | none | none | Team (HexProcure builds) |
+| 5 | Money S3, KROS | CZ, SK rivals to Pohoda | varies | none | varies | later |
+| 5 | Exact Online | NL, BE | REST | none | OAuth2 | Team |
+| 6 | NetSuite | UK and US scaleups | REST plus SuiteQL | official AI Connector Service, needs the MCP Standard Tools SuiteApp | OAuth2 | Business |
+| 7 | SAP Business One / S/4HANA Cloud Public | global SME via partners (B1 over 83,000 customers) | Service Layer / OData | none | session login / OAuth2 | Business |
+| later | Sage Intacct, Fortnox (SE), Visma e-conomic (DK), Cegid and Pennylane (FR), AFAS (NL) | regional leaders | varies | none found | varies | by demand |
+
+Two consequences for the design in section 2. First, Xero, QuickBooks,
+Business Central and NetSuite already ship official MCP servers, so the
+`McpConnector` path in 2.2 is the right shape for them. Second, Odoo, DATEV,
+Pohoda and Exact have none, so HexProcure's own thin MCP servers per ERP (or,
+for DATEV and the long tail, CSV, UBL and Peppol export) carry those. The
+research pass also recommends leading with HexProcure's own MCP server
+(2.1) rather than per-ERP clients; both are kept, 2.1 first.
 
 ## 4. Build sequence
 
 1. **Prerequisites (from the review):** dispatcher claim step and retry policy, connector fan-out, token scopes and expiry. Without these an MCP connector would inherit double delivery and unscoped tokens.
 2. **HexProcure MCP server, read-only tools.** Smallest useful deliverable; demoable with Claude Desktop in a day. Ships in Community.
-3. **`McpConnector` plus one target.** QuickBooks Online first, because mappers already exist and the OAuth flow is specced in `qbo-live-spec.md`. Replace the bespoke `qbo-connector.ts` with the generic path once parity is proven.
+3. **`McpConnector` plus one target.** QuickBooks Online first, because mappers already exist, the OAuth flow is specced in `qbo-live-spec.md`, and Intuit ships an official MCP server. Replace the bespoke `qbo-connector.ts` with the generic path once parity is proven.
 4. **Write tools on the HexProcure MCP server.** Team tier.
-5. **Connector packs.** Team pack (Xero, Pohoda, DATEV export, Sage), then Business pack (Business Central, Odoo, NetSuite, SAP B1), in the order the research confirms.
+5. **Connector packs.** Xero next (official MCP server, same OAuth2 shape as QBO), then Odoo and Business Central as the first Business pack targets, then DATEV export, Pohoda and Exact for the home markets, then NetSuite and SAP B1.
 
 ## 5. Open decisions for the founder
 
-- Confirm the priority order after reading the research; CZ and DE systems (Pohoda, DATEV) matter for HEXENKRAFT's home market but have the weakest APIs.
+- Confirm the priority order. Research puts Odoo and Business Central ahead of QBO and Xero on EU SME adoption; the build sequence still starts with QBO because its mappers exist. CZ and DE systems (Pohoda, DATEV) matter for the home market but have the weakest APIs.
 - Whether to host ERP MCP servers for cloud customers or ship them as containers only.
 - Whether to publish the HexProcure MCP server to the MCP registry under the HexProcure or HEXENKRAFT name.
