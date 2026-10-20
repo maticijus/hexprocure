@@ -129,5 +129,5 @@ export function checkRateLimit(
 /** Per-account limit shared across all IPs, so rotating addresses does not
  *  reset the budget for password guessing against one email. */
 export function checkLoginRateLimit(email: string, limit: number, windowMs: number): Response | null {
-  return consume(`login:${email.trim().toLowerCase()}`, limit, windowMs);
+  return consume(`login:${email.trim().toLowerCase().slice(0, 254)}`, limit, windowMs);
 }
