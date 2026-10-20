@@ -34,7 +34,8 @@ export function parseAmount(raw: string): number | null {
   const commaLast = /\d,\d{2}$/.test(s);
   const cleaned = commaLast ? s.replace(/\./g, "").replace(",", ".") : s.replace(/,/g, "");
   if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null;
-  return Math.round(parseFloat(cleaned) * 100);
+  const minor = Math.round(parseFloat(cleaned) * 100);
+  return Number.isSafeInteger(minor) ? minor : null;
 }
 
 function matchPoLine(
@@ -70,6 +71,7 @@ export function normaliseExtractedLines(
 
     const warnings: string[] = [];
     const quantity = Math.max(1, Math.round(line.quantity));
+    if (!Number.isSafeInteger(quantity) || !Number.isSafeInteger(quantity * unitPriceMinor)) continue;
     if (quantity !== line.quantity) warnings.push(`quantity rounded from ${line.quantity}`);
 
     let poLineId: string | null = null;

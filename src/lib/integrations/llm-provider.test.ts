@@ -106,7 +106,7 @@ describe("AnthropicLlmProvider", () => {
     const text = req.messages[0].content[1].text.slice(label.length);
     expect(poJson.length + text.length).toBeLessThanOrEqual(80_000);
     expect(text.length).toBeGreaterThan(70_000);
-    expect(result.warnings.some((w) => w.startsWith("invoice text truncated"))).toBe(true);
+    expect((result.warnings ?? []).some((w) => w.startsWith("invoice text truncated"))).toBe(true);
   });
 
   it("parses a valid response and reports usage", async () => {

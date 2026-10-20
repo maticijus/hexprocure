@@ -83,10 +83,16 @@ export async function POST(request: Request) {
       if (text.length < result.text.length) {
         warnings.push(`invoice text truncated to ${MAX_LLM_TEXT_CHARS} characters`);
       }
+      const poLines = po?.lines ?? [];
+      let failure: string | null = null;
       try {
-        const llm = await provider.extractInvoiceLines({ text, poLines: po?.lines ?? [], currency });
-        lines = normaliseExtractedLines(llm.lines, po?.lines ?? [], currency);
+        const llm = await provider.extractInvoiceLines({ text, poLines, currency });
+        const proposed = normaliseExtractedLines(llm.lines, poLines, currency);
+        lines = proposed;
         linesSource = "llm";
+        warnings.push(...(llm.warnings ?? []));
+        const dropped = llm.lines.length - proposed.length;
+        if (dropped > 0) warnings.push(`${dropped} extracted ${dropped === 1 ? "line" : "lines"} dropped as invalid`);
         await logUsage({
           purpose: "invoice_lines",
           model: llm.usage.model,
@@ -96,8 +102,18 @@ export async function POST(request: Request) {
           actorUserId: actor.id,
         });
       } catch (error) {
-        if (!(error instanceof DomainError) || error.code !== "LLM_UNAVAILABLE") throw error;
-        warnings.push(`LLM unavailable: ${error.message}`);
+        lines = [];
+        linesSource = "none";
+        if (error instanceof DomainError && error.code === "LLM_UNAVAILABLE") {
+          warnings.push(`LLM unavailable: ${error.message}`);
+          failure = error.message;
+        } else {
+          const name = error instanceof Error ? error.name : "UnknownError";
+          const message = error instanceof Error ? error.message : "non-Error thrown";
+          console.error("LLM line extraction failed", name, message);
+          warnings.push("LLM line extraction failed");
+          failure = `${name}: ${message}`;
+        }
         await logUsage({
           purpose: "invoice_lines",
           model: provider.name,
@@ -105,7 +121,7 @@ export async function POST(request: Request) {
           outputTokens: 0,
           durationMs: Date.now() - started,
           actorUserId: actor.id,
-          error: error.message,
+          error: failure,
         });
       }
     }
