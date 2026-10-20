@@ -14,11 +14,17 @@ function requireSecret(): string {
   return secret;
 }
 
+/** Production must opt in explicitly; elsewhere registration is open unless disabled. */
+export function selfRegistrationAllowed(): boolean {
+  const flag = process.env.ALLOW_SELF_REGISTRATION;
+  if (process.env.NODE_ENV === "production") return flag === "true";
+  return flag !== "false";
+}
+
 export async function registerUser(input: {
   name?: string;
   email?: string;
   password?: string;
-  role?: "REQUESTER" | "MANAGER" | "FINANCE" | "ADMIN";
 }) {
   if (!input.email || !EMAIL_RE.test(input.email)) {
     throw new DomainError("INVALID_STATE", "A valid email is required");
@@ -36,7 +42,7 @@ export async function registerUser(input: {
       name: input.name?.trim() || input.email.split("@")[0],
       email: input.email.toLowerCase(),
       passwordHash: hashPassword(input.password),
-      role: input.role ?? "REQUESTER",
+      role: "REQUESTER",
     })
     .returning();
   return user;
