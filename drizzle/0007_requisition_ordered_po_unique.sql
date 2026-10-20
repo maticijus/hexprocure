@@ -1,0 +1,2 @@
+ALTER TYPE "public"."requisition_status" ADD VALUE 'ORDERED';--> statement-breakpoint
+CREATE UNIQUE INDEX "purchase_order_requisition_uq" ON "purchase_orders" USING btree ("requisition_id") WHERE "purchase_orders"."requisition_id" IS NOT NULL;

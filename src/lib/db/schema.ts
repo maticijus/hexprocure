@@ -23,6 +23,7 @@ export const requisitionStatus = pgEnum("requisition_status", [
   "SUBMITTED",
   "APPROVED",
   "REJECTED",
+  "ORDERED",
 ]);
 
 export const poStatus = pgEnum("po_status", ["OPEN", "CLOSED", "CANCELLED"]);
@@ -130,21 +131,29 @@ export const approvals = pgTable("approvals", {
   decidedAt: timestamp("decided_at", { withTimezone: true }),
 });
 
-export const purchaseOrders = pgTable("purchase_orders", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  requisitionId: uuid("requisition_id").references(() => requisitions.id),
-  supplierId: uuid("supplier_id")
-    .notNull()
-    .references(() => suppliers.id),
-  costCenterId: uuid("cost_center_id")
-    .notNull()
-    .references(() => costCenters.id),
-  status: poStatus("status").notNull().default("OPEN"),
-  currency: text("currency").notNull().default("EUR"),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const purchaseOrders = pgTable(
+  "purchase_orders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    requisitionId: uuid("requisition_id").references(() => requisitions.id),
+    supplierId: uuid("supplier_id")
+      .notNull()
+      .references(() => suppliers.id),
+    costCenterId: uuid("cost_center_id")
+      .notNull()
+      .references(() => costCenters.id),
+    status: poStatus("status").notNull().default("OPEN"),
+    currency: text("currency").notNull().default("EUR"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("purchase_order_requisition_uq")
+      .on(t.requisitionId)
+      .where(sql`${t.requisitionId} IS NOT NULL`),
+  ],
+);
 
 export const poLines = pgTable("po_lines", {
   id: uuid("id").primaryKey().defaultRandom(),

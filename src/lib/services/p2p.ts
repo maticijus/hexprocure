@@ -195,11 +195,7 @@ export async function decideApproval(
 
 export async function createPurchaseOrder(requisitionId: string, actorUserId: string) {
   return db.transaction(async (tx) => {
-    const [req] = await tx.select().from(requisitions).where(eq(requisitions.id, requisitionId));
-    if (!req) throw new DomainError("NOT_FOUND", "Requisition not found");
-    if (req.status !== "APPROVED") {
-      throw new DomainError("INVALID_STATE", `Cannot order from ${req.status}`);
-    }
+    const req = await lockApprovedRequisition(tx, requisitionId);
 
     const lines = await tx
       .select()
@@ -252,6 +248,7 @@ export async function createPurchaseOrder(requisitionId: string, actorUserId: st
       amountMinor: total,
     });
 
+    await tx.update(requisitions).set({ status: "ORDERED" }).where(eq(requisitions.id, requisitionId));
     await audit(tx, "purchase_order", po.id, "CREATED", actorUserId, { total });
 
     const [supplierRow] = await tx.select().from(suppliers).where(eq(suppliers.id, req.supplierId));
@@ -279,6 +276,20 @@ export async function createPurchaseOrder(requisitionId: string, actorUserId: st
 
 type TxCallback = Parameters<typeof db.transaction>[0];
 type Tx = Parameters<TxCallback>[0];
+
+async function lockApprovedRequisition(tx: Tx, requisitionId: string) {
+  // Row lock serializes concurrent orders; the loser sees ORDERED after the winner commits.
+  const [req] = await tx
+    .select()
+    .from(requisitions)
+    .where(eq(requisitions.id, requisitionId))
+    .for("update");
+  if (!req) throw new DomainError("NOT_FOUND", "Requisition not found");
+  if (req.status !== "APPROVED") {
+    throw new DomainError("INVALID_STATE", `Cannot order from ${req.status}`);
+  }
+  return req;
+}
 
 async function loadBudgetStateWithin(tx: Tx, costCenterId: string, yearMonth: string) {
   const [budget] = await tx
