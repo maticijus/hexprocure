@@ -114,9 +114,12 @@ In priority order, each a small pull request:
 7. **Comparison pages** in the docs: HexProcure versus Precoro, Procurify,
    Odoo Purchase, using the benchmarks in `research/market-2026-10-20.md`.
 
-## 7. Open decisions for the founder
+## 7. Decisions
 
-- MIT core confirmed, or move to AGPL now while every commit is yours.
+- **Decided 2026-10-20 by the founder:** core stays MIT; proceed with the `ee/` layout and licence gate. Build lane dispatched the same day (branch `ee-license`).
+
+Still open:
+
 - `ee/` licence text: adapt PostHog's or Cal.com's, or have counsel draft one.
 - Name of the private repo and whether it sits under HEXENKRAFT's GitHub org.
 - DCO versus CLA for contributions.

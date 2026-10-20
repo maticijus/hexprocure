@@ -53,7 +53,7 @@ Add-ons for either paid tier: extra AI documents in blocks of 1,000 per month; a
 - Exact price points. 99 and 299 EUR are anchors chosen to sit under Precoro and above tooling like Zahara or ProcurementExpress; confirm after reading section 5.
 - Annual-only or monthly too. Recommendation: both, annual at 10 months.
 - Whether the Community tier gets a HexProcure cloud "starter" at cost, or stays self-hosted only.
-- Licence mechanics: licence key checked offline with a signed JWT, or online check once a day.
+- Licence mechanics: decided 2026-10-20, offline signed key (Ed25519 JWS), see `open-source-gtm.md` section 4.
 - Branding and whether this belongs under HEXENKRAFT.
 
 ## 5. Market benchmarks
