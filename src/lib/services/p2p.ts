@@ -616,10 +616,15 @@ export async function approveInvoice(invoiceId: string, actorUserId: string) {
     }
     const [invoice] = await tx.select().from(invoices).where(eq(invoices.id, invoiceId));
     if (!invoice) throw new DomainError("NOT_FOUND", "Invoice not found");
-    if (invoice.status !== "MATCHED") {
-      throw new DomainError("INVALID_STATE", `Only MATCHED invoices can be approved (current: ${invoice.status})`);
+    // Conditional update is the lock: a concurrent approver matches zero rows.
+    const claimed = await tx
+      .update(invoices)
+      .set({ status: "APPROVED" })
+      .where(and(eq(invoices.id, invoiceId), eq(invoices.status, "MATCHED")))
+      .returning({ id: invoices.id });
+    if (claimed.length === 0) {
+      throw new DomainError("INVALID_STATE", "Only MATCHED invoices can be approved");
     }
-    await tx.update(invoices).set({ status: "APPROVED" }).where(eq(invoices.id, invoiceId));
     await audit(tx, "invoice", invoiceId, "APPROVED", actorUserId);
 
     const [invSupplier] = await tx.select().from(suppliers).where(eq(suppliers.id, invoice.supplierId));
