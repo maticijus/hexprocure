@@ -1,0 +1,72 @@
+HexProcure Commercial Licence (Draft for legal review)
+
+Copyright (c) 2026 HexProcure. All rights reserved.
+
+This licence applies to every file in the ee/ directory of the HexProcure
+repository and to nothing else. All files outside ee/ are licensed under the
+MIT licence in the root LICENSE file.
+
+1. Definitions
+
+"Software" means the files in the ee/ directory and any copy or modification
+of them. "Licence Key" means a signed token issued by HexProcure and verified
+by the check in src/lib/license.ts. "Licensor" means HexProcure.
+
+2. Grant to view, modify and contribute
+
+You may view, copy and modify the Software, and you may send contributions to
+the Licensor, for the purposes of evaluation, development, testing and
+contribution. This grant needs no Licence Key.
+
+3. Production use needs a licence key
+
+You may use the Software in production only while you hold a valid Licence Key
+for the tier that covers the feature you use. "Production" means any use that
+is not evaluation, development or testing, including use for your own business
+or for your customers. A Licence Key is personal to its licensee and may not be
+shared or resold.
+
+4. No circumvention
+
+You may not remove, disable, weaken or work around the licence check, the
+feature tier map, or any notice that identifies the Software as licensed. You
+may not generate, forge or modify a Licence Key.
+
+5. No redistribution as a standalone product
+
+You may not sell, sublicense or distribute the Software, or a product that
+substantially consists of it, as a standalone offering or as part of a
+competing hosted service. You may distribute copies that keep this licence and
+all notices intact, such as a fork made for contribution.
+
+6. Contributions
+
+Contributions to ee/ are accepted under this licence. By sending a
+contribution you confirm the Developer Certificate of Origin (see
+CONTRIBUTING.md) and grant the Licensor the right to use, relicense and
+distribute it as part of the Software.
+
+7. Termination
+
+This licence ends automatically if you breach it. On termination you must stop
+production use of the Software and delete your copies used in production. The
+Licensor may revoke a Licence Key for non-payment or breach. Sections 4, 5, 8
+and 9 survive termination.
+
+8. No warranty
+
+The Software is provided "as is", without warranty of any kind, express or
+implied, including merchantability, fitness for a particular purpose and
+non-infringement.
+
+9. Limitation of liability
+
+To the extent the law allows, the Licensor is not liable for any indirect or
+consequential loss, or for any claim in excess of the fees you paid in the
+twelve months before the claim arose.
+
+10. General
+
+This licence is the whole agreement about the Software. If a part is
+unenforceable, the rest stays in force. Questions and licence keys:
+licensing@hexprocure.dev (placeholder, founder confirms).

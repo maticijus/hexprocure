@@ -32,7 +32,8 @@ export class DomainError extends Error {
       | "BUDGET_EXCEEDED"
       | "FORBIDDEN"
       | "LLM_UNAVAILABLE"
-    | "VALIDATION",
+      | "LICENSE_REQUIRED"
+      | "VALIDATION",
     message: string,
     readonly details?: unknown,
   ) {
