@@ -107,6 +107,10 @@ With `ANTHROPIC_API_KEY` set, the OCR text of each uploaded invoice and the line
 
 Email + password registration and login. Passwords are hashed with scrypt (unique per-user salt). Sessions are HMAC-SHA256–signed tokens stored in `HttpOnly` / `SameSite=Lax` cookies with 7-day expiry; signature and expiry checks use timing-safe comparison. Role-based authorization (REQUESTER / MANAGER / FINANCE / ADMIN) is enforced per endpoint and in the UI.
 
+- **Self-registration** always creates a `REQUESTER`; a client-supplied role is ignored. Set `ALLOW_SELF_REGISTRATION=true` to enable it in production (it is open by default in development, `false` disables it anywhere). Other roles are assigned in the database.
+- **`AUTH_SECRET`** must be at least 32 characters and not a known placeholder (`openssl rand -hex 32`); the app refuses to start otherwise.
+- **Rate limiting** keys on the right-most `X-Forwarded-For` hop only when `TRUST_PROXY=true` (set it behind a proxy you control), else on `X-Real-IP`, else one shared bucket. Logins are also limited per email address.
+
 ## UI
 
 Coupa-inspired enterprise layout: sidebar navigation, dashboard KPI cards (open requisitions, monthly budget, reserved spend, invoice exceptions), budget utilization bar, approval inbox with inline approve/reject, and list views with color-coded status pills throughout.
@@ -137,7 +141,7 @@ Prereqs: Node 22+, a local PostgreSQL. (Optional, for AI intake: Docker or Pytho
 
 ```bash
 npm install
-cp .env.example .env            # then edit DATABASE_URL / AUTH_SECRET
+cp .env.example .env            # then set DATABASE_URL and AUTH_SECRET (openssl rand -hex 32)
 npx drizzle-kit migrate         # apply schema to your database
 npx tsx scripts/seed.ts         # demo users + data
 npm run dev                     # http://localhost:3000/login
