@@ -27,7 +27,7 @@ function toLicense(claims: unknown, now: Date): License | null {
   if (typeof claims !== "object" || claims === null) return null;
   const c = claims as Record<string, unknown>;
   const { tier, licensee, exp, aiDocsPerMonth, connectors } = c;
-  if (typeof tier !== "string" || !(tier in TIER_RANK)) return null;
+  if (typeof tier !== "string" || !Object.hasOwn(TIER_RANK, tier)) return null;
   if (typeof licensee !== "string" || licensee === "") return null;
   if (typeof exp !== "number" || !Number.isFinite(exp) || exp * 1000 <= now.getTime()) return null;
   if (typeof aiDocsPerMonth !== "number" || !Number.isInteger(aiDocsPerMonth) || aiDocsPerMonth < 0) return null;
@@ -49,6 +49,7 @@ export function parseLicense(token: string, publicKeyPem: string, now: Date = ne
     const header = decodeJson(h) as { alg?: unknown };
     if (header.alg !== "EdDSA") return null;
     const key = createPublicKey(publicKeyPem);
+    if (key.asymmetricKeyType !== "ed25519") return null;
     if (!verify(null, Buffer.from(`${h}.${p}`), key, Buffer.from(s, "base64url"))) return null;
     return toLicense(decodeJson(p), now);
   } catch {
@@ -57,20 +58,31 @@ export function parseLicense(token: string, publicKeyPem: string, now: Date = ne
 }
 
 let cached: License | null = null;
+let expiredWarned = false;
 
 export function resetLicenseCache(): void {
   cached = null;
+  expiredWarned = false;
 }
 
 export function getLicense(): License {
-  if (cached) return cached;
-  const token = process.env.HEXPROCURE_LICENSE?.trim();
-  const pem = process.env.HEXPROCURE_LICENSE_PUBLIC_KEY?.replace(/\\n/g, "\n");
-  const parsed = token && pem ? parseLicense(token, pem) : null;
-  if (token && !parsed) {
-    console.warn("HEXPROCURE_LICENSE is set but invalid or expired; running as Community");
+  if (!cached) {
+    const token = process.env.HEXPROCURE_LICENSE?.trim();
+    const pem = process.env.HEXPROCURE_LICENSE_PUBLIC_KEY?.replace(/\\n/g, "\n");
+    const parsed = token && pem ? parseLicense(token, pem) : null;
+    if (token && !parsed) {
+      console.warn("HEXPROCURE_LICENSE is set but invalid or expired; running as Community");
+    }
+    cached = parsed ?? COMMUNITY;
   }
-  cached = parsed ?? COMMUNITY;
+  // The parsed token is cached, but expiry is re-checked on every call.
+  if (cached !== COMMUNITY && new Date(cached.expiresAt).getTime() <= Date.now()) {
+    if (!expiredWarned) {
+      expiredWarned = true;
+      console.warn("HEXPROCURE_LICENSE has expired; running as Community");
+    }
+    return COMMUNITY;
+  }
   return cached;
 }
 
