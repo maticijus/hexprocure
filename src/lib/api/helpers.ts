@@ -12,6 +12,7 @@ const STATUS_BY_CODE: Record<DomainError["code"], number> = {
   INVALID_STATE: 409,
   BUDGET_EXCEEDED: 422,
   FORBIDDEN: 403,
+  LICENSE_REQUIRED: 402,
 };
 
 export function errorToResponse(error: unknown) {
