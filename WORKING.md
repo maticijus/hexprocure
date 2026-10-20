@@ -8,10 +8,10 @@ Protocol: ~/.claude/rules/common/parallel-sessions.md
 
 - **owner:** claude-fable (Orca coordinator session, review + AI roadmap + first build lane)
   **machine:** local-mac
-  **scope:** branch `feat/ai-roadmap` — docs/ (review, functional spec, AI roadmap, implementation spec) + first AI lane under src/lib/integrations and src/domain
+  **scope:** main (merged feat/ai-roadmap, maticijus/ai-line-items, maticijus/ee-license); fix lanes in Orca worktrees sec-lane-a and fix-lane-b off main
   **started:** 2026-10-20T16:05:00Z
-  **heartbeat:** 2026-10-20T17:28:00Z
-  **next:** lane 1 done (15 commits on maticijus/ai-line-items, final vitest rerun running); ee/ licence-gate lane running in orca worktree ee-license off main; pricing, ERP route, open-source GTM docs committed; summary artifact + email next
+  **heartbeat:** 2026-10-20T18:27:15Z
+  **next:** security fix lane A and money-integrity lane B running (branches maticijus/sec-lane-a, maticijus/fix-lane-b); Cursor review of licence gate running; merge those to main when green, then return docs/security-review to main
 
 ## History
 <!-- released claims, trimmed periodically -->
