@@ -5,12 +5,22 @@ import { poLines, purchaseOrders } from "@/lib/db/schema";
 import { PaddleOcrProvider } from "@/lib/integrations/ocr-provider";
 import { parseInvoiceText } from "@/lib/integrations/invoice-parser";
 import { getLlmProvider, NoopLlmProvider } from "@/lib/integrations/llm-provider";
-import { recordLlmUsage } from "@/lib/integrations/llm-usage";
+import { recordLlmUsage, type LlmUsageEntry } from "@/lib/integrations/llm-usage";
 import { normaliseExtractedLines, type PoLineContext, type ProposedInvoiceLine } from "@/domain/invoice-lines";
 import { DomainError } from "@/lib/services/p2p";
 import { errorToResponse, getActor } from "@/lib/api/helpers";
 
 export const maxDuration = 60;
+
+const MAX_LLM_TEXT_CHARS = 60_000;
+
+async function logUsage(entry: LlmUsageEntry): Promise<void> {
+  try {
+    await recordLlmUsage(entry);
+  } catch (error) {
+    console.error("Failed to record llm_usage", error);
+  }
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -69,11 +79,15 @@ export async function POST(request: Request) {
     if (useLlm) {
       const currency = po?.currency ?? draft.currency;
       const started = Date.now();
+      const text = result.text.slice(0, MAX_LLM_TEXT_CHARS);
+      if (text.length < result.text.length) {
+        warnings.push(`invoice text truncated to ${MAX_LLM_TEXT_CHARS} characters`);
+      }
       try {
-        const llm = await provider.extractInvoiceLines({ text: result.text, poLines: po?.lines ?? [], currency });
+        const llm = await provider.extractInvoiceLines({ text, poLines: po?.lines ?? [], currency });
         lines = normaliseExtractedLines(llm.lines, po?.lines ?? [], currency);
         linesSource = "llm";
-        await recordLlmUsage({
+        await logUsage({
           purpose: "invoice_lines",
           model: llm.usage.model,
           inputTokens: llm.usage.inputTokens,
@@ -84,7 +98,7 @@ export async function POST(request: Request) {
       } catch (error) {
         if (!(error instanceof DomainError) || error.code !== "LLM_UNAVAILABLE") throw error;
         warnings.push(`LLM unavailable: ${error.message}`);
-        await recordLlmUsage({
+        await logUsage({
           purpose: "invoice_lines",
           model: provider.name,
           inputTokens: 0,

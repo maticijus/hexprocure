@@ -80,6 +80,13 @@ function parseLines(text: string): RawExtractedLine[] {
   return lines;
 }
 
+export const LLM_TIMEOUT_MS = 30_000;
+export const LLM_MAX_RETRIES = 1;
+
+export function createAnthropicClient(apiKey: string): Anthropic {
+  return new Anthropic({ apiKey, timeout: LLM_TIMEOUT_MS, maxRetries: LLM_MAX_RETRIES });
+}
+
 export interface AnthropicLlmProviderOptions {
   apiKey: string;
   model: string;
@@ -91,7 +98,7 @@ export class AnthropicLlmProvider implements LlmProvider {
   private readonly client: Anthropic;
   private readonly model: string;
 
-  constructor({ apiKey, model, clientFactory = (key) => new Anthropic({ apiKey: key }) }: AnthropicLlmProviderOptions) {
+  constructor({ apiKey, model, clientFactory = createAnthropicClient }: AnthropicLlmProviderOptions) {
     this.client = clientFactory(apiKey);
     this.model = model;
   }
