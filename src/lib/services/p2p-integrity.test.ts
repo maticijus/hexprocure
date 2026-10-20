@@ -3,6 +3,8 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   approvals,
+  invoiceLines,
+  invoices,
   requisitionLines,
   requisitions,
 } from "@/lib/db/schema";
@@ -212,5 +214,56 @@ describe("B3 INVOICE_APPROVED carries PO currency and the billed total", () => {
     const [event] = await approvedEvents();
     expect(event.payload.currency).toBe("CZK");
     expect(event.payload.totalMinor).toBe(42_000);
+  });
+});
+
+describe("B4 invoice lines must belong to the invoiced PO", () => {
+  async function twoPos() {
+    const a = await openPo([{ quantity: 2, unitPriceMinor: 1000 }]);
+    const b = await openPo([{ quantity: 2, unitPriceMinor: 1000 }], a.s);
+    return { s: a.s, poA: a.purchaseOrderId, foreignLineId: b.goods.id };
+  }
+
+  it("createInvoice rejects a line id from another PO with VALIDATION", async () => {
+    const { s, poA, foreignLineId } = await twoPos();
+    await expect(
+      createInvoice(
+        {
+          supplierId: s.supplier.id,
+          purchaseOrderId: poA,
+          number: "INV-B4",
+          lines: [
+            { poLineId: foreignLineId, quantity: 1, unitPriceMinor: 1000 },
+          ],
+        },
+        s.finance.id,
+      ),
+    ).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
+  it("matching treats a foreign PO line as unmatched", async () => {
+    const { s, poA, foreignLineId } = await twoPos();
+    const [invoice] = await db
+      .insert(invoices)
+      .values({
+        supplierId: s.supplier.id,
+        purchaseOrderId: poA,
+        number: "INV-B4M",
+      })
+      .returning();
+    await db
+      .insert(invoiceLines)
+      .values({
+        invoiceId: invoice.id,
+        poLineId: foreignLineId,
+        quantity: 1,
+        unitPriceMinor: 1000,
+      });
+
+    const result = await matchInvoiceById(invoice.id, s.finance.id);
+    expect(result.status).toBe("EXCEPTION");
+    expect(result.exceptions).toEqual([
+      expect.objectContaining({ type: "UNMATCHED_LINE" }),
+    ]);
   });
 });
