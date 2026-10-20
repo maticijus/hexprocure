@@ -10,8 +10,8 @@ Protocol: ~/.claude/rules/common/parallel-sessions.md
   **machine:** local-mac
   **scope:** main (merged feat/ai-roadmap, maticijus/ai-line-items, maticijus/ee-license); fix lanes in Orca worktrees sec-lane-a and fix-lane-b off main
   **started:** 2026-10-20T16:05:00Z
-  **heartbeat:** 2026-10-20T19:58:00Z
-  **next:** lane A merged and pushed (c1ec96f, 317 tests green); lane B (money integrity) B1-B3 done in fix-lane-b, B4 running; licence fixes merged to main (484721c, 26 tests green); lane B B1-B7 committed, waiting for worker_done, then merge B, return docs/security-review to main, release lock
+  **heartbeat:** 2026-10-20T20:20:00Z
+  **next:** all lanes merged: A (c1ec96f), licence fixes (484721c), B (8d74b5a); main full suite 335/335, tsc and lint clean; remaining: return docs/security-review to main, follow-up lane for the five lane-B reviewer MEDIUMs (cancelPurchaseOrder ORDERED/lock, service lines acceptance, prior-invoiced PENDING/EXCEPTION, 0007 backfill, 23505 to INVALID_STATE), then release lock
 
 ## History
 <!-- released claims, trimmed periodically -->
