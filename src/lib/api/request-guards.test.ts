@@ -1,15 +1,23 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   checkCsrfOrigin,
   checkRateLimit,
   limitsPerMinute,
+  rateLimitKeyCount,
   resetRateLimits,
 } from "./request-guards";
 
-const req = (opts: { method?: string; origin?: string | null; host?: string; ip?: string }) => {
+const req = (opts: {
+  method?: string;
+  origin?: string | null;
+  host?: string;
+  ip?: string;
+  xff?: string;
+}) => {
   const headers = new Headers({ host: opts.host ?? "procure.example.com" });
   if (opts.origin !== undefined && opts.origin !== null) headers.set("origin", opts.origin);
-  if (opts.ip) headers.set("x-forwarded-for", opts.ip);
+  if (opts.ip) headers.set("x-real-ip", opts.ip);
+  if (opts.xff) headers.set("x-forwarded-for", opts.xff);
   return new Request("https://procure.example.com/api/v1/x", {
     method: opts.method ?? "POST",
     headers,
@@ -17,6 +25,7 @@ const req = (opts: { method?: string; origin?: string | null; host?: string; ip?
 };
 
 beforeEach(() => resetRateLimits());
+afterEach(() => vi.unstubAllEnvs());
 
 describe("CSRF origin check (mutations only)", () => {
   it("allows GET regardless of origin", () => {
@@ -79,6 +88,38 @@ describe("rate limiting", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("rate limit client key", () => {
+  it("ignores spoofed X-Forwarded-For when TRUST_PROXY is unset", () => {
+    let last: Response | null = null;
+    for (let i = 0; i < 11; i++) last = checkRateLimit(req({ xff: `10.0.0.${i}` }), 10, 60_000);
+    expect(last?.status).toBe(429);
+  });
+
+  it("keys on the right-most X-Forwarded-For hop when TRUST_PROXY=true", () => {
+    vi.stubEnv("TRUST_PROXY", "true");
+    let last: Response | null = null;
+    for (let i = 0; i < 11; i++) {
+      last = checkRateLimit(req({ xff: `1.2.3.${i}, 203.0.113.9` }), 10, 60_000);
+    }
+    expect(last?.status).toBe(429);
+    expect(checkRateLimit(req({ xff: "1.2.3.4, 203.0.113.10" }), 10, 60_000)).toBeNull();
+  });
+
+  it("falls back to X-Real-IP, then a constant, without a trusted proxy", () => {
+    for (let i = 0; i < 10; i++) checkRateLimit(req({ ip: "5.5.5.5", xff: `9.9.9.${i}` }), 10, 60_000);
+    expect(checkRateLimit(req({ ip: "5.5.5.5", xff: "9.9.9.99" }), 10, 60_000)?.status).toBe(429);
+    expect(checkRateLimit(req({ ip: "5.5.5.6" }), 10, 60_000)).toBeNull();
+  });
+
+  it("caps tracked keys and evicts the oldest", () => {
+    for (let i = 0; i < 10_050; i++) checkRateLimit(req({ ip: `ip-${i}` }), 10, 60_000);
+    expect(rateLimitKeyCount()).toBeLessThanOrEqual(10_000);
+    // oldest key was evicted, so it starts a fresh window
+    for (let i = 0; i < 9; i++) checkRateLimit(req({ ip: "ip-0" }), 10, 60_000);
+    expect(checkRateLimit(req({ ip: "ip-0" }), 10, 60_000)).toBeNull();
   });
 });
 

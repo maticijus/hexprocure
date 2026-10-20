@@ -19,7 +19,6 @@ jobs:
           --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hexprocure_test
-      AUTH_SECRET: ci-test-secret
       INTEGRATION_ENC_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
     steps:
       - uses: actions/checkout@v4
@@ -27,6 +26,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - run: echo "AUTH_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm run lint
@@ -48,7 +48,6 @@ jobs:
           --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hexprocure_e2e
-      AUTH_SECRET: e2e-secret-change-me
       INTEGRATION_ENC_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
       RATE_LIMIT_AUTH_PER_MIN: "1000"
       RATE_LIMIT_MUTATION_PER_MIN: "1000"
@@ -58,6 +57,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - run: echo "AUTH_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run build

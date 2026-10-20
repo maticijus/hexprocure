@@ -1,24 +1,23 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
+import { getAuthSecret } from "@/lib/auth-secret";
 import { hashPassword, verifyPassword, createSessionToken } from "@/lib/auth";
 import { DomainError } from "@/lib/services/p2p";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function requireSecret(): string {
-  const secret = process.env.AUTH_SECRET;
-  if (!secret || secret.length < 8) {
-    throw new Error("AUTH_SECRET must be set (min 8 chars)");
-  }
-  return secret;
+/** Production must opt in explicitly; elsewhere registration is open unless disabled. */
+export function selfRegistrationAllowed(): boolean {
+  const flag = process.env.ALLOW_SELF_REGISTRATION;
+  if (process.env.NODE_ENV === "production") return flag === "true";
+  return flag !== "false";
 }
 
 export async function registerUser(input: {
   name?: string;
   email?: string;
   password?: string;
-  role?: "REQUESTER" | "MANAGER" | "FINANCE" | "ADMIN";
 }) {
   if (!input.email || !EMAIL_RE.test(input.email)) {
     throw new DomainError("INVALID_STATE", "A valid email is required");
@@ -36,7 +35,7 @@ export async function registerUser(input: {
       name: input.name?.trim() || input.email.split("@")[0],
       email: input.email.toLowerCase(),
       passwordHash: hashPassword(input.password),
-      role: input.role ?? "REQUESTER",
+      role: "REQUESTER",
     })
     .returning();
   return user;
@@ -50,5 +49,5 @@ export async function login(email: string | undefined, password: string | undefi
   if (!user?.passwordHash || !verifyPassword(password, user.passwordHash)) {
     throw new DomainError("FORBIDDEN", "Invalid credentials");
   }
-  return createSessionToken(user.id, requireSecret());
+  return createSessionToken(user.id, getAuthSecret());
 }

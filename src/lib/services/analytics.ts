@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { DomainError } from "@/lib/services/p2p";
 
 export type AnalyticsGroupBy = "supplier" | "costCenter" | "month";
 
@@ -9,19 +10,35 @@ export interface SpendRow {
   documentCount: number;
 }
 
-const GROUP_EXPRESSION: Record<AnalyticsGroupBy, string> = {
-  supplier: "s.name",
-  costCenter: "cc.name",
-  month: "to_char(i.created_at, 'YYYY-MM')",
-};
+function groupExpression(groupBy: AnalyticsGroupBy): string {
+  switch (groupBy) {
+    case "supplier":
+      return "s.name";
+    case "costCenter":
+      return "cc.name";
+    case "month":
+      return "to_char(i.created_at, 'YYYY-MM')";
+    default:
+      throw new DomainError("VALIDATION", "groupBy must be supplier, costCenter, or month");
+  }
+}
 
-function buildQuery(groupBy: AnalyticsGroupBy, from?: string, to?: string): string {
-  const expr = GROUP_EXPRESSION[groupBy];
-  const conditions = ["i.status = 'APPROVED'"];
-  if (from) conditions.push(`i.created_at >= '${from} 00:00:00'::timestamptz`);
-  if (to) conditions.push(`i.created_at <= ('${to} 23:59:59')::timestamptz`);
-  const where = conditions.join(" AND ");
-  return `
+function assertDate(label: string, value: string | undefined): void {
+  if (value === undefined) return;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  const valid =
+    /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    !Number.isNaN(parsed.getTime()) &&
+    parsed.toISOString().slice(0, 10) === value;
+  if (!valid) throw new DomainError("VALIDATION", `${label} must be a valid YYYY-MM-DD date`);
+}
+
+// Only the allowlisted group expression is raw SQL; dates are bound parameters.
+function buildQuery(groupBy: AnalyticsGroupBy, from?: string, to?: string) {
+  const expr = sql.raw(groupExpression(groupBy));
+  const fromCond = from ? sql`AND i.created_at >= (${from} || ' 00:00:00')::timestamptz` : sql``;
+  const toCond = to ? sql`AND i.created_at <= (${to} || ' 23:59:59')::timestamptz` : sql``;
+  return sql`
     SELECT ${expr} AS key,
            COALESCE(SUM(il.quantity * il.unit_price_minor), 0)::int AS total_minor,
            COUNT(DISTINCT i.id)::int AS document_count
@@ -31,7 +48,7 @@ function buildQuery(groupBy: AnalyticsGroupBy, from?: string, to?: string): stri
       SELECT po.cost_center_id FROM purchase_orders po WHERE po.id = i.purchase_order_id
     )
     LEFT JOIN invoice_lines il ON il.invoice_id = i.id
-    WHERE ${where}
+    WHERE i.status = 'APPROVED' ${fromCond} ${toCond}
     GROUP BY ${expr}
     ORDER BY total_minor DESC
   `;
@@ -42,7 +59,9 @@ export async function spendByGroup(opts: {
   from?: string;
   to?: string;
 }): Promise<SpendRow[]> {
-  const result = await db.execute(sql.raw(buildQuery(opts.groupBy, opts.from, opts.to)));
+  assertDate("from", opts.from);
+  assertDate("to", opts.to);
+  const result = await db.execute(buildQuery(opts.groupBy, opts.from, opts.to));
   return (result.rows as { key: string | null; total_minor: number; document_count: number }[])
     .filter((r) => r.key !== null)
     .map((r) => ({

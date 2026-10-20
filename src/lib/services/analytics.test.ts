@@ -16,6 +16,7 @@ import {
   invoiceLines,
 } from "@/lib/db/schema";
 import { truncateAll } from "@/lib/testing/seed";
+import { errorToResponse } from "@/lib/api/helpers";
 import { spendByGroup, analyticsSummary } from "./analytics";
 
 beforeEach(async () => {
@@ -135,6 +136,42 @@ describe("spendByGroup", () => {
 
     const rows = await spendByGroup({ groupBy: "supplier" });
     expect(rows[0]).toMatchObject({ totalMinor: 100_000, documentCount: 1 });
+  });
+});
+
+describe("spendByGroup date validation", () => {
+  const bad = [
+    "2026-01-01'; DROP TABLE invoices; --",
+    "2026-01-01' OR '1'='1",
+    "2026-02-31",
+    "2026-13-01",
+    "01/02/2026",
+    "",
+  ];
+
+  it.each(bad)("rejects from=%j with VALIDATION (HTTP 400)", async (value) => {
+    const err = await spendByGroup({ groupBy: "supplier", from: value }).catch((e) => e);
+    expect(err).toMatchObject({ code: "VALIDATION" });
+    expect(errorToResponse(err).status).toBe(400);
+  });
+
+  it("rejects a stacked-statement payload in to", async () => {
+    await expect(
+      spendByGroup({ groupBy: "month", to: "2026-01-01'; DELETE FROM invoices; --" }),
+    ).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
+  it("rejects an unknown groupBy", async () => {
+    await expect(
+      spendByGroup({ groupBy: "s.name; DROP TABLE x" as never }),
+    ).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
+  it("still accepts valid dates", async () => {
+    await approvedInvoice({ supplierName: "A", ccName: "IT", amountMinor: 1_000 });
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = await spendByGroup({ groupBy: "supplier", from: "2020-01-01", to: today });
+    expect(rows[0]).toMatchObject({ key: "A", totalMinor: 1_000 });
   });
 });
 
