@@ -60,7 +60,7 @@ npm run build
 | Variable | Required | Description |
 |---|---|---|
 | `DATABASE_URL` | ✅ | `postgresql://hexprocure:PASSWORD@localhost:5432/hexprocure` |
-| `AUTH_SECRET` | ✅ | Session signing secret. `openssl rand -base64 32`. Rotating it logs everyone out. Min 8 chars. |
+| `AUTH_SECRET` | ✅ | Session signing secret. `openssl rand -hex 32`. Rotating it logs everyone out. Min 32 chars, placeholders rejected at startup. |
 | `SMTP_URL` | ⚠️ rec. | e.g. `smtp://user:pass@smtp.provider.com:587`. Without it notifications are logged, not sent. |
 | `SMTP_FROM` | w/ SMTP | Sender address, e.g. `procurement@yourcompany.com` |
 | `INTEGRATION_OCR_URL` | optional | OCR sidecar, e.g. `http://localhost:8100`. Unset = invoice intake disabled (501). |

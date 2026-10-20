@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
+import { getAuthSecret } from "@/lib/auth-secret";
 import { verifySessionToken, SESSION_COOKIE } from "@/lib/auth";
 import { verifyApiToken } from "@/lib/services/api-tokens";
 import { DomainError } from "@/lib/services/p2p";
@@ -28,14 +29,6 @@ export function errorToResponse(error: unknown) {
     { error: { code: "INTERNAL", message: "Internal server error" } },
     { status: 500 },
   );
-}
-
-export function requireAuthSecret(): string {
-  const secret = process.env.AUTH_SECRET;
-  if (!secret || secret.length < 8) {
-    throw new Error("AUTH_SECRET must be set (min 8 chars)");
-  }
-  return secret;
 }
 
 function readSessionCookie(request: Request): string | null {
@@ -65,7 +58,7 @@ export async function getActor(request: Request) {
   if (!token) {
     throw new DomainError("FORBIDDEN", "Authentication required");
   }
-  const payload = verifySessionToken(token, requireAuthSecret());
+  const payload = verifySessionToken(token, getAuthSecret());
   if (!payload) {
     throw new DomainError("FORBIDDEN", "Invalid or expired session");
   }

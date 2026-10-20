@@ -20,9 +20,10 @@ import {
   errorToResponse,
   getActor,
 } from "@/lib/api/helpers";
+import { getAuthSecret } from "@/lib/auth-secret";
 import { hashPassword, createSessionToken } from "@/lib/auth";
 
-const SECRET = process.env.AUTH_SECRET ?? "dev-secret-change-me";
+const SECRET = getAuthSecret();
 const authCookie = (userId: string) =>
   `hexprocure_session=${createSessionToken(userId, SECRET)}`;
 
