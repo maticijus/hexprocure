@@ -340,3 +340,15 @@ export const integrationEvents = pgTable("integration_events", {
     .defaultNow(),
   deliveredAt: timestamp("delivered_at", { withTimezone: true }),
 });
+
+export const llmUsage = pgTable("llm_usage", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  purpose: text("purpose").notNull(),
+  model: text("model").notNull(),
+  inputTokens: integer("input_tokens").notNull(),
+  outputTokens: integer("output_tokens").notNull(),
+  durationMs: integer("duration_ms").notNull(),
+  actorUserId: uuid("actor_user_id").references(() => users.id),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
