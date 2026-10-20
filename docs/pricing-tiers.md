@@ -58,4 +58,25 @@ Add-ons for either paid tier: extra AI documents in blocks of 1,000 per month; a
 
 ## 5. Market benchmarks
 
-Filled from the 2026-10-20 research pass; see `research/market-2026-10-20.md` once committed. Summary table to be inserted when the research agent reports.
+From `research/market-2026-10-20.md` (third-party figures, verify before quoting).
+
+| Product | Entry price | Model | Free tier | Where AI sits |
+|---|---|---|---|---|
+| Ramp | free; Plus 15 USD per user per month plus platform fee | per user | yes | OCR free; AI approvals in Plus; procurement is an add-on |
+| Pleo | 4 to 249 EUR per month base, plus 5 to 15 EUR per extra user | base plus users | trial | not stated |
+| Payhawk | from 149 EUR per month (small-company programme, no procurement) | modular quote | no | not stated |
+| Spendesk | quote; example 299 EUR per month at 100 transactions | flat plus usage | no | not stated |
+| Precoro | 35 USD per user or 499 to 999 USD flat, sources conflict | unclear | no | not found |
+| Procurify | about 1,000 USD per month, quote | per user, annual | no | not found |
+| Tradogram | 99 USD per month plus per-user fees | base plus users | single-user free | not found |
+| ProcurementExpress | 30 USD per user per month | per user | not found | not found |
+| Odoo Purchase | 17 to 61 USD per user per month | per user | one app free | not found |
+| Kissflow, Order.co | quote only | quote | no | not found |
+
+What this says about the proposal in section 2:
+
+- **99 and 299 EUR flat per company undercut every dedicated P2P tool** (Precoro, Procurify, Kissflow) and match the spend-card players (Pleo Advanced 99, Pleo Business 249, Payhawk 149) on price while offering a full P2P loop they do not. Keep the anchors.
+- **Per-user pricing is the norm; flat is the differentiator.** A 30-person company on Odoo Purchase pays 500 to 1,800 USD per month; on Precoro per-user, over 1,000 USD. Flat 99 or 299 EUR is a clear story.
+- **OCR must stay free.** Ramp gives invoice OCR away. HexProcure already does (self-hosted sidecar). Section 2 keeps OCR and matching in Community; only the LLM lanes move up.
+- **No competitor publishes AI gating.** Naming the AI features per tier is a differentiator in itself.
+- **No open-source dedicated P2P exists.** Odoo Community and ERPNext are general ERPs. HexProcure is alone in its niche; the open-core model (ERPNext style: hosting plus services, no closed edition) is the closest precedent, and the proposal here adds paid feature packs on top.
