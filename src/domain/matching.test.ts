@@ -63,7 +63,7 @@ describe("matchInvoice", () => {
     s.previouslyInvoicedQtyByPoLine = { "pl-1": 8 };
     const r = matchInvoice(s, [inv("pl-1", 3, 1999)]);
     expect(r.status).toBe("EXCEPTION");
-    expect(r.exceptions[0].type).toBe("OVER_INVOICED");
+    expect(r.exceptions.map((e) => e.type)).toContain("OVER_INVOICED");
   });
 
   it("flags PRICE_MISMATCH beyond tolerance", () => {

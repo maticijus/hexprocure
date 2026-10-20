@@ -97,16 +97,16 @@ export function matchInvoice(
     }
 
     const received = ctx.receivedQtyByPoLine[poLine.id] ?? 0;
-    if (line.quantity > received) {
+    const prior = ctx.previouslyInvoicedQtyByPoLine[poLine.id] ?? 0;
+    if (prior + line.quantity > received) {
       exceptions.push({
         type: "QUANTITY_MISMATCH",
         invoiceLineIndex: i,
         poLineId: poLine.id,
-        detail: `Invoiced ${line.quantity}, received ${received}`,
+        detail: `Cumulative invoiced ${prior + line.quantity}, received ${received}`,
       });
     }
 
-    const prior = ctx.previouslyInvoicedQtyByPoLine[poLine.id] ?? 0;
     if (prior + line.quantity > poLine.quantityOrdered) {
       exceptions.push({
         type: "OVER_INVOICED",
