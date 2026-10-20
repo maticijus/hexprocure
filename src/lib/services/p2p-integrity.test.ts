@@ -267,3 +267,27 @@ describe("B4 invoice lines must belong to the invoiced PO", () => {
     ]);
   });
 });
+
+describe("B5 invoiced quantity is capped at received across invoices", () => {
+  it("10 ordered, 5 received: first invoice of 5 matches, second raises QUANTITY_MISMATCH", async () => {
+    const { s, purchaseOrderId, goods } = await openPo([{ quantity: 10, unitPriceMinor: 1000 }]);
+    await addReceipt(purchaseOrderId, [{ poLineId: goods.id, quantityReceived: 5 }], s.requester.id);
+    const invoiceOf5 = (number: string) =>
+      createInvoice(
+        {
+          supplierId: s.supplier.id,
+          purchaseOrderId,
+          number,
+          lines: [{ poLineId: goods.id, quantity: 5, unitPriceMinor: 1000 }],
+        },
+        s.finance.id,
+      );
+
+    const first = await invoiceOf5("INV-B5-1");
+    expect((await matchInvoiceById(first.id, s.finance.id)).status).toBe("MATCHED");
+    const second = await invoiceOf5("INV-B5-2");
+    const result = await matchInvoiceById(second.id, s.finance.id);
+    expect(result.status).toBe("EXCEPTION");
+    expect(result.exceptions).toEqual([expect.objectContaining({ type: "QUANTITY_MISMATCH" })]);
+  });
+});

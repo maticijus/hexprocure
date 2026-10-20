@@ -114,3 +114,24 @@ describe("matchInvoice", () => {
     expect(() => matchInvoice(baseScenario(), [])).toThrow(/no lines/i);
   });
 });
+
+describe("cumulative cap at received across invoices (B5)", () => {
+  const halfReceived = (): MatchContext => ({
+    poLines: [po("pl-1", 10, 1999)],
+    receivedQtyByPoLine: { "pl-1": 5 },
+    previouslyInvoicedQtyByPoLine: {},
+  });
+
+  it("matches the first invoice of 5 against 5 received", () => {
+    expect(matchInvoice(halfReceived(), [inv("pl-1", 5, 1999)]).status).toBe("MATCHED");
+  });
+
+  it("flags QUANTITY_MISMATCH when a second invoice of 5 would exceed 5 received", () => {
+    const ctx = { ...halfReceived(), previouslyInvoicedQtyByPoLine: { "pl-1": 5 } };
+    const r = matchInvoice(ctx, [inv("pl-1", 5, 1999)]);
+    expect(r.status).toBe("EXCEPTION");
+    expect(r.exceptions).toEqual([
+      expect.objectContaining({ type: "QUANTITY_MISMATCH", invoiceLineIndex: 0, poLineId: "pl-1" }),
+    ]);
+  });
+});
