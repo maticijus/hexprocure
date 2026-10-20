@@ -628,19 +628,18 @@ export async function approveInvoice(invoiceId: string, actorUserId: string) {
     await audit(tx, "invoice", invoiceId, "APPROVED", actorUserId);
 
     const [invSupplier] = await tx.select().from(suppliers).where(eq(suppliers.id, invoice.supplierId));
+    const [po] = await tx
+      .select({ currency: purchaseOrders.currency })
+      .from(purchaseOrders)
+      .where(eq(purchaseOrders.id, invoice.purchaseOrderId));
     await tx.insert(integrationEvents).values({
       eventType: "INVOICE_APPROVED",
       payload: {
         invoiceId,
         invoiceNumber: invoice.number,
         supplier: invSupplier?.name ?? "",
-        currency: "EUR",
-        totalMinor: (
-          await tx
-            .select({ total: sql<number>`COALESCE(SUM(${invoiceLines.quantity} * ${invoiceLines.unitPriceMinor}), 0)` })
-            .from(invoiceLines)
-            .where(eq(invoiceLines.invoiceId, invoiceId))
-        )[0].total,
+        currency: po.currency,
+        totalMinor: await invoiceTotalMinor(tx, invoiceId),
         purchaseOrderId: invoice.purchaseOrderId,
       },
     });
@@ -649,3 +648,16 @@ export async function approveInvoice(invoiceId: string, actorUserId: string) {
   });
 }
 
+async function invoiceTotalMinor(tx: Tx, invoiceId: string) {
+  const [{ total }] = await tx
+    .select({
+      total: sql<string>`COALESCE(SUM(COALESCE(${invoiceLines.amountMinor}::bigint, ${invoiceLines.quantity}::bigint * ${invoiceLines.unitPriceMinor})), 0)::bigint`,
+    })
+    .from(invoiceLines)
+    .where(eq(invoiceLines.invoiceId, invoiceId));
+  const totalMinor = Number(total);
+  if (!Number.isSafeInteger(totalMinor)) {
+    throw new DomainError("INVALID_STATE", `Invoice total ${total} exceeds safe integer range`);
+  }
+  return totalMinor;
+}
