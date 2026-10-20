@@ -18,6 +18,14 @@ const validLines = {
   lines: [{ description: "Laptop stand", quantity: 2, unitPrice: "123,45", lineTotal: "246,90", poLineRef: "po-1" }],
 };
 
+interface SentRequest {
+  output_config: { format: { type: string } };
+  system: { text: string; cache_control?: unknown }[];
+  messages: { content: { text: string }[] }[];
+  temperature?: unknown;
+  thinking?: unknown;
+}
+
 function fakeClient(result: unknown | Error) {
   const create = vi.fn(async () => {
     if (result instanceof Error) throw result;
@@ -40,7 +48,7 @@ describe("AnthropicLlmProvider", () => {
   it("requests a json_schema structured output with a cached system prompt", async () => {
     const c = fakeClient(okResponse(validLines));
     await provider(c).extractInvoiceLines(input);
-    const req = (c.create.mock.calls[0] as unknown[])[0] as Record<string, any>;
+    const req = (c.create.mock.calls[0] as unknown[])[0] as SentRequest;
     expect(req.output_config.format.type).toBe("json_schema");
     expect(req.system[0].cache_control).toEqual({ type: "ephemeral" });
     expect(req.temperature).toBeUndefined();
@@ -50,7 +58,7 @@ describe("AnthropicLlmProvider", () => {
   it("wraps invoice text as untrusted data", async () => {
     const c = fakeClient(okResponse(validLines));
     await provider(c).extractInvoiceLines(input);
-    const req = (c.create.mock.calls[0] as unknown[])[0] as Record<string, any>;
+    const req = (c.create.mock.calls[0] as unknown[])[0] as SentRequest;
     const texts = req.messages[0].content.map((b: { text: string }) => b.text);
     expect(texts.some((t: string) => t.startsWith("<invoice_text>\n") && t.endsWith("\n</invoice_text>"))).toBe(true);
     expect(req.system[0].text).toContain("untrusted");
@@ -99,7 +107,7 @@ describe("AnthropicLlmProvider", () => {
 
 describe("NoopLlmProvider", () => {
   it("returns no lines without any network", async () => {
-    const result = await new NoopLlmProvider().extractInvoiceLines(input);
+    const result = await new NoopLlmProvider().extractInvoiceLines();
     expect(result.lines).toEqual([]);
     expect(result.usage.inputTokens).toBe(0);
   });
