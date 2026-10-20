@@ -4,10 +4,15 @@ import { NextResponse } from "next/server";
  *  with Bearer API tokens and are exempt from the origin check (tokens cannot
  *  be sent cross-origin by a victim's browser, so CSRF does not apply). */
 
+/** Client-controlled headers are only honoured behind a proxy the operator
+ *  vouches for (TRUST_PROXY=true); that proxy appends the real peer last. */
 export function getClientIp(request: Request): string {
-  const fwd = request.headers.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0].trim();
-  return "unknown";
+  if (process.env.TRUST_PROXY === "true") {
+    const hops = (request.headers.get("x-forwarded-for") ?? "").split(",");
+    const last = hops[hops.length - 1].trim();
+    if (last) return last;
+  }
+  return request.headers.get("x-real-ip")?.trim() || "direct";
 }
 
 function allowedOrigins(request: Request): Set<string> {
@@ -80,21 +85,21 @@ export function limitsPerMinute(): { auth: number; mutation: number; read: numbe
   };
 }
 
-export function checkRateLimit(
-  request: Request,
-  limit: number,
-  windowMs: number,
-): Response | null {
-  const key = `${getClientIp(request)}:${new URL(request.url).pathname.split("/").slice(0, 4).join("/")}`;
-  const now = Date.now();
+export function rateLimitKeyCount(): number {
+  return windows.size;
+}
 
-  if (!windows.has(key) && windows.size >= MAX_TRACKED_KEYS) {
-    // bounded memory: drop expired windows before refusing new tracking
-    for (const [k, state] of windows) {
-      if (state.hits.every((h) => now - h > windowMs)) windows.delete(k);
-      if (windows.size < MAX_TRACKED_KEYS) break;
-    }
+function evictOldestKeys(): void {
+  // Map iterates in insertion order, so the first keys are the oldest.
+  for (const k of windows.keys()) {
+    if (windows.size < MAX_TRACKED_KEYS) break;
+    windows.delete(k);
   }
+}
+
+function consume(key: string, limit: number, windowMs: number): Response | null {
+  const now = Date.now();
+  if (!windows.has(key) && windows.size >= MAX_TRACKED_KEYS) evictOldestKeys();
 
   const state = windows.get(key) ?? { hits: [] };
   state.hits = state.hits.filter((h) => now - h < windowMs);
@@ -110,4 +115,19 @@ export function checkRateLimit(
   state.hits.push(now);
   windows.set(key, state);
   return null;
+}
+
+export function checkRateLimit(
+  request: Request,
+  limit: number,
+  windowMs: number,
+): Response | null {
+  const path = new URL(request.url).pathname.split("/").slice(0, 4).join("/");
+  return consume(`${getClientIp(request)}:${path}`, limit, windowMs);
+}
+
+/** Per-account limit shared across all IPs, so rotating addresses does not
+ *  reset the budget for password guessing against one email. */
+export function checkLoginRateLimit(email: string, limit: number, windowMs: number): Response | null {
+  return consume(`login:${email.trim().toLowerCase()}`, limit, windowMs);
 }
