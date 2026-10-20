@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import {
   AnthropicLlmProvider,
   NoopLlmProvider,
+  createAnthropicClient,
   getLlmProvider,
   type LlmExtractInput,
 } from "./llm-provider";
@@ -102,6 +103,14 @@ describe("AnthropicLlmProvider", () => {
 
   it("does not swallow unexpected errors", async () => {
     await expect(provider(fakeClient(new TypeError("boom"))).extractInvoiceLines(input)).rejects.toBeInstanceOf(TypeError);
+  });
+});
+
+describe("createAnthropicClient", () => {
+  it("bounds request time and retries", () => {
+    const client = createAnthropicClient("test-key");
+    expect(client.timeout).toBe(30_000);
+    expect(client.maxRetries).toBe(1);
   });
 });
 

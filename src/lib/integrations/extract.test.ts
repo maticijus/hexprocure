@@ -165,6 +165,44 @@ describe("POST /api/v1/invoices/extract", () => {
       );
     });
 
+    it("truncates oversized invoice text and warns", async () => {
+      extractMock.mockResolvedValue({ text: "x".repeat(70_000), lines: [] });
+      useFakeLlm.on = true;
+      llmExtractMock.mockResolvedValue({ lines: [], usage: { inputTokens: 1, outputTokens: 1, model: "m" } });
+      const data = await (await post()).json();
+      expect(llmExtractMock.mock.calls[0][0].text).toHaveLength(60_000);
+      expect(data.warnings).toEqual(["invoice text truncated to 60000 characters"]);
+      expect(data.linesSource).toBe("llm");
+    });
+
+    it("does not fail the request when usage logging fails", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      recordUsageMock.mockRejectedValue(new Error("db down"));
+      useFakeLlm.on = true;
+      llmExtractMock.mockResolvedValue({
+        lines: [{ description: "Widget", quantity: 1, unitPrice: "1,00", lineTotal: null, poLineRef: null }],
+        usage: { inputTokens: 1, outputTokens: 1, model: "m" },
+      });
+      const res = await post();
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.lines).toHaveLength(1);
+      expect(data.linesSource).toBe("llm");
+      expect(errorSpy).toHaveBeenCalled();
+      errorSpy.mockRestore();
+    });
+
+    it("does not fail the request when usage logging fails after an LLM error", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      recordUsageMock.mockRejectedValue(new Error("db down"));
+      useFakeLlm.on = true;
+      llmExtractMock.mockRejectedValue(new DomainError("LLM_UNAVAILABLE", "LLM rate limit reached"));
+      const res = await post();
+      expect(res.status).toBe(200);
+      expect((await res.json()).warnings).toEqual(["LLM unavailable: LLM rate limit reached"]);
+      errorSpy.mockRestore();
+    });
+
     it("returns 404 for an unknown purchaseOrderId", async () => {
       useFakeLlm.on = true;
       const res = await post(randomUUID());
