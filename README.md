@@ -199,6 +199,15 @@ Dependency rule: `app → lib → domain`; the domain layer is pure and fully un
 - Invoice line items are entered manually after extraction; automatic line-item extraction from OCR text is future work
 - Rate limiting is single-instance in-memory; multi-node deployments need the Redis adapter
 
+## Editions
+
+The core in this repository is MIT and free to self-host with no seat cap.
+Paid features (AI lanes, connector packs, SSO and more) live in [`ee/`](ee/)
+under the source-available [HexProcure Commercial Licence](ee/LICENSE) and
+unlock with an offline signed licence key in `HEXPROCURE_LICENSE`. Without a
+key the app runs as Community and nothing breaks. Tiers and prices:
+[docs/pricing-tiers.md](docs/pricing-tiers.md).
+
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE). The `ee/` directory carries its own licence, see [ee/LICENSE](ee/LICENSE).
