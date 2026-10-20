@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { db } from "@/lib/db";
+import { db, pool } from "@/lib/db";
 import {
   approvals,
   invoiceLines,
@@ -289,5 +289,41 @@ describe("B5 invoiced quantity is capped at received across invoices", () => {
     const result = await matchInvoiceById(second.id, s.finance.id);
     expect(result.status).toBe("EXCEPTION");
     expect(result.exceptions).toEqual([expect.objectContaining({ type: "QUANTITY_MISMATCH" })]);
+  });
+});
+
+describe("B7 receipts cannot exceed ordered quantity", () => {
+  async function receivedQty(poLineId: string) {
+    const { rows } = await db.execute(
+      sql`SELECT COALESCE(SUM(quantity_received), 0)::int AS n FROM receipt_lines WHERE po_line_id = ${poLineId}`,
+    );
+    return (rows[0] as { n: number }).n;
+  }
+
+  it("merges duplicate line ids in one request before checking ordered", async () => {
+    const { s, purchaseOrderId, goods } = await openPo([{ quantity: 10, unitPriceMinor: 1000 }]);
+    const sixTwice = [
+      { poLineId: goods.id, quantityReceived: 6 },
+      { poLineId: goods.id, quantityReceived: 6 },
+    ];
+    await expect(addReceipt(purchaseOrderId, sixTwice, s.requester.id)).rejects.toMatchObject({
+      code: "INVALID_STATE",
+    });
+    expect(await receivedQty(goods.id)).toBe(0);
+  });
+
+  it("concurrent receipts of 6 against 10 ordered: one succeeds, total stays within ordered", async () => {
+    const { s, purchaseOrderId, goods } = await openPo([{ quantity: 10, unitPriceMinor: 1000 }]);
+    const receiveSix = () =>
+      addReceipt(purchaseOrderId, [{ poLineId: goods.id, quantityReceived: 6 }], s.requester.id);
+    // Open the connections first so connection setup does not serialize the race.
+    await Promise.all(Array.from({ length: 4 }, () => pool.query("SELECT pg_sleep(0.05)")));
+    const results = await Promise.allSettled(Array.from({ length: 4 }, receiveSix));
+
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    for (const r of results.filter((r) => r.status === "rejected")) {
+      expect((r as PromiseRejectedResult).reason).toMatchObject({ code: "INVALID_STATE" });
+    }
+    expect(await receivedQty(goods.id)).toBe(6);
   });
 });
