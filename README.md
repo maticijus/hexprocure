@@ -103,6 +103,7 @@ Design decisions worth knowing:
 
 With `ANTHROPIC_API_KEY` set, the OCR text of each uploaded invoice and the line descriptions, quantities and unit prices of the selected purchase order are sent to Anthropic's API. Invoice text is treated as untrusted data in the prompt. Every call, successful or failed, is recorded in the `llm_usage` table (model, token counts, duration, acting user). Set `INTEGRATION_LLM_MODEL` to change the model; leave the key unset to keep all processing on your infrastructure. Proposed lines are never saved automatically: a person reviews them and creates the invoice as usual.
 
+## Auth
 
 Email + password registration and login. Passwords are hashed with scrypt (unique per-user salt). Sessions are HMAC-SHA256–signed tokens stored in `HttpOnly` / `SameSite=Lax` cookies with 7-day expiry; signature and expiry checks use timing-safe comparison. Role-based authorization (REQUESTER / MANAGER / FINANCE / ADMIN) is enforced per endpoint and in the UI.
 
