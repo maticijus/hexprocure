@@ -169,3 +169,48 @@ describe("B2 invoice approval is idempotent under concurrency", () => {
     expect(await approvedEvents()).toHaveLength(1);
   });
 });
+
+describe("B3 INVOICE_APPROVED carries PO currency and the billed total", () => {
+  it("uses the PO currency and service amountMinor in an integer total", async () => {
+    const { s, purchaseOrderId, goods, service } = await openPo([
+      { quantity: 2, unitPriceMinor: 1000 },
+      { quantity: 1, unitPriceMinor: 50_000, kind: "SERVICE" },
+    ]);
+    await db.execute(
+      sql`UPDATE purchase_orders SET currency = 'CZK' WHERE id = ${purchaseOrderId}`,
+    );
+    await addReceipt(
+      purchaseOrderId,
+      [
+        { poLineId: goods.id, quantityReceived: 2 },
+        { poLineId: service!.id, quantityReceived: 1, accepted: true },
+      ],
+      s.requester.id,
+    );
+    const invoice = await createInvoice(
+      {
+        supplierId: s.supplier.id,
+        purchaseOrderId,
+        number: "INV-B3",
+        lines: [
+          { poLineId: goods.id, quantity: 2, unitPriceMinor: 1000 },
+          {
+            poLineId: service!.id,
+            quantity: 1,
+            unitPriceMinor: 0,
+            amountMinor: 40_000,
+          },
+        ],
+      },
+      s.finance.id,
+    );
+    expect((await matchInvoiceById(invoice.id, s.finance.id)).status).toBe(
+      "MATCHED",
+    );
+    await approveInvoice(invoice.id, s.finance.id);
+
+    const [event] = await approvedEvents();
+    expect(event.payload.currency).toBe("CZK");
+    expect(event.payload.totalMinor).toBe(42_000);
+  });
+});
