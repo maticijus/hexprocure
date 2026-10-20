@@ -3,6 +3,7 @@ const STATUS_STYLES: Record<string, string> = {
   SUBMITTED: "bg-blue-50 text-blue-700",
   APPROVED: "bg-green-50 text-green-700",
   REJECTED: "bg-red-50 text-red-700",
+  ORDERED: "bg-gray-100 text-gray-600",
   OPEN: "bg-blue-50 text-blue-700",
   CLOSED: "bg-gray-100 text-gray-600",
   CANCELLED: "bg-red-50 text-red-700",

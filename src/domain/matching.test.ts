@@ -63,7 +63,7 @@ describe("matchInvoice", () => {
     s.previouslyInvoicedQtyByPoLine = { "pl-1": 8 };
     const r = matchInvoice(s, [inv("pl-1", 3, 1999)]);
     expect(r.status).toBe("EXCEPTION");
-    expect(r.exceptions[0].type).toBe("OVER_INVOICED");
+    expect(r.exceptions.map((e) => e.type)).toContain("OVER_INVOICED");
   });
 
   it("flags PRICE_MISMATCH beyond tolerance", () => {
@@ -112,5 +112,58 @@ describe("matchInvoice", () => {
 
   it("rejects empty invoice", () => {
     expect(() => matchInvoice(baseScenario(), [])).toThrow(/no lines/i);
+  });
+});
+
+describe("cumulative cap at received across invoices (B5)", () => {
+  const halfReceived = (): MatchContext => ({
+    poLines: [po("pl-1", 10, 1999)],
+    receivedQtyByPoLine: { "pl-1": 5 },
+    previouslyInvoicedQtyByPoLine: {},
+  });
+
+  it("matches the first invoice of 5 against 5 received", () => {
+    expect(matchInvoice(halfReceived(), [inv("pl-1", 5, 1999)]).status).toBe("MATCHED");
+  });
+
+  it("flags QUANTITY_MISMATCH when a second invoice of 5 would exceed 5 received", () => {
+    const ctx = { ...halfReceived(), previouslyInvoicedQtyByPoLine: { "pl-1": 5 } };
+    const r = matchInvoice(ctx, [inv("pl-1", 5, 1999)]);
+    expect(r.status).toBe("EXCEPTION");
+    expect(r.exceptions).toEqual([
+      expect.objectContaining({ type: "QUANTITY_MISMATCH", invoiceLineIndex: 0, poLineId: "pl-1" }),
+    ]);
+  });
+});
+
+describe("running total when one invoice repeats a PO line (B6)", () => {
+  it("flags QUANTITY_MISMATCH on the repeat when 3 + 3 exceeds 5 received", () => {
+    const ctx: MatchContext = {
+      poLines: [po("pl-1", 10, 1999)],
+      receivedQtyByPoLine: { "pl-1": 5 },
+      previouslyInvoicedQtyByPoLine: {},
+    };
+    const r = matchInvoice(ctx, [inv("pl-1", 3, 1999), inv("pl-1", 3, 1999)]);
+    expect(r.exceptions).toEqual([
+      expect.objectContaining({ type: "QUANTITY_MISMATCH", invoiceLineIndex: 1 }),
+    ]);
+  });
+
+  it("flags OVER_INVOICED on the repeat when 6 + 6 exceeds 10 ordered", () => {
+    const r = matchInvoice(baseScenario(), [inv("pl-1", 6, 1999), inv("pl-1", 6, 1999)]);
+    expect(r.exceptions.map((e) => [e.type, e.invoiceLineIndex])).toContainEqual(["OVER_INVOICED", 1]);
+  });
+
+  it("flags OVER_INVOICED_AMOUNT when repeated service amounts exceed the line amount", () => {
+    const ctx: MatchContext = {
+      poLines: [{ id: "svc-1", quantityOrdered: 1, unitPriceMinor: 1000, kind: "SERVICE" }],
+      receivedQtyByPoLine: {},
+      previouslyInvoicedQtyByPoLine: {},
+    };
+    const line = { poLineId: "svc-1", quantity: 1, unitPriceMinor: 0, amountMinor: 600 };
+    const r = matchInvoice(ctx, [line, line]);
+    expect(r.exceptions).toEqual([
+      expect.objectContaining({ type: "OVER_INVOICED_AMOUNT", invoiceLineIndex: 1 }),
+    ]);
   });
 });

@@ -195,11 +195,7 @@ export async function decideApproval(
 
 export async function createPurchaseOrder(requisitionId: string, actorUserId: string) {
   return db.transaction(async (tx) => {
-    const [req] = await tx.select().from(requisitions).where(eq(requisitions.id, requisitionId));
-    if (!req) throw new DomainError("NOT_FOUND", "Requisition not found");
-    if (req.status !== "APPROVED") {
-      throw new DomainError("INVALID_STATE", `Cannot order from ${req.status}`);
-    }
+    const req = await lockApprovedRequisition(tx, requisitionId);
 
     const lines = await tx
       .select()
@@ -252,6 +248,7 @@ export async function createPurchaseOrder(requisitionId: string, actorUserId: st
       amountMinor: total,
     });
 
+    await tx.update(requisitions).set({ status: "ORDERED" }).where(eq(requisitions.id, requisitionId));
     await audit(tx, "purchase_order", po.id, "CREATED", actorUserId, { total });
 
     const [supplierRow] = await tx.select().from(suppliers).where(eq(suppliers.id, req.supplierId));
@@ -279,6 +276,20 @@ export async function createPurchaseOrder(requisitionId: string, actorUserId: st
 
 type TxCallback = Parameters<typeof db.transaction>[0];
 type Tx = Parameters<TxCallback>[0];
+
+async function lockApprovedRequisition(tx: Tx, requisitionId: string) {
+  // Row lock serializes concurrent orders; the loser sees ORDERED after the winner commits.
+  const [req] = await tx
+    .select()
+    .from(requisitions)
+    .where(eq(requisitions.id, requisitionId))
+    .for("update");
+  if (!req) throw new DomainError("NOT_FOUND", "Requisition not found");
+  if (req.status !== "APPROVED") {
+    throw new DomainError("INVALID_STATE", `Cannot order from ${req.status}`);
+  }
+  return req;
+}
 
 async function loadBudgetStateWithin(tx: Tx, costCenterId: string, yearMonth: string) {
   const [budget] = await tx
@@ -321,81 +332,111 @@ export async function cancelPurchaseOrder(purchaseOrderId: string, actorUserId: 
   });
 }
 
+type ReceiptLineInput = { poLineId: string; quantityReceived: number; accepted?: boolean };
+
+function mergeReceiptLines(lines: ReceiptLineInput[]): ReceiptLineInput[] {
+  const merged = new Map<string, ReceiptLineInput>();
+  for (const line of lines) {
+    const prev = merged.get(line.poLineId);
+    merged.set(
+      line.poLineId,
+      prev
+        ? {
+            poLineId: line.poLineId,
+            quantityReceived: prev.quantityReceived + line.quantityReceived,
+            accepted: Boolean(prev.accepted) && Boolean(line.accepted),
+          }
+        : line,
+    );
+  }
+  return [...merged.values()];
+}
+
+async function assertReceivable(tx: Tx, purchaseOrderId: string, lines: ReceiptLineInput[]) {
+  const poLineRows = await tx
+    .select()
+    .from(poLines)
+    .where(eq(poLines.purchaseOrderId, purchaseOrderId));
+  const poLineById = new Map(poLineRows.map((p) => [p.id, p]));
+  const prior = await tx
+    .select({ poLineId: receiptLines.poLineId, qty: receiptLines.quantityReceived })
+    .from(receiptLines)
+    .innerJoin(receipts, eq(receiptLines.receiptId, receipts.id))
+    .where(eq(receipts.purchaseOrderId, purchaseOrderId));
+
+  for (const line of lines) {
+    const poLine = poLineById.get(line.poLineId);
+    if (!poLine) throw new DomainError("NOT_FOUND", `Unknown PO line ${line.poLineId}`);
+    if (poLine.kind === "SERVICE") {
+      if (!line.accepted) {
+        throw new DomainError("INVALID_STATE", `Service line ${line.poLineId} requires accepted:true`);
+      }
+      continue;
+    }
+    const already = prior.filter((r) => r.poLineId === line.poLineId).reduce((sum, r) => sum + r.qty, 0);
+    if (already + line.quantityReceived > poLine.quantityOrdered) {
+      throw new DomainError(
+        "INVALID_STATE",
+        `Cumulative receipt ${already + line.quantityReceived} exceeds ordered ${poLine.quantityOrdered}`,
+      );
+    }
+  }
+}
+
+async function closeIfFullyReceived(tx: Tx, purchaseOrderId: string, receiptId: string, actorUserId: string) {
+  const allPoLines = await tx.select().from(poLines).where(eq(poLines.purchaseOrderId, purchaseOrderId));
+  const allReceipts = await tx
+    .select({ poLineId: receiptLines.poLineId, qty: receiptLines.quantityReceived })
+    .from(receiptLines)
+    .innerJoin(receipts, eq(receiptLines.receiptId, receipts.id))
+    .where(eq(receipts.purchaseOrderId, purchaseOrderId));
+  const fullyReceived = allPoLines.length > 0 && allPoLines.every((pl) => {
+    if (pl.kind === "SERVICE") {
+      return allReceipts.some((r) => r.poLineId === pl.id);
+    }
+    const got = allReceipts.filter((r) => r.poLineId === pl.id).reduce((sum, r) => sum + r.qty, 0);
+    return got >= pl.quantityOrdered;
+  });
+  if (fullyReceived) {
+    await tx.update(purchaseOrders).set({ status: "CLOSED" }).where(eq(purchaseOrders.id, purchaseOrderId));
+    await audit(tx, "purchase_order", purchaseOrderId, "CLOSED", actorUserId);
+  } else {
+    await audit(tx, "receipt", receiptId, "CREATED", actorUserId);
+  }
+}
+
 export async function addReceipt(
   purchaseOrderId: string,
-  lines: { poLineId: string; quantityReceived: number; accepted?: boolean }[],
+  lines: ReceiptLineInput[],
   actorUserId: string,
 ) {
   return db.transaction(async (tx) => {
-    const [po] = await tx.select().from(purchaseOrders).where(eq(purchaseOrders.id, purchaseOrderId));
+    // PO row lock serializes receipts so the cumulative check sees committed prior receipts.
+    const [po] = await tx
+      .select()
+      .from(purchaseOrders)
+      .where(eq(purchaseOrders.id, purchaseOrderId))
+      .for("update");
     if (!po) throw new DomainError("NOT_FOUND", "PO not found");
     if (po.status !== "OPEN") {
       throw new DomainError("INVALID_STATE", `Cannot receive against ${po.status} PO`);
     }
 
-    const poLineRows = await tx
-      .select()
-      .from(poLines)
-      .where(inArray(poLines.id, lines.map((l) => l.poLineId)));
-    const orderedById = new Map(poLineRows.map((p) => [p.id, p]));
-
-    for (const line of lines) {
-      const poLine = orderedById.get(line.poLineId);
-      if (!poLine || poLine.purchaseOrderId !== purchaseOrderId) {
-        throw new DomainError("NOT_FOUND", `Unknown PO line ${line.poLineId}`);
-      }
-      const kind = (poLine as { kind?: "GOODS" | "SERVICE" }).kind ?? "GOODS";
-      if (kind === "SERVICE") {
-        if (!line.accepted) {
-          throw new DomainError("INVALID_STATE", `Service line ${line.poLineId} requires accepted:true`);
-        }
-        continue;
-      }
-      const priorReceipts = await tx
-        .select({ qty: receiptLines.quantityReceived })
-        .from(receiptLines)
-        .innerJoin(receipts, eq(receiptLines.receiptId, receipts.id))
-        .where(eq(receiptLines.poLineId, line.poLineId));
-      const already = priorReceipts.reduce((s, r) => s + r.qty, 0);
-      if (already + line.quantityReceived > poLine.quantityOrdered) {
-        throw new DomainError(
-          "INVALID_STATE",
-          `Cumulative receipt ${already + line.quantityReceived} exceeds ordered ${poLine.quantityOrdered}`,
-        );
-      }
-    }
+    const merged = mergeReceiptLines(lines);
+    await assertReceivable(tx, purchaseOrderId, merged);
 
     const [receipt] = await tx
       .insert(receipts)
       .values({ purchaseOrderId, receivedByUserId: actorUserId })
       .returning();
     await tx.insert(receiptLines).values(
-      lines.map((l) => ({
+      merged.map((l) => ({
         receiptId: receipt.id,
         poLineId: l.poLineId,
         quantityReceived: l.quantityReceived,
       })),
     );
-
-    const allPoLines = await tx.select().from(poLines).where(eq(poLines.purchaseOrderId, purchaseOrderId));
-    const poLineIds = allPoLines.map((p) => p.id);
-    const allReceipts = await tx
-      .select({ poLineId: receiptLines.poLineId, qty: receiptLines.quantityReceived })
-      .from(receiptLines)
-      .where(inArray(receiptLines.poLineId, poLineIds.length ? poLineIds : ["00000000-0000-0000-0000-000000000000"]));
-    const fullyReceived = allPoLines.length > 0 && allPoLines.every((pl) => {
-      if (pl.kind === "SERVICE") {
-        return allReceipts.some((r) => r.poLineId === pl.id);
-      }
-      const got = allReceipts.filter((r) => r.poLineId === pl.id).reduce((sum, r) => sum + r.qty, 0);
-      return got >= pl.quantityOrdered;
-    });
-    if (fullyReceived) {
-      await tx.update(purchaseOrders).set({ status: "CLOSED" }).where(eq(purchaseOrders.id, purchaseOrderId));
-      await audit(tx, "purchase_order", purchaseOrderId, "CLOSED", actorUserId);
-    } else {
-      await audit(tx, "receipt", receipt.id, "CREATED", actorUserId);
-    }
+    await closeIfFullyReceived(tx, purchaseOrderId, receipt.id, actorUserId);
     return { receiptId: receipt.id };
   });
 }
@@ -442,7 +483,10 @@ export async function createInvoice(input: CreateInvoiceInput, actorUserId: stri
       .map((l) => l.poLineId)
       .filter((id): id is string => typeof id === "string");
     const poLineRows = referencedPoLineIds.length
-      ? await tx.select().from(poLines).where(inArray(poLines.id, referencedPoLineIds))
+      ? await tx
+          .select()
+          .from(poLines)
+          .where(and(inArray(poLines.id, referencedPoLineIds), eq(poLines.purchaseOrderId, po.id)))
       : [];
     const poLineById = new Map(poLineRows.map((p) => [p.id, p]));
     for (const [i, line] of input.lines.entries()) {
@@ -498,7 +542,15 @@ export async function matchInvoiceById(invoiceId: string, actorUserId: string) {
       .where(eq(invoiceLines.invoiceId, invoiceId));
     const referencedPoLineIds = invLines.map((l) => l.poLineId).filter((v): v is string => v !== null);
     const poLineRows = referencedPoLineIds.length
-      ? await tx.select().from(poLines).where(inArray(poLines.id, referencedPoLineIds))
+      ? await tx
+          .select()
+          .from(poLines)
+          .where(
+            and(
+              inArray(poLines.id, referencedPoLineIds),
+              eq(poLines.purchaseOrderId, invoice.purchaseOrderId),
+            ),
+          )
       : [];
 
     const receivedQtyByPoLine: Record<string, number> = {};
@@ -605,26 +657,30 @@ export async function approveInvoice(invoiceId: string, actorUserId: string) {
     }
     const [invoice] = await tx.select().from(invoices).where(eq(invoices.id, invoiceId));
     if (!invoice) throw new DomainError("NOT_FOUND", "Invoice not found");
-    if (invoice.status !== "MATCHED") {
-      throw new DomainError("INVALID_STATE", `Only MATCHED invoices can be approved (current: ${invoice.status})`);
+    // Conditional update is the lock: a concurrent approver matches zero rows.
+    const claimed = await tx
+      .update(invoices)
+      .set({ status: "APPROVED" })
+      .where(and(eq(invoices.id, invoiceId), eq(invoices.status, "MATCHED")))
+      .returning({ id: invoices.id });
+    if (claimed.length === 0) {
+      throw new DomainError("INVALID_STATE", "Only MATCHED invoices can be approved");
     }
-    await tx.update(invoices).set({ status: "APPROVED" }).where(eq(invoices.id, invoiceId));
     await audit(tx, "invoice", invoiceId, "APPROVED", actorUserId);
 
     const [invSupplier] = await tx.select().from(suppliers).where(eq(suppliers.id, invoice.supplierId));
+    const [po] = await tx
+      .select({ currency: purchaseOrders.currency })
+      .from(purchaseOrders)
+      .where(eq(purchaseOrders.id, invoice.purchaseOrderId));
     await tx.insert(integrationEvents).values({
       eventType: "INVOICE_APPROVED",
       payload: {
         invoiceId,
         invoiceNumber: invoice.number,
         supplier: invSupplier?.name ?? "",
-        currency: "EUR",
-        totalMinor: (
-          await tx
-            .select({ total: sql<number>`COALESCE(SUM(${invoiceLines.quantity} * ${invoiceLines.unitPriceMinor}), 0)` })
-            .from(invoiceLines)
-            .where(eq(invoiceLines.invoiceId, invoiceId))
-        )[0].total,
+        currency: po.currency,
+        totalMinor: await invoiceTotalMinor(tx, invoiceId),
         purchaseOrderId: invoice.purchaseOrderId,
       },
     });
@@ -633,3 +689,20 @@ export async function approveInvoice(invoiceId: string, actorUserId: string) {
   });
 }
 
+async function invoiceTotalMinor(tx: Tx, invoiceId: string) {
+  // amount_minor is only checked by matching on SERVICE lines, so goods bill at quantity * unit price.
+  const [{ total }] = await tx
+    .select({
+      total: sql<string>`COALESCE(SUM(CASE WHEN ${poLines.kind} = 'SERVICE'
+        THEN COALESCE(${invoiceLines.amountMinor}::bigint, ${invoiceLines.quantity}::bigint * ${invoiceLines.unitPriceMinor})
+        ELSE ${invoiceLines.quantity}::bigint * ${invoiceLines.unitPriceMinor} END), 0)::bigint`,
+    })
+    .from(invoiceLines)
+    .leftJoin(poLines, eq(invoiceLines.poLineId, poLines.id))
+    .where(eq(invoiceLines.invoiceId, invoiceId));
+  const totalMinor = Number(total);
+  if (!Number.isSafeInteger(totalMinor)) {
+    throw new DomainError("INVALID_STATE", `Invoice total ${total} exceeds safe integer range`);
+  }
+  return totalMinor;
+}

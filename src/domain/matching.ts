@@ -52,6 +52,73 @@ function priceWithinTolerance(poPrice: number, invoicePrice: number): boolean {
   return Math.abs(invoicePrice - poPrice) <= tolerance;
 }
 
+type Running = Map<string, number>;
+
+function addRunning(running: Running, poLineId: string, value: number): number {
+  const total = (running.get(poLineId) ?? 0) + value;
+  running.set(poLineId, total);
+  return total;
+}
+
+function checkServiceLine(
+  ctx: MatchContext,
+  poLine: PoLine,
+  line: InvoiceLine,
+  i: number,
+  runningAmount: Running,
+): MatchException[] {
+  const orderedAmount = poLine.quantityOrdered * poLine.unitPriceMinor;
+  const priorAmount = ctx.previouslyInvoicedAmountByPoLine?.[poLine.id] ?? 0;
+  const thisAmount = line.amountMinor ?? line.quantity * line.unitPriceMinor;
+  const cumulative =
+    priorAmount + addRunning(runningAmount, poLine.id, thisAmount);
+  if (cumulative <= orderedAmount) return [];
+  return [
+    {
+      type: "OVER_INVOICED_AMOUNT",
+      invoiceLineIndex: i,
+      poLineId: poLine.id,
+      detail: `Cumulative invoiced ${cumulative} exceeds ordered ${orderedAmount}`,
+    },
+  ];
+}
+
+function checkGoodsLine(
+  ctx: MatchContext,
+  poLine: PoLine,
+  line: InvoiceLine,
+  i: number,
+  runningQty: Running,
+): MatchException[] {
+  const exceptions: MatchException[] = [];
+  const received = ctx.receivedQtyByPoLine[poLine.id] ?? 0;
+  const prior = ctx.previouslyInvoicedQtyByPoLine[poLine.id] ?? 0;
+  const cumulative = prior + addRunning(runningQty, poLine.id, line.quantity);
+  const base = { invoiceLineIndex: i, poLineId: poLine.id };
+  if (cumulative > received) {
+    exceptions.push({
+      ...base,
+      type: "QUANTITY_MISMATCH",
+      detail: `Cumulative invoiced ${cumulative}, received ${received}`,
+    });
+  }
+  if (cumulative > poLine.quantityOrdered) {
+    exceptions.push({
+      ...base,
+      type: "OVER_INVOICED",
+      detail: `Cumulative invoiced ${cumulative} exceeds ordered ${poLine.quantityOrdered}`,
+    });
+  }
+  if (!priceWithinTolerance(poLine.unitPriceMinor, line.unitPriceMinor)) {
+    exceptions.push({
+      ...base,
+      type: "PRICE_MISMATCH",
+      detail: `Invoiced ${line.unitPriceMinor} vs PO ${poLine.unitPriceMinor}`,
+    });
+  }
+  return exceptions;
+}
+
 export function matchInvoice(
   ctx: MatchContext,
   invoiceLines: InvoiceLine[],
@@ -66,64 +133,25 @@ export function matchInvoice(
   });
 
   const poById = new Map(ctx.poLines.map((p) => [p.id, p]));
-  const exceptions: MatchException[] = [];
-
-  invoiceLines.forEach((line, i) => {
+  const runningQty: Running = new Map();
+  const runningAmount: Running = new Map();
+  const exceptions = invoiceLines.flatMap((line, i): MatchException[] => {
     const poLine = line.poLineId ? poById.get(line.poLineId) : undefined;
     if (!poLine) {
-      exceptions.push({
-        type: "UNMATCHED_LINE",
-        invoiceLineIndex: i,
-        detail: line.poLineId
-          ? `Unknown PO line ${line.poLineId}`
-          : "Invoice line has no PO reference",
-      });
-      return;
-    }
-
-    if (poLine.kind === "SERVICE") {
-      const orderedAmount = poLine.quantityOrdered * poLine.unitPriceMinor;
-      const priorAmount = ctx.previouslyInvoicedAmountByPoLine?.[poLine.id] ?? 0;
-      const thisAmount = line.amountMinor ?? line.quantity * line.unitPriceMinor;
-      if (priorAmount + thisAmount > orderedAmount) {
-        exceptions.push({
-          type: "OVER_INVOICED_AMOUNT",
+      return [
+        {
+          type: "UNMATCHED_LINE",
           invoiceLineIndex: i,
-          poLineId: poLine.id,
-          detail: `Cumulative invoiced ${priorAmount + thisAmount} exceeds ordered ${orderedAmount}`,
-        });
-      }
-      return; // services: no quantity or price checks
+          detail: line.poLineId
+            ? `Unknown PO line ${line.poLineId}`
+            : "Invoice line has no PO reference",
+        },
+      ];
     }
-
-    const received = ctx.receivedQtyByPoLine[poLine.id] ?? 0;
-    if (line.quantity > received) {
-      exceptions.push({
-        type: "QUANTITY_MISMATCH",
-        invoiceLineIndex: i,
-        poLineId: poLine.id,
-        detail: `Invoiced ${line.quantity}, received ${received}`,
-      });
-    }
-
-    const prior = ctx.previouslyInvoicedQtyByPoLine[poLine.id] ?? 0;
-    if (prior + line.quantity > poLine.quantityOrdered) {
-      exceptions.push({
-        type: "OVER_INVOICED",
-        invoiceLineIndex: i,
-        poLineId: poLine.id,
-        detail: `Cumulative invoiced ${prior + line.quantity} exceeds ordered ${poLine.quantityOrdered}`,
-      });
-    }
-
-    if (!priceWithinTolerance(poLine.unitPriceMinor, line.unitPriceMinor)) {
-      exceptions.push({
-        type: "PRICE_MISMATCH",
-        invoiceLineIndex: i,
-        poLineId: poLine.id,
-        detail: `Invoiced ${line.unitPriceMinor} vs PO ${poLine.unitPriceMinor}`,
-      });
-    }
+    // Services are amount-only: no quantity or price checks.
+    return poLine.kind === "SERVICE"
+      ? checkServiceLine(ctx, poLine, line, i, runningAmount)
+      : checkGoodsLine(ctx, poLine, line, i, runningQty);
   });
 
   return exceptions.length === 0
