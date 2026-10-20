@@ -96,6 +96,20 @@ describe("parseLicense", () => {
     expect(parseLicense(t, k.publicPem)).toBeNull();
   });
 
+  it("rejects tier names that are only Object.prototype properties", () => {
+    const k = newKeys();
+    for (const tier of ["toString", "constructor", "__proto__", "hasOwnProperty"]) {
+      expect(parseLicense(mint(k.privateKey, { tier }), k.publicPem)).toBeNull();
+    }
+  });
+
+  it("rejects a public key that is not Ed25519", () => {
+    const k = newKeys();
+    const other = generateKeyPairSync("ed448");
+    const otherPem = other.publicKey.export({ type: "spki", format: "pem" }).toString();
+    expect(parseLicense(mint(k.privateKey), otherPem)).toBeNull();
+  });
+
   it("returns null for a garbage public key without throwing", () => {
     const k = newKeys();
     expect(parseLicense(mint(k.privateKey), "not a pem")).toBeNull();
@@ -121,6 +135,21 @@ describe("getLicense", () => {
     expect(first.tier).toBe("team");
     delete process.env.HEXPROCURE_LICENSE;
     expect(getLicense()).toBe(first);
+  });
+
+  it("drops back to community once the memoised licence expires", () => {
+    const k = newKeys();
+    const exp = Math.floor(Date.now() / 1000) + 2;
+    process.env.HEXPROCURE_LICENSE = mint(k.privateKey, { exp });
+    process.env.HEXPROCURE_LICENSE_PUBLIC_KEY = k.publicPem;
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(getLicense().tier).toBe("team");
+    vi.useFakeTimers({ now: exp * 1000 + 1000, toFake: ["Date"] });
+    try {
+      expect(getLicense()).toEqual(COMMUNITY);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("accepts a PEM with escaped newlines", () => {

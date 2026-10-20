@@ -27,7 +27,7 @@ function toLicense(claims: unknown, now: Date): License | null {
   if (typeof claims !== "object" || claims === null) return null;
   const c = claims as Record<string, unknown>;
   const { tier, licensee, exp, aiDocsPerMonth, connectors } = c;
-  if (typeof tier !== "string" || !(tier in TIER_RANK)) return null;
+  if (typeof tier !== "string" || !Object.hasOwn(TIER_RANK, tier)) return null;
   if (typeof licensee !== "string" || licensee === "") return null;
   if (typeof exp !== "number" || !Number.isFinite(exp) || exp * 1000 <= now.getTime()) return null;
   if (typeof aiDocsPerMonth !== "number" || !Number.isInteger(aiDocsPerMonth) || aiDocsPerMonth < 0) return null;
@@ -49,6 +49,7 @@ export function parseLicense(token: string, publicKeyPem: string, now: Date = ne
     const header = decodeJson(h) as { alg?: unknown };
     if (header.alg !== "EdDSA") return null;
     const key = createPublicKey(publicKeyPem);
+    if (key.asymmetricKeyType !== "ed25519") return null;
     if (!verify(null, Buffer.from(`${h}.${p}`), key, Buffer.from(s, "base64url"))) return null;
     return toLicense(decodeJson(p), now);
   } catch {
@@ -63,7 +64,8 @@ export function resetLicenseCache(): void {
 }
 
 export function getLicense(): License {
-  if (cached) return cached;
+  // A licence that expired since it was memoised falls back to Community on the next call.
+  if (cached && (cached.expiresAt === "" || Date.parse(cached.expiresAt) > Date.now())) return cached;
   const token = process.env.HEXPROCURE_LICENSE?.trim();
   const pem = process.env.HEXPROCURE_LICENSE_PUBLIC_KEY?.replace(/\\n/g, "\n");
   const parsed = token && pem ? parseLicense(token, pem) : null;
