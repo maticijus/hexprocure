@@ -217,6 +217,27 @@ describe("B3 INVOICE_APPROVED carries PO currency and the billed total", () => {
   });
 });
 
+describe("B3 follow-up: goods totals ignore unchecked amountMinor", () => {
+  it("bills goods lines at quantity * unit price even when amountMinor is set", async () => {
+    const { s, purchaseOrderId, goods } = await openPo([{ quantity: 2, unitPriceMinor: 1000 }]);
+    await addReceipt(purchaseOrderId, [{ poLineId: goods.id, quantityReceived: 2 }], s.requester.id);
+    const invoice = await createInvoice(
+      {
+        supplierId: s.supplier.id,
+        purchaseOrderId,
+        number: "INV-B3G",
+        lines: [{ poLineId: goods.id, quantity: 2, unitPriceMinor: 1000, amountMinor: 99_999 }],
+      },
+      s.finance.id,
+    );
+    expect((await matchInvoiceById(invoice.id, s.finance.id)).status).toBe("MATCHED");
+    await approveInvoice(invoice.id, s.finance.id);
+
+    const [event] = await approvedEvents();
+    expect(event.payload.totalMinor).toBe(2000);
+  });
+});
+
 describe("B4 invoice lines must belong to the invoiced PO", () => {
   async function twoPos() {
     const a = await openPo([{ quantity: 2, unitPriceMinor: 1000 }]);
