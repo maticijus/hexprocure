@@ -43,6 +43,13 @@
       "when": 1787593548566,
       "tag": "0005_api_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792513282852,
+      "tag": "0006_llm_usage",
+      "breakpoints": true
     }
   ]
 }

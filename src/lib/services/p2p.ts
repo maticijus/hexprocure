@@ -31,6 +31,7 @@ export class DomainError extends Error {
       | "INVALID_STATE"
       | "BUDGET_EXCEEDED"
       | "FORBIDDEN"
+      | "LLM_UNAVAILABLE"
     | "VALIDATION",
     message: string,
     readonly details?: unknown,

@@ -13,6 +13,7 @@ import {
 /** Leaf-to-root order so FKs never block; must cover EVERY table in the
  *  schema or tests leak state across runs (see seed.test.ts guard). */
 export const TRUNCATE_TABLES = [
+  "llm_usage",
   "integration_events",
   "qbo_sync_map",
   "integrations_connections",
