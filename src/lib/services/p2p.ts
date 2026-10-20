@@ -690,11 +690,15 @@ export async function approveInvoice(invoiceId: string, actorUserId: string) {
 }
 
 async function invoiceTotalMinor(tx: Tx, invoiceId: string) {
+  // amount_minor is only checked by matching on SERVICE lines, so goods bill at quantity * unit price.
   const [{ total }] = await tx
     .select({
-      total: sql<string>`COALESCE(SUM(COALESCE(${invoiceLines.amountMinor}::bigint, ${invoiceLines.quantity}::bigint * ${invoiceLines.unitPriceMinor})), 0)::bigint`,
+      total: sql<string>`COALESCE(SUM(CASE WHEN ${poLines.kind} = 'SERVICE'
+        THEN COALESCE(${invoiceLines.amountMinor}::bigint, ${invoiceLines.quantity}::bigint * ${invoiceLines.unitPriceMinor})
+        ELSE ${invoiceLines.quantity}::bigint * ${invoiceLines.unitPriceMinor} END), 0)::bigint`,
     })
     .from(invoiceLines)
+    .leftJoin(poLines, eq(invoiceLines.poLineId, poLines.id))
     .where(eq(invoiceLines.invoiceId, invoiceId));
   const totalMinor = Number(total);
   if (!Number.isSafeInteger(totalMinor)) {
