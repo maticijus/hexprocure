@@ -1,5 +1,38 @@
 # HexProcure — Architecture
 
+```mermaid
+flowchart TB
+  Browser[Browser]
+  subgraph APP[Next.js app]
+    MW["middleware.ts: session check, CSRF origin, rate limit<br/>(lib/api/request-guards)"]
+    Pages["App Router pages<br/>src/app/(app)"]
+    API["API routes<br/>src/app/api/v1"]
+    Svc["lib/services: p2p, analytics, recurring"]
+    Dom["domain: money, approval, matching, budget"]
+    Lic["lib/license: HEXPROCURE_LICENSE tier gate"]
+    Disp["lib/integrations: dispatch + scheduler<br/>(started in instrumentation.ts)"]
+    Ext["invoices/extract route"]
+  end
+  PG[(Postgres via Drizzle<br/>lib/db)]
+  OCR["OCR sidecar<br/>PaddleOcrProvider"]
+  LLM["Anthropic API<br/>AnthropicLlmProvider"]
+  QBO[QuickBooks Online<br/>createQboConnector]
+  Browser --> MW
+  MW --> Pages
+  MW --> API
+  Pages --> Svc
+  API --> Svc
+  API --> Lic
+  Svc --> Dom
+  Svc --> PG
+  API --> Ext
+  Ext --> OCR
+  Ext --> LLM
+  Svc -->|writes integration_events| PG
+  Disp -->|reads pending events| PG
+  Disp --> QBO
+```
+
 SMB procure-to-pay: Requisition → Approval → PO → Receipt → Invoice match, with budget control and spend analytics.
 
 ## Layering
