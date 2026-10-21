@@ -73,7 +73,7 @@ Domain events (`PO_CREATED`, `PO_CANCELLED`, `INVOICE_APPROVED`, plus the notifi
 
 Each event type can have several connectors (CSV when `INTEGRATION_CSV_DIR` is set, email, QuickBooks when configured, webhook when configured) and every registered connector receives the event. Delivery is tracked per connector in `integration_events.delivered_connectors`; an event is `DELIVERED` once all of them succeed, and a failed connector is retried alone on the next run while the others are not called again. The same registry is loaded by the dispatch route and by the in-process scheduler.
 
-Failed retryable deliveries stay `PENDING` with attempt counts and last error and are retried on the next dispatch. Dispatch is triggered via `POST /api/v1/integrations/dispatch` (FINANCE/ADMIN). Set `INTEGRATION_DISPATCH_INTERVAL_MS` (e.g. `60000`) to also run dispatch from an in-process scheduler; it is single-instance, so only one app container should run it, and it depends on the dispatch route having run first (see [Known gaps](#known-gaps)).
+Failed retryable deliveries stay `PENDING` with attempt counts and last error and are retried on the next dispatch. Dispatch is triggered via `POST /api/v1/integrations/dispatch` (FINANCE/ADMIN). Set `INTEGRATION_DISPATCH_INTERVAL_MS` (e.g. `60000`) to also run dispatch from an in-process scheduler; it is single-instance, so only one app container should run it, and it loads the same connector registry as the dispatch route, so it works in a fresh process.
 
 ## AI functionality
 
