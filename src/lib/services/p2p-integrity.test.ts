@@ -5,6 +5,7 @@ import {
   approvals,
   invoiceLines,
   invoices,
+  purchaseOrders,
   requisitionLines,
   requisitions,
 } from "@/lib/db/schema";
@@ -373,5 +374,22 @@ describe("M1 cancelling a PO releases its requisition", () => {
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
     const rejected = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
     expect(rejected.reason).toMatchObject({ code: "INVALID_STATE" });
+  });
+});
+
+describe("M5 duplicate PO for one requisition", () => {
+  it("maps the unique violation to INVALID_STATE", async () => {
+    const { s, req } = await approvedRequisition([{ quantity: 2, unitPriceMinor: 1000 }]);
+    await db.insert(purchaseOrders).values({
+      requisitionId: req.id,
+      supplierId: s.supplier.id,
+      costCenterId: s.cc.id,
+      currency: "EUR",
+    });
+
+    await expect(createPurchaseOrder(req.id, s.manager.id)).rejects.toMatchObject({
+      code: "INVALID_STATE",
+      message: "Requisition already ordered",
+    });
   });
 });
