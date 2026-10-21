@@ -9,9 +9,11 @@ export async function register() {
 
   const { startDispatchScheduler } = await import("@/lib/integrations/scheduler");
   const { dispatchPendingEvents } = await import("@/lib/integrations/dispatch");
+  const { registerConfiguredConnectors } = await import("@/lib/integrations/registry");
   startDispatchScheduler({
     intervalMs,
     run: async () => {
+      registerConfiguredConnectors();
       const { delivered, failed, skipped } = await dispatchPendingEvents(100);
       if (delivered + failed + skipped > 0) {
         console.log(`[dispatch-scheduler] delivered=${delivered} failed=${failed} skipped=${skipped}`);
