@@ -21,9 +21,10 @@ describe("QBO mappers", () => {
 
   it("maps a PO event to QBO PurchaseOrder shape", () => {
     const q = poEventToQboPurchaseOrder(poEvent);
-    expect(q.VendorRef).toBe("Acme GmbH");
-    expect(q.CurrencyRef).toBe("EUR");
-    expect(q.ClassRef).toBe("IT");
+    expect(q.VendorRef).toEqual({ value: "Acme GmbH", name: "Acme GmbH" });
+    expect(q.CurrencyRef).toEqual({ value: "EUR" });
+    expect(q.ClassRef).toEqual({ value: "IT" });
+    expect(q.Line[0].AccountBasedExpenseLineDetail).toEqual({ ClassRef: { value: "IT" } });
     expect(q.TxnDate).toBe("2026-08-24");
     expect(q.Line).toHaveLength(2);
     expect(q.Line[0]).toMatchObject({
@@ -54,9 +55,9 @@ describe("QBO mappers", () => {
     };
     const b = invoiceEventToQboBill(event);
     expect(b).toMatchObject({
-      VendorRef: "Acme GmbH",
+      VendorRef: { value: "Acme GmbH", name: "Acme GmbH" },
       DocNumber: "INV-001",
-      CurrencyRef: "EUR",
+      CurrencyRef: { value: "EUR" },
       TotalAmt: 50,
     });
     expect(b.Links?.[0]).toMatchObject({ HexProcureInvoiceId: "inv-1" });
