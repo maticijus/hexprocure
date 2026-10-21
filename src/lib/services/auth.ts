@@ -1,9 +1,14 @@
+import { randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { hashPassword, verifyPassword } from "@/lib/auth";
 import { startSession, purgeExpiredSessions } from "@/lib/services/sessions";
 import { DomainError } from "@/lib/services/p2p";
+
+/** Verified against when no account matches, so unknown and known emails do
+ *  the same scrypt work and timing does not reveal which accounts exist. */
+const DUMMY_PASSWORD_HASH = hashPassword(randomBytes(32).toString("hex"));
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -50,7 +55,8 @@ export async function login(
     throw new DomainError("FORBIDDEN", "Email and password are required");
   }
   const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
-  if (!user?.passwordHash || !verifyPassword(password, user.passwordHash)) {
+  const verified = verifyPassword(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
+  if (!user?.passwordHash || !verified) {
     throw new DomainError("FORBIDDEN", "Invalid credentials");
   }
   await purgeExpiredSessions();

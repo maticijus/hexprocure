@@ -19,7 +19,7 @@ export function middleware(request: NextRequest) {
     const isAuth = PUBLIC_API_PATHS.some((p) => pathname.startsWith(p));
     const limits = limitsPerMinute();
     const limit = isAuth ? limits.auth : limits.mutation;
-    const limited = checkRateLimit(request, limit, 60_000);
+    const limited = checkRateLimit(request, limit, 60_000, isAuth ? "auth" : "api");
     if (limited) return limited;
   }
 

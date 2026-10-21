@@ -1,9 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   checkCsrfOrigin,
+  checkLoginRateLimit,
   checkRateLimit,
+  clearLoginFailures,
+  getClientIp,
   limitsPerMinute,
   rateLimitKeyCount,
+  recordLoginFailure,
   resetRateLimits,
 } from "./request-guards";
 
@@ -63,6 +67,8 @@ describe("CSRF origin check (mutations only)", () => {
 });
 
 describe("rate limiting", () => {
+  beforeEach(() => vi.stubEnv("TRUST_PROXY", "true"));
+
   it("passes under the limit and returns 429 after burst", () => {
     let last = null;
     for (let i = 0; i < 10; i++) last = checkRateLimit(req({ ip: "9.9.9.9" }), 10, 60_000);
@@ -108,18 +114,149 @@ describe("rate limit client key", () => {
     expect(checkRateLimit(req({ xff: "1.2.3.4, 203.0.113.10" }), 10, 60_000)).toBeNull();
   });
 
-  it("falls back to X-Real-IP, then a constant, without a trusted proxy", () => {
-    for (let i = 0; i < 10; i++) checkRateLimit(req({ ip: "5.5.5.5", xff: `9.9.9.${i}` }), 10, 60_000);
-    expect(checkRateLimit(req({ ip: "5.5.5.5", xff: "9.9.9.99" }), 10, 60_000)?.status).toBe(429);
+  it("ignores X-Real-IP and shares one bucket when TRUST_PROXY is unset", () => {
+    for (let i = 0; i < 10; i++) checkRateLimit(req({ ip: `5.5.5.${i}` }), 10, 60_000);
+    expect(checkRateLimit(req({ ip: "5.5.5.99" }), 10, 60_000)?.status).toBe(429);
+  });
+
+  it("falls back to X-Real-IP when TRUST_PROXY=true and no forwarded hop", () => {
+    vi.stubEnv("TRUST_PROXY", "true");
+    for (let i = 0; i < 10; i++) checkRateLimit(req({ ip: "5.5.5.5" }), 10, 60_000);
+    expect(checkRateLimit(req({ ip: "5.5.5.5" }), 10, 60_000)?.status).toBe(429);
     expect(checkRateLimit(req({ ip: "5.5.5.6" }), 10, 60_000)).toBeNull();
   });
 
-  it("caps tracked keys and evicts the oldest", () => {
-    for (let i = 0; i < 10_050; i++) checkRateLimit(req({ ip: `ip-${i}` }), 10, 60_000);
-    expect(rateLimitKeyCount()).toBeLessThanOrEqual(10_000);
-    // oldest key was evicted, so it starts a fresh window
-    for (let i = 0; i < 9; i++) checkRateLimit(req({ ip: "ip-0" }), 10, 60_000);
-    expect(checkRateLimit(req({ ip: "ip-0" }), 10, 60_000)).toBeNull();
+  describe("bounded key map", () => {
+    // Labels map to valid IPv4 literals: "<prefix>-<n>" -> <prefix octet>.x.x.x, others by name.
+    const NAMED: Record<string, string> = {
+      offender: "11.0.0.1",
+      newcomer: "11.0.0.2",
+      "another-newcomer": "11.0.0.3",
+      "late-a": "11.0.0.4",
+      "late-b": "11.0.0.5",
+    };
+    const ipFor = (label: string) => {
+      const m = /^(fill|flood)-(\d+)$/.exec(label);
+      if (!m) return NAMED[label];
+      const n = Number(m[2]);
+      return `${m[1] === "fill" ? 10 : 12}.${(n >> 16) & 255}.${(n >> 8) & 255}.${n & 255}`;
+    };
+    const hit = (label: string, limit = 10) =>
+      checkRateLimit(req({ ip: ipFor(label) }), limit, 60_000);
+    const fill = (n: number) => {
+      for (let i = 0; i < n; i++) hit(`fill-${i}`);
+    };
+
+    beforeEach(() => vi.stubEnv("TRUST_PROXY", "true"));
+
+    it("never tracks more than the cap", () => {
+      fill(10_050);
+      expect(rateLimitKeyCount()).toBeLessThanOrEqual(10_000);
+    });
+
+    it("keeps a live offender's counter when fresh keys flood a full map", () => {
+      for (let i = 0; i < 10; i++) hit("offender");
+      fill(10_000);
+      for (let i = 0; i < 200; i++) hit(`flood-${i}`);
+      expect(hit("offender")?.status).toBe(429);
+    });
+
+    it("limits a new client through its own overflow bucket once full", () => {
+      fill(10_000);
+      let last: Response | null = null;
+      for (let i = 0; i < 11; i++) last = hit("newcomer");
+      expect(last?.status).toBe(429);
+      expect(hit("another-newcomer")).toBeNull();
+    });
+
+    it("evicts expired entries first, so fresh keys get their own bucket", () => {
+      vi.useFakeTimers();
+      try {
+        fill(10_000);
+        vi.advanceTimersByTime(61_000);
+        expect(hit("late-a", 1)).toBeNull();
+        expect(hit("late-b", 1)).toBeNull();
+        expect(rateLimitKeyCount()).toBeLessThanOrEqual(10_000);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+});
+
+describe("per-client key cap", () => {
+  const MAX_PER_CLIENT = 64;
+  const at = (ip: string, path: string) =>
+    new Request(`https://procure.example.com/api/v1/${path}/x`, {
+      method: "POST",
+      headers: { host: "procure.example.com", "x-real-ip": ip },
+    });
+  const flood = (ip: string, n: number) => {
+    const results: (Response | null)[] = [];
+    for (let i = 0; i < n; i++) results.push(checkRateLimit(at(ip, `p${i}`), 10, 60_000));
+    return results;
+  };
+
+  beforeEach(() => vi.stubEnv("TRUST_PROXY", "true"));
+
+  it("never lets one client own more than the cap of live keys", () => {
+    flood("20.0.0.1", 1000);
+    expect(rateLimitKeyCount()).toBeLessThanOrEqual(MAX_PER_CLIENT);
+  });
+
+  it("throttles the flooding client itself through its own overflow bucket", () => {
+    const results = flood("20.0.0.2", 200);
+    expect(results[results.length - 1]?.status).toBe(429);
+  });
+
+  it("10,000 distinct paths from one client leave another client's first request alone", () => {
+    flood("20.0.0.3", 10_100);
+    expect(checkRateLimit(at("20.0.0.4", "login"), 10, 60_000)).toBeNull();
+  });
+
+  it("per-email failures from a flooding client do not limit another client", () => {
+    const post = (ip: string) =>
+      new Request("https://procure.example.com/api/v1/auth/login", {
+        method: "POST",
+        headers: { "x-real-ip": ip },
+      });
+    for (let i = 0; i < 10_100; i++) recordLoginFailure(post("20.0.0.5"), `e${i}@hex.test`, 60_000);
+    expect(checkLoginRateLimit(post("20.0.0.6"), "victim@hex.test", 10)).toBeNull();
+  });
+});
+
+describe("per-email pairs under a flooding client", () => {
+  const post = (ip: string) =>
+    new Request("https://procure.example.com/api/v1/auth/login", {
+      method: "POST",
+      headers: { "x-real-ip": ip },
+    });
+  const email = (i: number) => `e${i}@hex.test`;
+  const limited = (ip: string, i: number) =>
+    checkLoginRateLimit(post(ip), email(i), 1)?.status === 429;
+
+  beforeEach(() => {
+    vi.stubEnv("TRUST_PROXY", "true");
+    recordLoginFailure(post("30.0.0.2"), "bystander@hex.test", 60_000);
+    for (let i = 0; i < 70; i++) recordLoginFailure(post("30.0.0.1"), email(i), 60_000);
+  });
+
+  it("keeps every current pair of the flooding client tracked", () => {
+    for (let i = 6; i < 70; i++) expect(limited("30.0.0.1", i)).toBe(true);
+  });
+
+  it("evicts the flooding client's oldest pair first", () => {
+    for (let i = 0; i < 6; i++) expect(limited("30.0.0.1", i)).toBe(false);
+  });
+
+  it("a success resets only its own pair, even after the client overflowed", () => {
+    clearLoginFailures(post("30.0.0.1"), email(69));
+    expect(limited("30.0.0.1", 69)).toBe(false);
+    expect(limited("30.0.0.1", 68)).toBe(true);
+  });
+
+  it("never touches another client's pairs", () => {
+    expect(checkLoginRateLimit(post("30.0.0.2"), "bystander@hex.test", 1)?.status).toBe(429);
   });
 });
 
@@ -139,5 +276,45 @@ describe("limitsPerMinute", () => {
     delete process.env.RATE_LIMIT_AUTH_PER_MIN;
     delete process.env.RATE_LIMIT_MUTATION_PER_MIN;
     delete process.env.RATE_LIMIT_READ_PER_MIN;
+  });
+});
+
+describe("guard isolation", () => {
+  it("api-guard flooding does not touch the auth guard of the same client", () => {
+    vi.stubEnv("TRUST_PROXY", "true");
+    const at = (path: string) =>
+      new Request(`https://procure.example.com/api/v1/${path}/x`, {
+        method: "POST",
+        headers: { "x-real-ip": "21.0.0.1" },
+      });
+    for (let i = 0; i < 500; i++) checkRateLimit(at(`p${i}`), 10, 60_000);
+    expect(checkRateLimit(at("auth"), 10, 60_000, "auth")).toBeNull();
+  });
+});
+
+describe("client IP validation", () => {
+  beforeEach(() => vi.stubEnv("TRUST_PROXY", "true"));
+  const keyFor = (opts: { xff?: string; ip?: string }) => getClientIp(req(opts));
+
+  it("accepts valid IPv4 and IPv6 literals, trimmed", () => {
+    expect(keyFor({ xff: "1.1.1.1,  203.0.113.9 " })).toBe("203.0.113.9");
+    expect(keyFor({ xff: "2001:db8::1" })).toBe("2001:db8::1");
+    expect(keyFor({ ip: "198.51.100.7" })).toBe("198.51.100.7");
+  });
+
+  it("falls back to the shared bucket for an oversized header value", () => {
+    expect(keyFor({ xff: "1".repeat(5000) })).toBe("direct");
+    expect(keyFor({ ip: "a".repeat(200) })).toBe("direct");
+  });
+
+  it("falls back to the shared bucket for malformed values", () => {
+    expect(keyFor({ xff: "1.1.1.1, not-an-ip" })).toBe("direct");
+    expect(keyFor({ xff: "999.1.1.1" })).toBe("direct");
+    expect(keyFor({ ip: "1.2.3.4:8080" })).toBe("direct");
+  });
+
+  it("malformed values never grow the key map", () => {
+    for (let i = 0; i < 100; i++) checkRateLimit(req({ xff: `junk-${i}` }), 10, 60_000);
+    expect(rateLimitKeyCount()).toBe(1);
   });
 });
