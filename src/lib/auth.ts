@@ -20,6 +20,7 @@ export function verifyPassword(password: string, stored: string): boolean {
 interface SessionPayload {
   userId: string;
   exp: number;
+  jti?: string;
 }
 
 function sign(data: string, secret: string): string {
@@ -34,6 +35,7 @@ export function createSessionToken(
   const payload: SessionPayload = {
     userId,
     exp: Math.floor(Date.now() / 1000) + ttlSeconds,
+    jti: randomBytes(12).toString("base64url"),
   };
   const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
   return `${encoded}.${sign(encoded, secret)}`;
@@ -60,7 +62,7 @@ export function verifySessionToken(
   }
 }
 
-export { SESSION_COOKIE };
+export { SESSION_COOKIE, SESSION_TTL_SECONDS };
 
 export function sessionSetCookieHeader(token: string): string {
   return `${SESSION_COOKIE}=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${SESSION_TTL_SECONDS}`;

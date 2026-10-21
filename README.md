@@ -106,8 +106,9 @@ With `ANTHROPIC_API_KEY` set, the OCR text of each uploaded invoice and the line
 
 ## Auth
 
-Email + password registration and login. Passwords are hashed with scrypt (unique per-user salt). Sessions are HMAC-SHA256–signed tokens stored in `HttpOnly` / `SameSite=Lax` cookies with 7-day expiry; signature and expiry checks use timing-safe comparison. Role-based authorization (REQUESTER / MANAGER / FINANCE / ADMIN) is enforced per endpoint and in the UI.
+Email + password registration and login. Passwords are hashed with scrypt (unique per-user salt). Sessions are HMAC-SHA256–signed tokens stored in `HttpOnly` / `SameSite=Lax` cookies with 7-day expiry; signature and expiry checks use timing-safe comparison. Each login also stores a `sessions` row (SHA-256 of the token, never the token) and a request is accepted only while that row exists, is not revoked and has not expired. `POST /api/v1/auth/logout` revokes the current session; an ADMIN can revoke all sessions of a user with `POST /api/v1/users/:id/sessions/revoke` (audited as `SESSIONS_REVOKED`). Rows expired more than 30 days are purged on login. Role-based authorization (REQUESTER / MANAGER / FINANCE / ADMIN) is enforced per endpoint and in the UI.
 
+- **Upgrading from stateless sessions:** tokens issued before migration `0009_sessions` have no session row and are rejected, so every user is logged out once on deploy.
 - **Self-registration** always creates a `REQUESTER`; a client-supplied role is ignored. Set `ALLOW_SELF_REGISTRATION=true` to enable it in production (it is open by default in development, `false` disables it anywhere). Other roles are assigned in the database.
 - **`AUTH_SECRET`** must be at least 32 characters and not a known placeholder (`openssl rand -hex 32`); the app refuses to start otherwise.
 - **Rate limiting** keys on the right-most `X-Forwarded-For` hop only when `TRUST_PROXY=true` (set it behind a proxy you control), else on `X-Real-IP`, else one shared bucket. Logins are also limited per email address.
@@ -200,7 +201,6 @@ Dependency rule: `app → lib → domain`; the domain layer is pure and fully un
 
 ## Known gaps
 
-- Session revocation (stateless tokens until a session store lands)
 - QBO live sync is built (OAuth connect, encrypted rotating tokens, idempotent PO/Bill push, revoke/expiry notifications) and covered by stubbed tests; it still needs Intuit sandbox credentials for the live contract smoke (`npm run test:qbo-live`, see [docs/qbo-live-spec.md](docs/qbo-live-spec.md) §12) and a public HTTPS redirect URI for production OAuth
 - Integration dispatch is pull-based (`POST /api/v1/integrations/dispatch`); wire it to a scheduler in production
 - Invoice line items are entered manually after extraction; automatic line-item extraction from OCR text is future work

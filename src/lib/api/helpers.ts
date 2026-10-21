@@ -5,6 +5,7 @@ import { users } from "@/lib/db/schema";
 import { getAuthSecret } from "@/lib/auth-secret";
 import { verifySessionToken, SESSION_COOKIE } from "@/lib/auth";
 import { verifyApiToken } from "@/lib/services/api-tokens";
+import { isSessionLive } from "@/lib/services/sessions";
 import { DomainError } from "@/lib/services/p2p";
 
 const STATUS_BY_CODE: Record<DomainError["code"], number> = {
@@ -31,7 +32,7 @@ export function errorToResponse(error: unknown) {
   );
 }
 
-function readSessionCookie(request: Request): string | null {
+export function readSessionCookie(request: Request): string | null {
   const header = request.headers.get("cookie");
   if (!header) return null;
   for (const part of header.split(";")) {
@@ -59,7 +60,7 @@ export async function getActor(request: Request) {
     throw new DomainError("FORBIDDEN", "Authentication required");
   }
   const payload = verifySessionToken(token, getAuthSecret());
-  if (!payload) {
+  if (!payload || !(await isSessionLive(token))) {
     throw new DomainError("FORBIDDEN", "Invalid or expired session");
   }
   const [user] = await db.select().from(users).where(eq(users.id, payload.userId));

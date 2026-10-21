@@ -11,7 +11,7 @@ export async function POST(request: Request) {
       const limited = checkLoginRateLimit(body.email, limitsPerMinute().auth, 60_000);
       if (limited) return limited;
     }
-    const token = await login(body.email, body.password);
+    const token = await login(body.email, body.password, request.headers.get("user-agent"));
     const res = NextResponse.json({ ok: true });
     res.headers.set("set-cookie", sessionSetCookieHeader(token));
     return res;
