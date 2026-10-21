@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { sendPurchaseOrder } from "@/lib/services/po-document";
+import { DomainError } from "@/lib/services/p2p";
 import { errorToResponse, getActor } from "@/lib/api/helpers";
+
+const SEND_ROLES = new Set(["MANAGER", "FINANCE", "ADMIN"]);
 
 export async function POST(
   request: Request,
@@ -8,6 +11,9 @@ export async function POST(
 ) {
   try {
     const actor = await getActor(request);
+    if (!SEND_ROLES.has(actor.role)) {
+      throw new DomainError("FORBIDDEN", "Requires MANAGER, FINANCE or ADMIN role");
+    }
     const { id } = await params;
     let to: string | undefined;
     try {
