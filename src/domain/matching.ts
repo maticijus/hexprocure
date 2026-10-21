@@ -21,6 +21,8 @@ export interface MatchContext {
   previouslyInvoicedQtyByPoLine: Record<string, number>;
   /** Cumulative prior invoiced amounts for SERVICE lines. */
   previouslyInvoicedAmountByPoLine?: Record<string, number>;
+  /** Accepted amount per SERVICE line; a missing entry means not accepted. */
+  acceptedAmountByPoLine?: Record<string, number>;
 }
 
 export type MatchExceptionType =
@@ -28,6 +30,7 @@ export type MatchExceptionType =
   | "QUANTITY_MISMATCH"
   | "OVER_INVOICED"
   | "OVER_INVOICED_AMOUNT"
+  | "SERVICE_NOT_ACCEPTED"
   | "PRICE_MISMATCH";
 
 export interface MatchException {
@@ -72,15 +75,24 @@ function checkServiceLine(
   const thisAmount = line.amountMinor ?? line.quantity * line.unitPriceMinor;
   const cumulative =
     priorAmount + addRunning(runningAmount, poLine.id, thisAmount);
-  if (cumulative <= orderedAmount) return [];
-  return [
-    {
+  const accepted = ctx.acceptedAmountByPoLine?.[poLine.id] ?? 0;
+  const base = { invoiceLineIndex: i, poLineId: poLine.id };
+  const exceptions: MatchException[] = [];
+  if (cumulative > orderedAmount) {
+    exceptions.push({
+      ...base,
       type: "OVER_INVOICED_AMOUNT",
-      invoiceLineIndex: i,
-      poLineId: poLine.id,
       detail: `Cumulative invoiced ${cumulative} exceeds ordered ${orderedAmount}`,
-    },
-  ];
+    });
+  }
+  if (cumulative > accepted) {
+    exceptions.push({
+      ...base,
+      type: "SERVICE_NOT_ACCEPTED",
+      detail: `Cumulative invoiced ${cumulative} exceeds accepted ${accepted}`,
+    });
+  }
+  return exceptions;
 }
 
 function checkGoodsLine(

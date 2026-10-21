@@ -82,9 +82,10 @@ describe("service line acceptance", () => {
 });
 
 describe("service invoice matching end-to-end", () => {
-  it("MATCHES an amount-fitting invoice with zero receipts; flags OVER_INVOICED_AMOUNT beyond ordered", async () => {
+  it("MATCHES an amount-fitting invoice once accepted; flags OVER_INVOICED_AMOUNT beyond ordered", async () => {
     const { s, poId, lines } = await seededServicePo();
     const svc = lines.find((l) => l.kind === "SERVICE")!;
+    await addReceipt(poId, [{ poLineId: svc.id, quantityReceived: 0, accepted: true }], s.requester.id);
 
     const mkInvoice = async (number: string, amountMinor: number) => {
       const [inv] = await db

@@ -565,6 +565,25 @@ export async function createInvoice(input: CreateInvoiceInput, actorUserId: stri
 // PENDING and EXCEPTION invoices are not yet committed spend.
 const COMMITTED_INVOICE_STATUSES: ("MATCHED" | "APPROVED")[] = ["MATCHED", "APPROVED"];
 
+// addReceipt records service acceptance as a receipt line, so any receipt accepts the whole line.
+async function loadAcceptedServiceAmounts(
+  tx: Tx,
+  poLineRows: { id: string; kind: string; quantityOrdered: number; unitPriceMinor: number }[],
+): Promise<Record<string, number>> {
+  const services = poLineRows.filter((p) => p.kind === "SERVICE");
+  if (services.length === 0) return {};
+  const accepted = await tx
+    .select({ poLineId: receiptLines.poLineId })
+    .from(receiptLines)
+    .where(inArray(receiptLines.poLineId, services.map((p) => p.id)));
+  const acceptedIds = new Set(accepted.map((r) => r.poLineId));
+  return Object.fromEntries(
+    services
+      .filter((p) => acceptedIds.has(p.id))
+      .map((p) => [p.id, p.quantityOrdered * p.unitPriceMinor]),
+  );
+}
+
 export async function matchInvoiceById(invoiceId: string, actorUserId: string) {
   return db.transaction(async (tx) => {
     const [invoice] = await tx.select().from(invoices).where(eq(invoices.id, invoiceId));
@@ -600,6 +619,8 @@ export async function matchInvoiceById(invoiceId: string, actorUserId: string) {
         receivedQtyByPoLine[r.poLineId] = (receivedQtyByPoLine[r.poLineId] ?? 0) + r.qty;
       }
     }
+
+    const acceptedAmountByPoLine = await loadAcceptedServiceAmounts(tx, poLineRows);
 
     const previouslyInvoicedQtyByPoLine: Record<string, number> = {};
     if (poLineRows.length) {
@@ -655,6 +676,7 @@ export async function matchInvoiceById(invoiceId: string, actorUserId: string) {
         receivedQtyByPoLine,
         previouslyInvoicedQtyByPoLine,
         previouslyInvoicedAmountByPoLine,
+        acceptedAmountByPoLine,
       },
       invLines.map((l) => ({
         poLineId: l.poLineId,

@@ -159,11 +159,13 @@ describe("running total when one invoice repeats a PO line (B6)", () => {
       poLines: [{ id: "svc-1", quantityOrdered: 1, unitPriceMinor: 1000, kind: "SERVICE" }],
       receivedQtyByPoLine: {},
       previouslyInvoicedQtyByPoLine: {},
+      acceptedAmountByPoLine: { "svc-1": 1000 },
     };
     const line = { poLineId: "svc-1", quantity: 1, unitPriceMinor: 0, amountMinor: 600 };
     const r = matchInvoice(ctx, [line, line]);
     expect(r.exceptions).toEqual([
       expect.objectContaining({ type: "OVER_INVOICED_AMOUNT", invoiceLineIndex: 1 }),
+      expect.objectContaining({ type: "SERVICE_NOT_ACCEPTED", invoiceLineIndex: 1 }),
     ]);
   });
 
