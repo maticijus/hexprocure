@@ -1,5 +1,8 @@
-import { describe, it, expect } from "vitest";
-import { eventToCsvRows, poToCsv, invoiceToCsv } from "./csv";
+import { afterEach, beforeEach, describe, it, expect } from "vitest";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createCsvConnector, eventToCsvRows, poToCsv, invoiceToCsv } from "./csv";
 
 describe("CSV connector", () => {
   const poEvent = {
@@ -84,5 +87,43 @@ describe("CSV connector", () => {
     expect(() => eventToCsvRows({ id: "x", type: "PO_CANCELLED", payload: {} })).toThrow(
       /unsupported/i,
     );
+  });
+});
+
+describe("CSV file connector", () => {
+  const event = {
+    id: "e1",
+    type: "INVOICE_APPROVED" as const,
+    payload: { invoiceId: "i1", invoiceNumber: "N1", supplier: "S", currency: "EUR", totalMinor: 100 },
+  };
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "hx-csv-"));
+  });
+  afterEach(() => rm(dir, { recursive: true, force: true }));
+
+  it("writes the row to a per-day, per-type file", async () => {
+    const outcome = await createCsvConnector({ dir, now: () => new Date("2026-10-21T10:00:00Z") }).deliver(event);
+
+    expect(outcome.ok).toBe(true);
+    const text = await readFile(join(dir, "INVOICE_APPROVED-2026-10-21.csv"), "utf8");
+    expect(text).toContain("INVOICE_HEADER,i1");
+    expect(text.startsWith("record_type,")).toBe(true);
+  });
+
+  it("appends later events and writes the header once", async () => {
+    const connector = createCsvConnector({ dir, now: () => new Date("2026-10-21T10:00:00Z") });
+    await connector.deliver(event);
+    await connector.deliver({ ...event, id: "e2" });
+
+    const lines = (await readFile(join(dir, "INVOICE_APPROVED-2026-10-21.csv"), "utf8")).trim().split("\n");
+    expect(lines).toHaveLength(3);
+    expect(lines.filter((l) => l.startsWith("record_type,"))).toHaveLength(1);
+  });
+
+  it("reports a write failure instead of delivering", async () => {
+    const outcome = await createCsvConnector({ dir: join(dir, "missing", "x") }).deliver(event);
+    expect(outcome.ok).toBe(false);
   });
 });

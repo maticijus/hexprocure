@@ -1,4 +1,7 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { eq, sql } from "drizzle-orm";
 import type { Connector } from "./types";
 import { db } from "@/lib/db";
@@ -8,13 +11,18 @@ import {
   registerConnector,
   clearConnectors,
 } from "./dispatch";
-import { csvConnector } from "./csv";
+import { createCsvConnector } from "./csv";
+
+let csvDir: string;
 
 beforeEach(async () => {
   await db.execute(sql`TRUNCATE integration_events CASCADE`);
+  csvDir = await mkdtemp(join(tmpdir(), "hx-dispatch-"));
   clearConnectors();
-  registerConnector(csvConnector);
+  registerConnector(createCsvConnector({ dir: csvDir }));
 });
+
+afterEach(() => rm(csvDir, { recursive: true, force: true }));
 
 describe("dispatch loop", () => {
   it("delivers a pending event and marks it DELIVERED", async () => {
@@ -34,6 +42,19 @@ describe("dispatch loop", () => {
       .where(eq(integrationEvents.id, event.id));
     expect(after.status).toBe("DELIVERED");
     expect(after.attempts).toBe(1);
+  });
+
+  it("writes the delivered event's row to the CSV directory", async () => {
+    await db.insert(integrationEvents).values({
+      eventType: "INVOICE_APPROVED",
+      payload: { invoiceId: "i9", invoiceNumber: "N9", supplier: "S", currency: "EUR", totalMinor: 100 },
+    });
+
+    await dispatchPendingEvents();
+
+    const [file] = await readdir(csvDir);
+    expect(file).toMatch(/^INVOICE_APPROVED-\d{4}-\d{2}-\d{2}\.csv$/);
+    expect(await readFile(join(csvDir, file), "utf8")).toContain("INVOICE_HEADER,i9");
   });
 
   it("records failure and keeps event PENDING for retry on connector error", async () => {
