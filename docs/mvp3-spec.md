@@ -1,4 +1,4 @@
-# MVP3 Spec & Plan — Hardening, Surfaces, Release
+# MVP3 Spec & Plan: Hardening, Surfaces, Release
 
 Status: §7–§13 SHIPPED in v0.1.0 (tag v0.1.0) · All items are **buildable without external access** (no credentials,
 no third-party accounts, no hosting decisions). Derived from the post-MVP2 review.
@@ -19,10 +19,10 @@ Total ≈ 15–17 working days.
 
 ---
 
-## §7 Machine API tokens — P0 · ~1 day
+## §7 Machine API tokens: P0 · ~1 day
 
 **Problem.** Unattended cron authenticates to `/integrations/dispatch` and
-`/order-templates/run` with an admin's *session cookie* — it expires in 7 days
+`/order-templates/run` with an admin's *session cookie*: it expires in 7 days
 and shares privileges with a human account.
 
 **Design.**
@@ -40,17 +40,17 @@ and shares privileges with a human account.
 2. Revoked token returns 401 immediately (hash absent).
 3. Token plaintext never stored or logged (grep-test like the crypto suite).
 
-## §8 CSRF protection + rate limiting — P1 · ~2 days
+## §8 CSRF protection + rate limiting: P1 · ~2 days
 
 **Problem.** Known gaps: relies solely on `SameSite=Lax`; no request throttling.
 
 **Design.**
-- **CSRF (v1): origin-check middleware** — all non-GET requests must carry an
+- **CSRF (v1): origin-check middleware**: all non-GET requests must carry an
   `Origin` header matching the deployed host (`ALLOWED_ORIGIN` env, defaults to
   request host for localhost). Simple, no tokens, covers browsers; non-browser
   clients use Bearer tokens which are immune. Double-submit token documented as
   future hardening.
-- **Rate limiting:** in-memory sliding window keyed by IP+class —
+- **Rate limiting:** in-memory sliding window keyed by IP+class : 
   auth endpoints 10/min · mutations 60/min · reads 300/min → `429` +
   `Retry-After`. Documented single-instance scope (target deployment is one box);
   Redis adapter interface left for later.
@@ -61,7 +61,7 @@ and shares privileges with a human account.
 3. Legitimate same-origin flows unaffected (full existing suite stays green).
 4. Memory-bounded window store (no unbounded growth; tested with synthetic IPs).
 
-## §9 Spend analytics — P1 · ~2 days
+## §9 Spend analytics: P1 · ~2 days
 
 **Problem.** "Free addon" promised in positioning; currently only dashboard KPIs.
 
@@ -71,7 +71,7 @@ and shares privileges with a human account.
   invoices joined to POs/requisitions.
 - `GET /api/v1/analytics/summary` → KPI block (total committed YTD, top supplier,
   budget utilization current month).
-- UI: `/analytics` page — group-by selector, date range, horizontal CSS bar chart
+- UI: `/analytics` page: group-by selector, date range, horizontal CSS bar chart
   (zero chart dependencies), table beneath.
 
 **Acceptance criteria.**
@@ -79,7 +79,7 @@ and shares privileges with a human account.
 2. REQUESTER receives 403 on analytics endpoints.
 3. Empty ranges return empty arrays, not errors.
 
-## §10 UI surfaces for shipped APIs — P1 · ~4–5 days
+## §10 UI surfaces for shipped APIs: P1 · ~4–5 days
 
 Every MVP2 feature becomes operable without curl:
 
@@ -98,7 +98,7 @@ Every MVP2 feature becomes operable without curl:
 3. Authz respected in UI (buttons hidden/disabled per role matrix).
 4. Each page passes authenticated render check; component tests for forms.
 
-## §11 Playwright E2E suite — P1 · ~3 days
+## §11 Playwright E2E suite: P1 · ~3 days
 
 **Design.**
 - Config boots the app against a dedicated `hexprocure_e2e` database (migrations +
@@ -111,10 +111,10 @@ Every MVP2 feature becomes operable without curl:
 
 **Acceptance criteria.**
 1. Full suite green locally and in CI on every push.
-2. Suite fails on deliberately broken matching logic (mutation check — proves it can fail).
+2. Suite fails on deliberately broken matching logic (mutation check: proves it can fail).
 3. Runtime < 3 minutes.
 
-## §12 Docker Compose deployment parity — P2 · ~2 days
+## §12 Docker Compose deployment parity: P2 · ~2 days
 
 - Multi-stage `Dockerfile` for the app (Next `output: "standalone"`),
   `compose.yaml`: app + `postgres:16` volume + OCR sidecar; healthchecks;
@@ -126,7 +126,7 @@ Every MVP2 feature becomes operable without curl:
 2. Volumes persist across `down/up`.
 3. CI builds the image (no push registry yet).
 
-## §13 Release v0.1.0 — P2 · ~½ day
+## §13 Release v0.1.0: P2 · ~½ day
 
 - `CHANGELOG.md` grouped from git history (Added / Fixed / Security / Known gaps).
 - Version bump to 0.1.0, annotated tag, GitHub Release with notes linking specs.
@@ -141,5 +141,5 @@ Every MVP2 feature becomes operable without curl:
 ## Out of scope (still)
 
 T&M services, direct/materials procurement, payments execution, multi-currency
-conversion, mobile apps, Redis-backed rate limiting, S3 storage driver — each has
+conversion, mobile apps, Redis-backed rate limiting, S3 storage driver: each has
 a documented door but no spec until there's demand.
