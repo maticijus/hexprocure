@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { sendPurchaseOrder } from "@/lib/services/po-document";
 import { DomainError } from "@/lib/services/p2p";
+import { isUuid } from "@/lib/ids";
 import { errorToResponse, getActor } from "@/lib/api/helpers";
 
 const SEND_ROLES = new Set(["MANAGER", "FINANCE", "ADMIN"]);
@@ -15,6 +16,7 @@ export async function POST(
       throw new DomainError("FORBIDDEN", "Requires MANAGER, FINANCE or ADMIN role");
     }
     const { id } = await params;
+    if (!isUuid(id)) throw new DomainError("NOT_FOUND", "PO not found");
     let to: string | undefined;
     try {
       const body = (await request.json()) as { to?: string };
