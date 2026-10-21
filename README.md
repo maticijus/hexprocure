@@ -143,7 +143,7 @@ Prereqs: Node 22+, a local PostgreSQL. (Optional, for AI intake: Docker or Pytho
 ```bash
 npm install
 cp .env.example .env            # then set DATABASE_URL and AUTH_SECRET (openssl rand -hex 32)
-npx drizzle-kit migrate         # apply schema to your database
+node scripts/migrate.mjs           # apply schema to your database
 npx tsx scripts/seed.ts         # demo users + data
 npm run dev                     # http://localhost:3000/login
 ```
@@ -176,7 +176,7 @@ npx tsc --noEmit     # typecheck
 npx vitest run             # all tests
 npx vitest run --coverage  # with coverage gate on business logic
 npm run test:e2e           # Playwright suite (builds, boots on :3100, hexprocure_e2e DB)
-npx drizzle-kit migrate    # apply schema migrations
+node scripts/migrate.mjs      # apply schema migrations (new migration from schema edits: npx drizzle-kit generate)
 ```
 
 Tests use their own databases via `.env.test` / `.env.e2e` so they never touch dev data.
@@ -203,7 +203,6 @@ Dependency rule: `app → lib → domain`; the domain layer is pure and fully un
 
 - QBO live sync is built (OAuth connect, encrypted rotating tokens, idempotent PO/Bill push, revoke/expiry notifications) and covered by stubbed tests; it still needs Intuit sandbox credentials for the live contract smoke (`npm run test:qbo-live`, see [docs/qbo-live-spec.md](docs/qbo-live-spec.md) §12) and a public HTTPS redirect URI for production OAuth
 - Integration dispatch is pull-based (`POST /api/v1/integrations/dispatch`); wire it to a scheduler in production
-- Invoice line items are entered manually after extraction; automatic line-item extraction from OCR text is future work
 - Rate limiting is single-instance in-memory; multi-node deployments need the Redis adapter
 
 ## Editions

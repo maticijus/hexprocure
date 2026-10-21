@@ -83,7 +83,7 @@ describe("createQboConnector", () => {
     expect(url).toContain("sandbox-quickbooks.api.intuit.com/v3/company/realm-9/purchaseorder");
     expect((init.headers as Record<string, string>).authorization).toBe("Bearer access-1");
     const body = JSON.parse(init.body);
-    expect(body.VendorRef).toBe("Acme");
+    expect(body.VendorRef).toEqual({ value: "Acme", name: "Acme" });
   });
 
   it("records a sync-map row so a second delivery is skipped (idempotent)", async () => {

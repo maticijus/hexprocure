@@ -1,19 +1,24 @@
 import type { IntegrationEvent } from "./types";
 
+interface QboRef {
+  value: string;
+  name?: string;
+}
+
 interface QboLine {
   DetailType: "AccountBasedExpenseLineDetail";
   Description: string;
   Amount: number;
-  AccountBasedExpenseLineDetail?: { ClassRef?: string };
+  AccountBasedExpenseLineDetail?: { ClassRef?: QboRef };
 }
 
 const toDecimal = (minor: unknown): number =>
   Number(((minor as number) / 100).toFixed(2));
 
 export interface QboPurchaseOrder {
-  VendorRef: string;
-  CurrencyRef: string;
-  ClassRef?: string;
+  VendorRef: QboRef;
+  CurrencyRef: QboRef;
+  ClassRef?: QboRef;
   TxnDate: string;
   PORef?: string;
   Line: QboLine[];
@@ -28,9 +33,9 @@ export function poEventToQboPurchaseOrder(event: IntegrationEvent): QboPurchaseO
   const supplier = requireField(p.supplier, "supplier");
   const lines = (p.lines as Record<string, unknown>[]) ?? [];
   return {
-    VendorRef: supplier,
-    CurrencyRef: (p.currency as string) ?? "EUR",
-    ...(p.costCenter ? { ClassRef: p.costCenter as string } : {}),
+    VendorRef: { value: supplier, name: supplier },
+    CurrencyRef: { value: (p.currency as string) ?? "EUR" },
+    ...(p.costCenter ? { ClassRef: { value: p.costCenter as string } } : {}),
     TxnDate: (p.issuedOn as string) ?? new Date().toISOString().slice(0, 10),
     PORef: p.purchaseOrderId as string,
     Line: lines.map((l) => ({
@@ -40,7 +45,7 @@ export function poEventToQboPurchaseOrder(event: IntegrationEvent): QboPurchaseO
         ((l.unitPriceMinor as number) ?? 0) * ((l.quantity as number) ?? 0),
       ),
       ...(p.costCenter
-        ? { AccountBasedExpenseLineDetail: { ClassRef: p.costCenter as string } }
+        ? { AccountBasedExpenseLineDetail: { ClassRef: { value: p.costCenter as string } } }
         : {}),
     })),
     TotalAmt: toDecimal(p.totalMinor),
@@ -48,9 +53,9 @@ export function poEventToQboPurchaseOrder(event: IntegrationEvent): QboPurchaseO
 }
 
 export interface QboBill {
-  VendorRef: string;
+  VendorRef: QboRef;
   DocNumber: string;
-  CurrencyRef: string;
+  CurrencyRef: QboRef;
   TotalAmt: number;
   Links?: { HexProcureInvoiceId: string; PurchaseOrderId?: string }[];
 }
@@ -62,9 +67,9 @@ export function invoiceEventToQboBill(event: IntegrationEvent): QboBill {
   const p = event.payload;
   const supplier = requireField(p.supplier, "supplier");
   return {
-    VendorRef: supplier,
+    VendorRef: { value: supplier, name: supplier },
     DocNumber: String(p.invoiceNumber ?? ""),
-    CurrencyRef: (p.currency as string) ?? "EUR",
+    CurrencyRef: { value: (p.currency as string) ?? "EUR" },
     TotalAmt: toDecimal(p.totalMinor),
     Links: [
       {
