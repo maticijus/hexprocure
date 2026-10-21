@@ -13,13 +13,14 @@ const eur = (minor: unknown) =>
 
 type NotificationEvent = Extract<
   IntegrationEvent["type"],
-  "APPROVAL_REQUESTED" | "REQUISITION_DECIDED" | "INVOICE_EXCEPTION"
+  "APPROVAL_REQUESTED" | "REQUISITION_DECIDED" | "INVOICE_EXCEPTION" | "INTEGRATION_ERROR"
 >;
 
 const NOTIFICATION_TYPES: NotificationEvent[] = [
   "APPROVAL_REQUESTED",
   "REQUISITION_DECIDED",
   "INVOICE_EXCEPTION",
+  "INTEGRATION_ERROR",
 ];
 
 /** Renders a notification event into a mail message.
@@ -63,6 +64,14 @@ export function renderNotification(event: IntegrationEvent): MailMessage | null 
           `Open it in HexProcure → Invoices.`,
       };
     }
+    case "INTEGRATION_ERROR":
+      return {
+        to,
+        subject: `QuickBooks connection needs attention (${String(p.status ?? "ERROR")})`,
+        text:
+          `The QuickBooks Online connection is ${String(p.status ?? "unavailable")}: ${String(p.reason ?? "no detail")}.\n` +
+          `Queued events stay pending until an admin reconnects in HexProcure → Integrations.`,
+      };
     default:
       throw new Error(`Unsupported notification event type: ${event.type}`);
   }
