@@ -28,7 +28,7 @@ function tokenResponse(access: string, expiresIn = 3600, refresh = "refresh-new"
 }
 
 describe("upsertQboConnection", () => {
-  it("stores only ciphertext — plaintext tokens never touch the database", async () => {
+  it("stores only ciphertext - plaintext tokens never touch the database", async () => {
     const s = await seedOrg();
     await upsertQboConnection({
       realmId: "realm-1",

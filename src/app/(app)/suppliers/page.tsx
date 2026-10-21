@@ -23,7 +23,7 @@ export default async function SuppliersPage() {
             {rows.map((s) => (
               <tr key={s.id} className="border-t border-gray-50 hover:bg-gray-50/60">
                 <td className="px-5 py-3 font-medium">{s.name}</td>
-                <td className="px-5 py-3 text-gray-500">{s.email ?? "—"}</td>
+                <td className="px-5 py-3 text-gray-500">{s.email ?? "-"}</td>
                 <td className="px-5 py-3">
                   <span className="inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold bg-green-50 text-green-700">ACTIVE</span>
                 </td>

@@ -117,7 +117,7 @@ export async function getValidAccessToken(
 ): Promise<{ accessToken: string; realmId: string }> {
   const row = await loadActiveConnection();
   if (!row || row.status !== "ACTIVE") {
-    throw new Error("No active QBO connection — an admin must reconnect");
+    throw new Error("No active QBO connection - an admin must reconnect");
   }
 
   if (secondsUntil(row.refreshExpiresAt) <= 0) {
@@ -148,7 +148,7 @@ export async function getValidAccessToken(
     });
     if (!res.ok) {
       await markExpired(row.id, `Refresh failed: HTTP ${res.status}`);
-      throw new Error("QBO connection expired — admin re-authentication required");
+      throw new Error("QBO connection expired - admin re-authentication required");
     }
     const data = (await res.json()) as {
       access_token: string;

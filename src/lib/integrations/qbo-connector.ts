@@ -31,7 +31,7 @@ export interface QboConnectorDeps {
 }
 
 /** QBO connector: consumes PO/invoice events and creates the corresponding
- *  documents in QuickBooks Online. Idempotent via qbo_sync_map — an event is
+ *  documents in QuickBooks Online. Idempotent via qbo_sync_map - an event is
  *  delivered to QBO at most once even across repeated dispatch runs. */
 export function createQboConnector(deps: QboConnectorDeps = {}): Connector {
   const fetchImpl = deps.fetchImpl ?? fetch;

@@ -30,7 +30,7 @@ function allowedOrigins(request: Request): Set<string> {
 }
 
 /** Returns a 403 response when a mutating browser request fails the origin
- *  check; null when allowed. Bearer-authenticated requests bypass this —
+ *  check; null when allowed. Bearer-authenticated requests bypass this
  *  they are not cookie-borne and therefore not CSRF-able. */
 export function checkCsrfOrigin(
   request: Request,

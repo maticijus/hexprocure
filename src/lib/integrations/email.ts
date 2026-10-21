@@ -25,7 +25,7 @@ const NOTIFICATION_TYPES: NotificationEvent[] = [
 ];
 
 /** Renders a notification event into a mail message.
- *  Returns null when there are no recipients — nothing to deliver. */
+ *  Returns null when there are no recipients - nothing to deliver. */
 export function renderNotification(event: IntegrationEvent): MailMessage | null {
   if (!NOTIFICATION_TYPES.includes(event.type as NotificationEvent)) {
     throw new Error(`Unsupported notification event type: ${event.type}`);

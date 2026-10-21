@@ -11,7 +11,7 @@ import { eq } from "drizzle-orm";
 async function main() {
   const existing = await db.select().from(users).where(eq(users.email, "admin@hexprocure.dev"));
   if (existing.length > 0) {
-    console.log("Seed data already present — skipping");
+    console.log("Seed data already present - skipping");
     return;
   }
 

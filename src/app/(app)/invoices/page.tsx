@@ -38,7 +38,7 @@ export default async function InvoicesPage() {
             {rows.map((r) => (
               <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50/60">
                 <td className="px-5 py-3 font-medium">{r.number}</td>
-                <td className="px-5 py-3">{r.supplier ?? "—"}</td>
+                <td className="px-5 py-3">{r.supplier ?? "-"}</td>
                 <td className="px-5 py-3">{formatMoney(Number(r.total_minor), r.currency)}</td>
                 <td className="px-5 py-3">
                   <StatusPill status={r.status} />

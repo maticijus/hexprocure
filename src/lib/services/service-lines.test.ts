@@ -28,7 +28,7 @@ async function seededServicePo(opts?: { mixed?: boolean }) {
     .values({ requesterId: s.requester.id, supplierId: s.supplier.id, costCenterId: s.cc.id })
     .returning();
   await db.insert(requisitionLines).values([
-    { requisitionId: req.id, description: "Consulting — Phase 1", quantity: 1, unitPriceMinor: 500_000, kind: "SERVICE" },
+    { requisitionId: req.id, description: "Consulting - Phase 1", quantity: 1, unitPriceMinor: 500_000, kind: "SERVICE" },
     ...(opts?.mixed
       ? [{ requisitionId: req.id, description: "Cables", quantity: 10, unitPriceMinor: 500 }]
       : []),

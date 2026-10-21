@@ -121,7 +121,7 @@ Coupa-inspired enterprise layout: sidebar navigation, dashboard KPI cards (open 
 Delivered in v0.1.0: machine API tokens, CSRF + rate limiting, spend analytics,
 full UI surfaces, Playwright E2E suite, Docker Compose deployment (§7–§12 of
 [docs/mvp3-spec.md](docs/mvp3-spec.md)). QBO live OAuth sync is built
-([docs/qbo-live-spec.md](docs/qbo-live-spec.md) §12); next candidates: and
+([docs/qbo-live-spec.md](docs/qbo-live-spec.md) §12); next candidates:
 Redis-backed rate limiting for multi-node installs, and S3 attachment storage.
 
 ## Deployment

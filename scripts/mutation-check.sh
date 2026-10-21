@@ -12,7 +12,7 @@ fi
 
 restore() {
   git checkout -- "$TARGET"
-  echo "restored $TARGET — rebuilding clean bundle…"
+  echo "restored $TARGET - rebuilding clean bundle…"
   npm run build >/dev/null 2>&1
 }
 trap restore EXIT
@@ -32,9 +32,9 @@ STATUS=$?
 set -e
 
 if [ "$STATUS" -eq 0 ]; then
-  echo "MUTATION SURVIVED — E2E suite failed to detect the regression" >&2
+  echo "MUTATION SURVIVED - E2E suite failed to detect the regression" >&2
   rm -f /tmp/matching.ts.bak
   exit 1
 fi
-echo "suite went RED under mutation (exit $STATUS) — E2E can fail ✓"
+echo "suite went RED under mutation (exit $STATUS) - E2E can fail ✓"
 rm -f /tmp/matching.ts.bak

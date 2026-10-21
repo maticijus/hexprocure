@@ -239,7 +239,7 @@ export async function sendPurchaseOrder(
 
     await transport({
       to: [recipient],
-      subject: `Purchase Order ${poId.slice(0, 8)} — HexProcure`,
+      subject: `Purchase Order ${poId.slice(0, 8)} - HexProcure`,
       text:
         `Please find purchase order ${poId.slice(0, 8)} attached (PDF).\n\n` +
         `HexProcure on behalf of your customer.`,

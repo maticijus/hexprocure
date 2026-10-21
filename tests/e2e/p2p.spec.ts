@@ -17,7 +17,7 @@ test.beforeAll(async ({ browser }) => {
 test("rita requests → max approves → order → receive → fiona matches & approves invoice", async ({ browser }) => {
   test.setTimeout(120_000);
 
-  // — rita creates and submits a requisition through the UI —
+  // rita creates and submits a requisition through the UI
   const rita = await browser.newPage();
   await login(rita, "rita@hexprocure.dev");
   await rita.goto("/requisitions/new");
@@ -40,7 +40,7 @@ test("rita requests → max approves → order → receive → fiona matches & a
   )).rows[0].id;
   await rita.close();
 
-  // — max approves in his inbox through the UI —
+  // max approves in his inbox through the UI
   const max = await browser.newPage();
   await login(max, "max@hexprocure.dev");
   await max.goto("/approvals");
@@ -52,7 +52,7 @@ test("rita requests → max approves → order → receive → fiona matches & a
   }).toPass({ timeout: 15_000 });
   await max.close();
 
-  // — order + receive via the API surface —
+  // order + receive via the API surface
   const worker = await browser.newPage();
   await login(worker, "rita@hexprocure.dev");
   const orderRes = await apiPost(worker, `/api/v1/requisitions/${requisitionId}/order`);
@@ -78,7 +78,7 @@ test("rita requests → max approves → order → receive → fiona matches & a
     viewer.locator("tr", { hasText: "Acme Office GmbH" }).first(),
   ).toContainText("CLOSED");
 
-  // — fiona books the invoice, matches it, approves it —
+  // fiona books the invoice, matches it, approves it
   const invoiceRes = await apiPost(viewer, "/api/v1/invoices", {
     supplierId,
     purchaseOrderId,

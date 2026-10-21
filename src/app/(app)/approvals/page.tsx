@@ -41,13 +41,13 @@ export default async function ApprovalsPage() {
             {rows.map((r) => (
               <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50/60">
                 <td className="px-5 py-3 font-mono text-xs">{r.req_id.slice(0, 8)}…</td>
-                <td className="px-5 py-3 font-medium">{r.supplier ?? "—"}</td>
+                <td className="px-5 py-3 font-medium">{r.supplier ?? "-"}</td>
                 <td className="px-5 py-3">{formatMoney(Number(r.total_minor), r.currency)}</td>
                 <td className="px-5 py-3"><ApprovalActions approvalId={r.id} /></td>
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={4} className="px-5 py-8 text-center text-gray-400">Nothing pending — inbox zero 🎉</td></tr>
+              <tr><td colSpan={4} className="px-5 py-8 text-center text-gray-400">Nothing pending, inbox zero</td></tr>
             )}
           </tbody>
         </table>

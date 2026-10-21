@@ -111,7 +111,7 @@ export default async function DashboardPage() {
       {budget && (
         <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100 mb-8">
           <div className="flex justify-between text-sm mb-2">
-            <span className="font-medium">Budget utilization — {budget.cc} ({budget.currency})</span>
+            <span className="font-medium">Budget utilization: {budget.cc} ({budget.currency})</span>
             <span className="text-gray-500">{usedPct}%</span>
           </div>
           <div className="h-3 rounded-full bg-gray-100 overflow-hidden">
@@ -142,7 +142,7 @@ export default async function DashboardPage() {
           <tbody>
             {recentReqs.map((r) => (
               <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50/60">
-                <td className="px-5 py-3 font-medium">{r.supplier_name ?? "—"}</td>
+                <td className="px-5 py-3 font-medium">{r.supplier_name ?? "-"}</td>
                 <td className="px-5 py-3">{formatMoney(Number(r.total_minor), r.currency)}</td>
                 <td className="px-5 py-3"><StatusPill status={r.status} /></td>
                 <td className="px-5 py-3 text-gray-500">
