@@ -238,9 +238,10 @@ certbot --nginx -d procure.yourcompany.com
 
 Cookies are `SameSite=Lax` and work over the proxied HTTPS domain unchanged.
 Set `TRUST_PROXY=true` in `.env` so rate limits apply per client IP. Limits per
-minute: 10 for login and register (`RATE_LIMIT_AUTH_PER_MIN`), 60 for every other
-API request, reads included (`RATE_LIMIT_MUTATION_PER_MIN`).
-`RATE_LIMIT_READ_PER_MIN` is parsed but not applied.
+minute and per client: 10 for login and register (`RATE_LIMIT_AUTH_PER_MIN`),
+60 for API writes (`RATE_LIMIT_MUTATION_PER_MIN`), 300 for API reads, GET and
+HEAD (`RATE_LIMIT_READ_PER_MIN`). The Playwright suite raises the auth limit
+for its own web server only.
 They are held in memory, per app process.
 Set `INTEGRATION_REDIRECT_URI=https://procure.yourcompany.com/api/v1/integrations/qbo/callback`
 when enabling QBO.
