@@ -1,4 +1,3 @@
-import { isIP } from "node:net";
 import { NextResponse } from "next/server";
 
 /** Guards for mutating API requests. Non-browser machine clients authenticate
@@ -7,10 +6,26 @@ import { NextResponse } from "next/server";
 
 const MAX_IP_LENGTH = 45;
 
+// Middleware runs on the edge runtime, which has no node:net, so validate by shape:
+// dotted IPv4 with octets 0-255, or IPv6 made of hex groups and colons (zone ids excluded).
+const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+const IPV6 = /^(?=.*:)[0-9a-fA-F:.]{2,45}$/;
+function isIpLiteral(value: string): boolean {
+  if (IPV4.test(value)) return true;
+  if (!IPV6.test(value) || (value.match(/:/g) ?? []).length < 2) return false;
+  if (value.split("::").length > 2) return false;
+  const groups = value.split(":").filter((g) => g !== "");
+  const last = groups.length - 1;
+  return (
+    groups.length <= 8 &&
+    groups.every((g, i) => /^[0-9a-fA-F]{1,4}$/.test(g) || (i === last && IPV4.test(g)))
+  );
+}
+
 /** Only a syntactically valid IPv4 or IPv6 literal may become a key component. */
 function ipLiteral(raw: string | null | undefined): string | null {
   const value = raw?.trim() ?? "";
-  if (!value || value.length > MAX_IP_LENGTH || isIP(value) === 0) return null;
+  if (!value || value.length > MAX_IP_LENGTH || !isIpLiteral(value)) return null;
   return value.toLowerCase();
 }
 
