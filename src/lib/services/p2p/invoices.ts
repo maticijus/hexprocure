@@ -260,6 +260,9 @@ export async function matchInvoiceById(invoiceId: string, actorUserId: string) {
       throw new DomainError("INVALID_STATE", "Approved invoice cannot be re-matched");
     }
 
+    // PO row lock serializes matches so the prior-invoiced caps see committed sibling invoices.
+    await tx.execute(sql`SELECT id FROM purchase_orders WHERE id = ${invoice.purchaseOrderId} FOR UPDATE`);
+
     const invLines = await tx.select().from(invoiceLines).where(eq(invoiceLines.invoiceId, invoiceId));
     const poLineRows = await loadPoLinesForInvoice(tx, invLines, invoice.purchaseOrderId);
     const receivedQtyByPoLine = await loadReceivedQtyByPoLine(tx, poLineRows);
