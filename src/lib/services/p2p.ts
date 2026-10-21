@@ -562,6 +562,9 @@ export async function createInvoice(input: CreateInvoiceInput, actorUserId: stri
   });
 }
 
+// PENDING and EXCEPTION invoices are not yet committed spend.
+const COMMITTED_INVOICE_STATUSES: ("MATCHED" | "APPROVED")[] = ["MATCHED", "APPROVED"];
+
 export async function matchInvoiceById(invoiceId: string, actorUserId: string) {
   return db.transaction(async (tx) => {
     const [invoice] = await tx.select().from(invoices).where(eq(invoices.id, invoiceId));
@@ -605,7 +608,7 @@ export async function matchInvoiceById(invoiceId: string, actorUserId: string) {
         .select({ poLineId: invoiceLines.poLineId, qty: invoiceLines.quantity, invoiceId: invoiceLines.invoiceId })
         .from(invoiceLines)
         .innerJoin(invoices, eq(invoiceLines.invoiceId, invoices.id))
-        .where(and(inArray(invoiceLines.poLineId, poLineRows.map((p) => p.id)), eq(invoices.purchaseOrderId, poId)));
+        .where(and(inArray(invoiceLines.poLineId, poLineRows.map((p) => p.id)), eq(invoices.purchaseOrderId, poId), inArray(invoices.status, COMMITTED_INVOICE_STATUSES)));
       for (const l of priorInvLines) {
         if (l.poLineId && l.invoiceId !== invoiceId) {
           previouslyInvoicedQtyByPoLine[l.poLineId] = (previouslyInvoicedQtyByPoLine[l.poLineId] ?? 0) + l.qty;
@@ -626,7 +629,13 @@ export async function matchInvoiceById(invoiceId: string, actorUserId: string) {
         })
         .from(invoiceLines)
         .innerJoin(invoices, eq(invoiceLines.invoiceId, invoices.id))
-        .where(and(inArray(invoiceLines.poLineId, [...serviceIds]), eq(invoices.purchaseOrderId, invoice.purchaseOrderId)));
+        .where(
+          and(
+            inArray(invoiceLines.poLineId, [...serviceIds]),
+            eq(invoices.purchaseOrderId, invoice.purchaseOrderId),
+            inArray(invoices.status, COMMITTED_INVOICE_STATUSES),
+          ),
+        );
       for (const row of priorAmountRows) {
         if (!row.poLineId || row.invoiceId === invoiceId) continue;
         const amount = row.amountMinor ?? row.qty * row.unit;
