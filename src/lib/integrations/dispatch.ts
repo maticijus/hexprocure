@@ -1,13 +1,13 @@
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { integrationEvents } from "@/lib/db/schema";
-import type { Connector, IntegrationEvent } from "./types";
+import type { Connector, DeliveryStatus, IntegrationEvent } from "./types";
 
-const registry = new Map<string, Connector>();
+const registry = new Map<string, Connector[]>();
 
 export function registerConnector(connector: Connector): void {
   for (const t of connector.handles) {
-    registry.set(t, connector);
+    registry.set(t, [...(registry.get(t) ?? []), connector]);
   }
 }
 
@@ -19,6 +19,21 @@ export interface DispatchResult {
   delivered: number;
   failed: number;
   skipped: number;
+}
+
+/** Delivers to every connector for the event; the first failure wins. A failed
+ *  event is retried whole, so connectors must tolerate repeats. */
+async function deliverToAll(connectors: Connector[], event: IntegrationEvent): Promise<DeliveryStatus> {
+  const outcomes = await Promise.all(
+    connectors.map(async (c): Promise<DeliveryStatus> => {
+      try {
+        return await c.deliver(event);
+      } catch (error) {
+        return { ok: false, error: String(error), retryable: true };
+      }
+    }),
+  );
+  return outcomes.find((o) => !o.ok) ?? { ok: true };
 }
 
 export async function dispatchPendingEvents(limit = 100): Promise<DispatchResult> {
@@ -33,8 +48,8 @@ export async function dispatchPendingEvents(limit = 100): Promise<DispatchResult
   const result: DispatchResult = { delivered: 0, failed: 0, skipped: 0 };
 
   for (const event of pending) {
-    const connector = registry.get(event.eventType);
-    if (!connector) {
+    const connectors = registry.get(event.eventType);
+    if (!connectors?.length) {
       result.skipped++;
       continue;
     }
@@ -43,12 +58,7 @@ export async function dispatchPendingEvents(limit = 100): Promise<DispatchResult
       type: event.eventType as IntegrationEvent["type"],
       payload: event.payload,
     };
-    let outcome;
-    try {
-      outcome = await connector.deliver(integrationEvent);
-    } catch (error) {
-      outcome = { ok: false, error: String(error), retryable: true };
-    }
+    const outcome = await deliverToAll(connectors, integrationEvent);
     const attempts = event.attempts + 1;
     if (outcome.ok) {
       await db
