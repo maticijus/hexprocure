@@ -6,6 +6,13 @@ Protocol: ~/.claude/rules/common/parallel-sessions.md
 ## Active claims
 <!-- newest first; empty when the repo is free -->
 
+- **owner:** claude-fable (Orca coordinator session 4: /guys gap lanes + product demo)
+  **machine:** local-mac
+  **scope:** main in ~/dev/hexprocure (merges, pushes, .env for demo); six worker lanes in new Orca worktrees off main (PO lock, rate-limit hardening, session store, multi-currency UI, dispatch scheduler, QBO acceptance audit)
+  **started:** 2026-10-21T06:15:00Z
+  **heartbeat:** 2026-10-21T06:15:00Z
+  **next:** dispatch lanes, run demo on :3000, gate and merge lanes as they finish
+
 
 
 ## History
