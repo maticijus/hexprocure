@@ -81,4 +81,20 @@ describe("dispatch loop", () => {
       db.execute(sql`SELECT 1`),
     ).resolves.toBeTruthy();
   });
+
+  it("lets a fresh event through when older stuck events fill the batch", async () => {
+    const payload = { invoiceId: "i1", invoiceNumber: "N1", supplier: "S", currency: "EUR", totalMinor: 100 };
+    await db.insert(integrationEvents).values(
+      Array.from({ length: 3 }, () => ({ eventType: "INVOICE_APPROVED", payload, attempts: 5 })),
+    );
+    const [fresh] = await db
+      .insert(integrationEvents)
+      .values({ eventType: "INVOICE_APPROVED", payload })
+      .returning();
+
+    await dispatchPendingEvents(2);
+
+    const [after] = await db.select().from(integrationEvents).where(eq(integrationEvents.id, fresh.id));
+    expect(after.status).toBe("DELIVERED");
+  });
 });
