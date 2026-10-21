@@ -6,16 +6,8 @@ Protocol: ~/.claude/rules/common/parallel-sessions.md
 ## Active claims
 <!-- newest first; empty when the repo is free -->
 
-- **owner:** claude-fable (Orca coordinator session 4: /guys gap lanes + product demo)
-  **machine:** local-mac
-  **scope:** main in ~/dev/hexprocure (merges, pushes, .env for demo); worker lanes in Orca worktrees off main: rate-limit hardening (gap-rate-limit), UI review fixes (ui-review-fixes), docs screenshots and diagrams (docs-screens-diagrams, owns README UI and Architecture), docs fact check (docs-fact-check, owns the rest of README and docs/); demo video lane in ~/Developer/hexmotion-capture against a detached build at ~/orca/workspaces/hexprocure/demo-build
-  **started:** 2026-10-21T06:15:00Z
-  **heartbeat:** 2026-10-21T13:45:00Z
-  **next:** all lanes merged and pushed (main 7a39412 plus e2e fix); Cursor README copy pass pending; then release this lock
-
-
-
 ## History
+- 2026-10-21 claude-fable (Orca coordinator session 4): gap lanes L2 to L12 merged and pushed, main at the IPv6 hextet fix; demo video at ~/Desktop/hexprocure-demo-en.mp4 awaiting founder review; next: founder decisions on GitHub About text, video voice and music, pricing doc items.
 <!-- released claims, trimmed periodically -->
 - 2026-10-21T06:05Z released: coordinator session 3 (run_0da6e998d932). Merged chore/audit-fix (5a5aff7), MEDIUM fixes M1-M5 (1fbd5d6, migration 0008), p2p refactor (0187c54: p2p.ts split into p2p/{shared,requisitions,purchase-orders,receipts,invoices}.ts behind a barrel). Main 348 tests green, tsc, lint, build clean, Opus review MERGE. Open: matchInvoiceById takes no PO lock (concurrent matches on one PO line can both pass the invoiced cap); submitRequisition and decideApproval still over 50 lines; lane A notes (X-Real-IP spoofable without proxy, key eviction floodable, per-email login lockout DoS); ee/LICENSE and SECURITY mail placeholders. Local Postgres is Docker hexprocure-pg under colima; brew postgresql@16 must stay stopped (port clash, no postgres role).
 - 2026-10-20T20:22Z released: coordinator session 2 (run_5f957954e646). Merged lane A c1ec96f, licence fixes 484721c, lane B 8d74b5a into main (03dec33, 335 tests green, pushed). Open: five lane-B reviewer MEDIUMs (cancelPurchaseOrder ORDERED/lock, service lines acceptance, prior-invoiced PENDING/EXCEPTION, migration 0007 backfill, 23505 to INVALID_STATE); stray 5aa221b on maticijus/sec-lane-a (npm audit bump) unmerged, audit-fix branch owns dependency bumps. Use ~/dev/hexprocure for new work.
