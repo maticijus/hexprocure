@@ -13,6 +13,7 @@ import {
   submitRequisition,
   decideApproval,
   createPurchaseOrder,
+  cancelPurchaseOrder,
   addReceipt,
   createInvoice,
   matchInvoiceById,
@@ -346,5 +347,31 @@ describe("B7 receipts cannot exceed ordered quantity", () => {
       expect((r as PromiseRejectedResult).reason).toMatchObject({ code: "INVALID_STATE" });
     }
     expect(await receivedQty(goods.id)).toBe(6);
+  });
+});
+
+describe("M1 cancelling a PO releases its requisition", () => {
+  it("cancel then createPurchaseOrder again succeeds", async () => {
+    const { s, req } = await approvedRequisition([{ quantity: 2, unitPriceMinor: 1000 }]);
+    const first = await createPurchaseOrder(req.id, s.manager.id);
+    await cancelPurchaseOrder(first.purchaseOrderId, s.manager.id);
+
+    const [after] = await db.select().from(requisitions).where(eq(requisitions.id, req.id));
+    expect(after.status).toBe("APPROVED");
+    const second = await createPurchaseOrder(req.id, s.manager.id);
+    expect(second.purchaseOrderId).not.toBe(first.purchaseOrderId);
+  });
+
+  it("two concurrent cancels yield one success and one INVALID_STATE", async () => {
+    const { s, req } = await approvedRequisition([{ quantity: 2, unitPriceMinor: 1000 }]);
+    const { purchaseOrderId } = await createPurchaseOrder(req.id, s.manager.id);
+    const results = await Promise.allSettled([
+      cancelPurchaseOrder(purchaseOrderId, s.manager.id),
+      cancelPurchaseOrder(purchaseOrderId, s.manager.id),
+    ]);
+
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const rejected = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
+    expect(rejected.reason).toMatchObject({ code: "INVALID_STATE" });
   });
 });
