@@ -279,6 +279,11 @@ describe("POST /api/v1/purchase-orders/[id]/cancel", () => {
     expect((await cancelAs(s.requester.id, purchaseOrderId)).status).toBe(403);
   });
 
+  it("returns 404 for a malformed id", async () => {
+    const { s } = await orderToOpenPo();
+    expect((await cancelAs(s.manager.id, "not-a-uuid")).status).toBe(404);
+  });
+
   it("returns 409 when the PO is already cancelled", async () => {
     const { s, purchaseOrderId } = await orderToOpenPo();
     await cancelAs(s.manager.id, purchaseOrderId);
@@ -300,6 +305,11 @@ describe("POST /api/v1/purchase-orders/[id]/send", () => {
   it("rejects a plain requester with 403", async () => {
     const { s, purchaseOrderId } = await orderToOpenPo();
     expect((await sendAs(s.requester.id, purchaseOrderId)).status).toBe(403);
+  });
+
+  it("returns 404 for a malformed id", async () => {
+    const { s } = await orderToOpenPo();
+    expect((await sendAs(s.manager.id, "not-a-uuid")).status).toBe(404);
   });
 });
 
