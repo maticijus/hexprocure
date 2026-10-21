@@ -180,4 +180,41 @@ describe("dispatch loop", () => {
     const [after] = await db.select().from(integrationEvents);
     expect(after.lastError).toBe("TypeError: socket closed");
   });
+
+  it("retries only the connectors that failed and then marks the event DELIVERED", async () => {
+    let okCalls = 0;
+    let flakyCalls = 0;
+    const ok: Connector = {
+      name: "ok",
+      handles: ["PO_CREATED"],
+      deliver: async () => {
+        okCalls++;
+        return { ok: true };
+      },
+    };
+    const flaky: Connector = {
+      name: "flaky",
+      handles: ["PO_CREATED"],
+      deliver: async () => (++flakyCalls === 1 ? { ok: false, error: "ERP down", retryable: true } : { ok: true }),
+    };
+    clearConnectors();
+    registerConnector(ok);
+    registerConnector(flaky);
+    await db.insert(integrationEvents).values({ eventType: "PO_CREATED", payload: {} });
+
+    await dispatchPendingEvents();
+    const [mid] = await db.select().from(integrationEvents);
+    expect(mid.status).toBe("PENDING");
+    expect(mid.lastError).toBe("ERP down");
+    expect(mid.deliveredConnectors).toEqual(["ok"]);
+
+    const second = await dispatchPendingEvents();
+
+    expect(second.delivered).toBe(1);
+    expect(okCalls).toBe(1);
+    expect(flakyCalls).toBe(2);
+    const [after] = await db.select().from(integrationEvents);
+    expect(after.status).toBe("DELIVERED");
+    expect(after.deliveredConnectors.sort()).toEqual(["flaky", "ok"]);
+  });
 });
