@@ -20,7 +20,7 @@ const COLUMNS = [
 
 function escapeCell(value: string | number | undefined | null): string {
   const s = value === undefined || value === null ? "" : String(value);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 type Row = Partial<Record<(typeof COLUMNS)[number], string | number | undefined>>;
