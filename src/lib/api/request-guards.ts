@@ -245,7 +245,7 @@ function emailStateFor(
   const victim = full
     ? client
     : store.keys >= MAX_TRACKED_KEYS
-      ? heaviestClient(store)
+      ? heaviestClient(store, client)
       : null;
   const theirs = victim ? store.clients.get(victim) : undefined;
   if (victim && theirs)
@@ -258,11 +258,12 @@ function emailStateFor(
   return created;
 }
 
-function heaviestClient(store: Store): string | null {
+// Ties go to the requester so a full store never evicts a bystander's only pair.
+function heaviestClient(store: Store, current: string): string | null {
   let best: string | null = null;
   let size = 0;
   for (const [client, keys] of store.clients) {
-    if (keys.size > size) [best, size] = [client, keys.size];
+    if (keys.size > size || (keys.size === size && client === current)) [best, size] = [client, keys.size];
   }
   return best;
 }

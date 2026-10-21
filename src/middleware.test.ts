@@ -22,7 +22,10 @@ const burst = (method: string, path: string, n: number, ip?: string) => {
   return last;
 };
 
-beforeEach(() => resetRateLimits());
+beforeEach(() => {
+  vi.stubEnv("TRUST_PROXY", "true"); // x-real-ip is only honoured behind a trusted proxy
+  resetRateLimits();
+});
 afterEach(() => vi.unstubAllEnvs());
 
 describe("middleware API rate limits", () => {
