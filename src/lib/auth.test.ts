@@ -42,6 +42,10 @@ describe("session tokens", () => {
     expect(payload!.exp - Math.floor(Date.now() / 1000)).toBeGreaterThan(3500);
   });
 
+  it("issues distinct tokens for the same user within one second", () => {
+    expect(createSessionToken("u1", SECRET)).not.toBe(createSessionToken("u1", SECRET));
+  });
+
   it("rejects tokens signed with a different secret", () => {
     const token = createSessionToken("user-1", SECRET, 3600);
     expect(verifySessionToken(token, "other-secret")).toBeNull();

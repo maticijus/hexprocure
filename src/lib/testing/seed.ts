@@ -20,6 +20,7 @@ export const TRUNCATE_TABLES = [
   "audit_events",
   "attachments",
   "api_tokens",
+  "sessions",
   "invoice_lines",
   "invoices",
   "receipt_lines",

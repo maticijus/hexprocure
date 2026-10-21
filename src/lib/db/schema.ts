@@ -232,6 +232,18 @@ export const apiTokens = pgTable("api_tokens", {
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
 });
 
+export const sessions = pgTable("sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  userAgent: text("user_agent"),
+});
+
 export const orderCadence = pgEnum("order_cadence", [
   "MONTHLY",
   "QUARTERLY",
