@@ -28,12 +28,12 @@ export default async function RequisitionsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold">Requisitions</h1>
-        <a
+        <Link
           href="/requisitions/new"
           className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--brand-dark)]"
         >
           + New Requisition
-        </a>
+        </Link>
       </div>
       <div className="rounded-xl bg-white shadow-sm border border-gray-100 overflow-hidden">
         <table className="w-full text-sm">

@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import Link from "next/link";
 import { StatusPill } from "@/components/ui";
 import { formatMoney } from "@/lib/format";
 import { db } from "@/lib/db";
@@ -44,7 +45,9 @@ export default async function PurchaseOrdersPage() {
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50/60">
-                <td className="px-5 py-3 font-mono text-xs">{r.id.slice(0, 8)}…</td>
+                <td className="px-5 py-3 font-mono text-xs">
+                  <Link href={`/purchase-orders/${r.id}`} className="text-[var(--brand)] hover:underline">{r.id.slice(0, 8)}</Link>
+                </td>
                 <td className="px-5 py-3 font-medium">{r.supplier ?? "-"}</td>
                 <td className="px-5 py-3">{formatMoney(Number(r.total_minor), r.currency)}</td>
                 <td className="px-5 py-3">

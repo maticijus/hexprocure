@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import Link from "next/link";
 import { StatusPill } from "@/components/ui";
 import { formatMoney } from "@/lib/format";
 import { db } from "@/lib/db";
@@ -11,7 +12,7 @@ export default async function InvoicesPage() {
   await getCurrentUser();
   const rows = (
     await db.execute(sql`
-      SELECT i.id, i.number, i.status, po.currency, s.name AS supplier,
+      SELECT i.id, i.number, i.status, po.currency, s.name AS supplier, i.supplier_id,
              COALESCE(SUM(il.quantity * il.unit_price_minor),0) AS total_minor
       FROM invoices i
       JOIN purchase_orders po ON po.id = i.purchase_order_id
@@ -19,11 +20,19 @@ export default async function InvoicesPage() {
       LEFT JOIN invoice_lines il ON il.invoice_id = i.id
       GROUP BY i.id, s.name, po.currency ORDER BY i.created_at DESC
     `)
-  ).rows as { id: string; number: string; status: string; currency: string; supplier: string; total_minor: string }[];
+  ).rows as { id: string; number: string; status: string; currency: string; supplier: string; supplier_id: string; total_minor: string }[];
 
   return (
     <div>
-      <h1 className="text-xl font-bold mb-6">Invoices</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl font-bold">Invoices</h1>
+        <Link
+          href="/invoices/new"
+          className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--brand-dark)]"
+        >
+          + New invoice
+        </Link>
+      </div>
       <div className="rounded-xl bg-white shadow-sm border border-gray-100 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
@@ -37,8 +46,12 @@ export default async function InvoicesPage() {
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50/60">
-                <td className="px-5 py-3 font-medium">{r.number}</td>
-                <td className="px-5 py-3">{r.supplier ?? "-"}</td>
+                <td className="px-5 py-3 font-medium">
+                  <Link href={`/invoices/${r.id}`} className="text-[var(--brand)] hover:underline">{r.number}</Link>
+                </td>
+                <td className="px-5 py-3">
+                  <Link href={`/suppliers/${r.supplier_id}`} className="text-[var(--brand)] hover:underline">{r.supplier ?? "-"}</Link>
+                </td>
                 <td className="px-5 py-3">{formatMoney(Number(r.total_minor), r.currency)}</td>
                 <td className="px-5 py-3">
                   <StatusPill status={r.status} />
