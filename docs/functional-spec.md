@@ -20,7 +20,7 @@ invoice, export to the accounting system.
 Auth: email + password (scrypt), HMAC-SHA256 signed session cookie (7 days,
 `HttpOnly`, `SameSite=Lax`) backed by a server-side `sessions` row that logout or an ADMIN can revoke, plus machine API tokens (`Bearer hxp_…`, SHA-256
 hashed at rest, ADMIN-managed, revocable). Middleware enforces CSRF origin
-checks and in-memory rate limits (login 10/min, all other `/api/*` requests 60/min by default, per client IP and `/api/v1/<resource>` prefix) on every `/api/*` route.
+checks and in-memory rate limits (login and register 10/min, other `/api/*` GET and HEAD requests 300/min, other methods 60/min by default, per client IP and `/api/v1/<resource>` prefix) on every `/api/*` route.
 
 ## 2. Core flow
 
