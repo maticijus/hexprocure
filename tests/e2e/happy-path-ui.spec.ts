@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { login, dbQuery } from "./helpers";
+import { login, dbQuery, createApprovedOrder } from "./helpers";
 
 const stamp = Date.now();
 const INVOICE_NO = `UI-${stamp}`;
@@ -65,4 +65,27 @@ test("clickable happy path: request, approve, order, receive, invoice, match, ap
 
   const row = await dbQuery<{ status: string }>("SELECT status FROM invoices WHERE number = $1", [INVOICE_NO]);
   expect(row.rows[0].status).toBe("APPROVED");
+});
+
+test("manager cancels an open PO from its detail page", async ({ browser }) => {
+  const options = await (async () => {
+    const page = await browser.newPage();
+    await login(page, "rita@hexprocure.dev");
+    const body = await page.request.get("/api/v1/meta/options").then((r) => r.json());
+    await page.close();
+    return body as { suppliers: { id: string; name: string }[]; costCenters: { id: string; name: string }[] };
+  })();
+  const { purchaseOrderId } = await createApprovedOrder(
+    browser,
+    options.suppliers.find((s) => s.name === "Acme Office GmbH")!.id,
+    options.costCenters.find((c) => c.name === "IT")!.id,
+  );
+
+  const max = await browser.newPage();
+  await login(max, "max@hexprocure.dev");
+  await max.goto(`/purchase-orders/${purchaseOrderId}`);
+  max.once("dialog", (d) => d.accept());
+  await max.getByRole("button", { name: "Cancel PO" }).click();
+  await expect(max.getByTestId("status")).toHaveText("CANCELLED");
+  await max.close();
 });
