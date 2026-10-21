@@ -71,7 +71,7 @@ Domain events (`PO_CREATED`, `PO_CANCELLED`, `INVOICE_APPROVED`, plus the notifi
 | **Email notifications** | Approvers, requesters, finance | Approval requests, decisions, and invoice exceptions via SMTP (`SMTP_URL`); log-only mode when unset |
 | **QuickBooks Online** | QBO `PurchaseOrder` / `Bill` (`QBO_CLIENT_ID`, `QBO_CLIENT_SECRET`) | OAuth connection, idempotent push; minor-unit to decimal conversion at the boundary only |
 
-Each event type goes to one connector; the last one registered wins. Registration order is CSV, email, QuickBooks (when configured), webhook (when configured), so `PO_CREATED` and `INVOICE_APPROVED` go to the webhook when it is set, else to QuickBooks when it is configured, else to CSV. `PO_CANCELLED` goes only to the webhook; the notification events go to email.
+Each event type can have several connectors (CSV when `INTEGRATION_CSV_DIR` is set, email, QuickBooks when configured, webhook when configured) and every registered connector receives the event. Delivery is tracked per connector in `integration_events.delivered_connectors`; an event is `DELIVERED` once all of them succeed, and a failed connector is retried alone on the next run while the others are not called again. The same registry is loaded by the dispatch route and by the in-process scheduler.
 
 Failed retryable deliveries stay `PENDING` with attempt counts and last error and are retried on the next dispatch. Dispatch is triggered via `POST /api/v1/integrations/dispatch` (FINANCE/ADMIN). Set `INTEGRATION_DISPATCH_INTERVAL_MS` (e.g. `60000`) to also run dispatch from an in-process scheduler; it is single-instance, so only one app container should run it, and it depends on the dispatch route having run first (see [Known gaps](#known-gaps)).
 
