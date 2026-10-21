@@ -144,11 +144,12 @@ describe("rate limit client key", () => {
       expect(hit("offender")?.status).toBe(429);
     });
 
-    it("limits fresh keys through one shared overflow bucket once full", () => {
+    it("limits a new client through its own overflow bucket once full", () => {
       fill(10_000);
       let last: Response | null = null;
-      for (let i = 0; i < 11; i++) last = hit(`new-${i}`);
+      for (let i = 0; i < 11; i++) last = hit("newcomer");
       expect(last?.status).toBe(429);
+      expect(hit("another-newcomer")).toBeNull();
     });
 
     it("evicts expired entries first, so fresh keys get their own bucket", () => {
@@ -223,5 +224,18 @@ describe("limitsPerMinute", () => {
     delete process.env.RATE_LIMIT_AUTH_PER_MIN;
     delete process.env.RATE_LIMIT_MUTATION_PER_MIN;
     delete process.env.RATE_LIMIT_READ_PER_MIN;
+  });
+});
+
+describe("guard isolation", () => {
+  it("api-guard flooding does not touch the auth guard of the same client", () => {
+    vi.stubEnv("TRUST_PROXY", "true");
+    const at = (path: string) =>
+      new Request(`https://procure.example.com/api/v1/${path}/x`, {
+        method: "POST",
+        headers: { "x-real-ip": "21.0.0.1" },
+      });
+    for (let i = 0; i < 500; i++) checkRateLimit(at(`p${i}`), 10, 60_000);
+    expect(checkRateLimit(at("auth"), 10, 60_000, "auth")).toBeNull();
   });
 });
