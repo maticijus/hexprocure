@@ -16,6 +16,7 @@ import { POST as decide } from "@/app/api/v1/approvals/[id]/decide/route";
 import { POST as order } from "@/app/api/v1/requisitions/[id]/order/route";
 import { POST as addReceiptRoute } from "@/app/api/v1/purchase-orders/[id]/receipts/route";
 import { POST as cancelPoRoute } from "@/app/api/v1/purchase-orders/[id]/cancel/route";
+import { POST as sendPoRoute } from "@/app/api/v1/purchase-orders/[id]/send/route";
 import { POST as createInvoiceRoute } from "@/app/api/v1/invoices/route";
 import {
   errorToResponse,
@@ -172,7 +173,7 @@ describe("full HTTP flow: create → submit → decide → order", () => {
       { params: Promise.resolve({ id: approval.id }) } as never,
     );
     const ordered = await order(
-      req("http://x", { method: "POST", headers: { cookie: authCookie(s.requester.id) } }),
+      req("http://x", { method: "POST", headers: { cookie: authCookie(s.manager.id) } }),
       { params: Promise.resolve({ id }) } as never,
     );
     const { purchaseOrderId } = (await ordered.json()) as { purchaseOrderId: string };
@@ -214,11 +215,32 @@ describe("full HTTP flow: create → submit → decide → order", () => {
     expect((await decided.json()).requisitionStatus).toBe("APPROVED");
 
     const ordered = await order(
-      req("http://localhost/x", { method: "POST", headers: { "cookie": authCookie(s.requester.id) } }),
+      req("http://localhost/x", { method: "POST", headers: { "cookie": authCookie(s.manager.id) } }),
       { params: Promise.resolve({ id }) } as never,
     );
     expect(ordered.status).toBe(201);
     expect((await ordered.json()).totalMinor).toBe(50000);
+  });
+
+  it("rejects a plain requester ordering with 403", async () => {
+    const s = await seed();
+    const created = await createRequisition(
+      req("http://localhost/api/v1/requisitions", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: authCookie(s.requester.id) },
+        body: JSON.stringify({
+          supplierId: s.supplier.id,
+          costCenterId: s.cc.id,
+          lines: [{ description: "Desks", quantity: 1, unitPriceMinor: 1000 }],
+        }),
+      }),
+    );
+    const { id } = await created.json();
+    const ordered = await order(
+      req("http://x", { method: "POST", headers: { cookie: authCookie(s.requester.id) } }),
+      { params: Promise.resolve({ id }) } as never,
+    );
+    expect(ordered.status).toBe(403);
   });
 
   it("maps domain errors to 422 for budget overrun", async () => {
@@ -251,7 +273,7 @@ describe("full HTTP flow: create → submit → decide → order", () => {
     );
 
     const ordered = await order(
-      req("http://x", { method: "POST", headers: { "cookie": authCookie(s.requester.id) } }),
+      req("http://x", { method: "POST", headers: { "cookie": authCookie(s.manager.id) } }),
       { params: Promise.resolve({ id }) } as never,
     );
     expect(ordered.status).toBe(422);
@@ -278,10 +300,37 @@ describe("POST /api/v1/purchase-orders/[id]/cancel", () => {
     expect((await cancelAs(s.requester.id, purchaseOrderId)).status).toBe(403);
   });
 
+  it("returns 404 for a malformed id", async () => {
+    const { s } = await orderToOpenPo();
+    expect((await cancelAs(s.manager.id, "not-a-uuid")).status).toBe(404);
+  });
+
   it("returns 409 when the PO is already cancelled", async () => {
     const { s, purchaseOrderId } = await orderToOpenPo();
     await cancelAs(s.manager.id, purchaseOrderId);
     expect((await cancelAs(s.manager.id, purchaseOrderId)).status).toBe(409);
+  });
+});
+
+describe("POST /api/v1/purchase-orders/[id]/send", () => {
+  const sendAs = (userId: string, id: string) =>
+    sendPoRoute(
+      req("http://localhost/x", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: authCookie(userId) },
+        body: JSON.stringify({ to: "someone@example.com" }),
+      }),
+      { params: Promise.resolve({ id }) } as never,
+    );
+
+  it("rejects a plain requester with 403", async () => {
+    const { s, purchaseOrderId } = await orderToOpenPo();
+    expect((await sendAs(s.requester.id, purchaseOrderId)).status).toBe(403);
+  });
+
+  it("returns 404 for a malformed id", async () => {
+    const { s } = await orderToOpenPo();
+    expect((await sendAs(s.manager.id, "not-a-uuid")).status).toBe(404);
   });
 });
 

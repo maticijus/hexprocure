@@ -67,7 +67,7 @@ async function seedPo() {
 
 function post(purchaseOrderId?: string) {
   const form = new FormData();
-  form.append("file", new Blob([Buffer.from("%PDF-1.4 fake")]), "invoice.pdf");
+  form.append("file", new File([Buffer.from("%PDF-1.4 fake")], "invoice.pdf", { type: "application/pdf" }));
   if (purchaseOrderId) form.append("purchaseOrderId", purchaseOrderId);
   return POST(new Request("http://x", { method: "POST", body: form }));
 }
@@ -77,7 +77,7 @@ describe("POST /api/v1/invoices/extract", () => {
     const original = process.env.INTEGRATION_OCR_URL;
     delete process.env.INTEGRATION_OCR_URL;
     const form = new FormData();
-    form.append("file", new Blob(["x"]), "a.pdf");
+    form.append("file", new File(["x"], "a.pdf", { type: "application/pdf" }));
     const res = await POST(new Request("http://x", { method: "POST", body: form }));
     expect(res.status).toBe(501);
     if (original === undefined) delete process.env.INTEGRATION_OCR_URL;
@@ -93,7 +93,7 @@ describe("POST /api/v1/invoices/extract", () => {
     });
 
     const form = new FormData();
-    form.append("file", new Blob([Buffer.from("%PDF-1.4 fake")]), "invoice.pdf");
+    form.append("file", new File([Buffer.from("%PDF-1.4 fake")], "invoice.pdf", { type: "application/pdf" }));
     const res = await POST(new Request("http://x", { method: "POST", body: form }));
     expect(res.status).toBe(200);
     const data = await res.json();
@@ -101,6 +101,25 @@ describe("POST /api/v1/invoices/extract", () => {
     expect(data.draft.totalMinor).toBe(205_500);
     expect(data.rawText).toContain("Acme");
     expect(extractMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects an oversize file with 400 before OCR", async () => {
+    process.env.INTEGRATION_OCR_URL = "http://fake:8100";
+    const form = new FormData();
+    form.append("file", new File([new Uint8Array(10 * 1024 * 1024 + 1)], "big.pdf", { type: "application/pdf" }));
+    const res = await POST(new Request("http://x", { method: "POST", body: form }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.code).toBe("VALIDATION");
+    expect(extractMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unsupported file type with 400 before OCR", async () => {
+    process.env.INTEGRATION_OCR_URL = "http://fake:8100";
+    const form = new FormData();
+    form.append("file", new File(["hello"], "notes.txt", { type: "text/plain" }));
+    const res = await POST(new Request("http://x", { method: "POST", body: form }));
+    expect(res.status).toBe(400);
+    expect(extractMock).not.toHaveBeenCalled();
   });
 
   it("rejects requests without a file field", async () => {

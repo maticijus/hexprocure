@@ -5,11 +5,15 @@ import {
   budgets,
   costCenters,
   integrationEvents,
+  invoices,
   poLines,
   purchaseOrders,
+  receiptLines,
+  receipts,
   requisitionLines,
   requisitions,
   suppliers,
+  users,
 } from "@/lib/db/schema";
 import { Money } from "@/domain/money";
 import { guard as budgetGuard } from "@/domain/budget";
@@ -86,8 +90,18 @@ async function emitPoCreated(
   });
 }
 
+const ORDER_ROLES = new Set(["MANAGER", "FINANCE", "ADMIN"]);
+
+async function assertCanOrder(tx: Tx, actorUserId: string) {
+  const [actor] = await tx.select().from(users).where(eq(users.id, actorUserId));
+  if (!actor || !ORDER_ROLES.has(actor.role)) {
+    throw new DomainError("FORBIDDEN", "Requires MANAGER, FINANCE or ADMIN role");
+  }
+}
+
 export async function createPurchaseOrder(requisitionId: string, actorUserId: string) {
   return db.transaction(async (tx) => {
+    await assertCanOrder(tx, actorUserId);
     const req = await lockApprovedRequisition(tx, requisitionId);
 
     const lines = await tx
@@ -163,6 +177,23 @@ async function loadBudgetStateWithin(tx: Tx, costCenterId: string, yearMonth: st
   return { budget, state };
 }
 
+async function assertNoDownstreamDocuments(tx: Tx, purchaseOrderId: string) {
+  const [receipt] = await tx
+    .select({ id: receiptLines.id })
+    .from(receiptLines)
+    .innerJoin(receipts, eq(receipts.id, receiptLines.receiptId))
+    .where(eq(receipts.purchaseOrderId, purchaseOrderId))
+    .limit(1);
+  const [invoice] = await tx
+    .select({ id: invoices.id })
+    .from(invoices)
+    .where(eq(invoices.purchaseOrderId, purchaseOrderId))
+    .limit(1);
+  if (receipt || invoice) {
+    throw new DomainError("INVALID_STATE", "Cannot cancel a PO that has receipts or invoices");
+  }
+}
+
 export async function cancelPurchaseOrder(purchaseOrderId: string, actorUserId: string) {
   return db.transaction(async (tx) => {
     const [po] = await tx
@@ -174,6 +205,7 @@ export async function cancelPurchaseOrder(purchaseOrderId: string, actorUserId: 
     if (po.status !== "OPEN") {
       throw new DomainError("INVALID_STATE", `Cannot cancel from ${po.status}`);
     }
+    await assertNoDownstreamDocuments(tx, purchaseOrderId);
     await tx
       .update(purchaseOrders)
       .set({ status: "CANCELLED" })

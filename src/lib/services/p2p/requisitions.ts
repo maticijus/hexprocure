@@ -90,9 +90,18 @@ async function emitApprovalRequests(tx: Tx, req: Requisition, chain: ApprovalSte
   }
 }
 
+async function assertCanSubmit(tx: Tx, requesterId: string, actorUserId: string) {
+  if (requesterId === actorUserId) return;
+  const [actor] = await tx.select().from(users).where(eq(users.id, actorUserId));
+  if (actor?.role !== "ADMIN") {
+    throw new DomainError("FORBIDDEN", "Only the requester or an ADMIN can submit");
+  }
+}
+
 export async function submitRequisition(requisitionId: string, actorUserId: string) {
   return db.transaction(async (tx) => {
     const { req, total } = await loadSubmittable(tx, requisitionId);
+    await assertCanSubmit(tx, req.requesterId, actorUserId);
     const chain = await buildApprovalChain(tx, req, total);
     await persistSubmission(tx, requisitionId, chain, total, actorUserId);
     await emitApprovalRequests(tx, req, chain, total);
