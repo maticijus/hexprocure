@@ -10,8 +10,8 @@ Protocol: ~/.claude/rules/common/parallel-sessions.md
   **machine:** local-mac
   **scope:** main in ~/dev/hexprocure (merges, pushes, .env for demo); worker lanes in Orca worktrees off main: rate-limit hardening (gap-rate-limit), UI review fixes (ui-review-fixes), docs screenshots and diagrams (docs-screens-diagrams, owns README UI and Architecture), docs fact check (docs-fact-check, owns the rest of README and docs/); demo video lane in ~/Developer/hexmotion-capture against a detached build at ~/orca/workspaces/hexprocure/demo-build
   **started:** 2026-10-21T06:15:00Z
-  **heartbeat:** 2026-10-21T07:20:00Z
-  **next:** gate L2c, L9, D1, F1 and the video lane; merge reviewed work; full suite on main; release
+  **heartbeat:** 2026-10-21T12:15:00Z
+  **next:** local main holds L9 and L10 merges unpushed (Postgres recovering after crash); run full suite, push; merge L2 after Cursor closure; L11 cleanup lane running; demo video delivered to founder for review
 
 
 
