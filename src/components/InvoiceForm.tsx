@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ErrorNote } from "@/components/ui";
 import { INPUT } from "@/components/RequisitionLineFields";
 import { postJson } from "@/lib/client-api";
-import { applyExtracted, prefillLines, toInvoicePayload, type DraftLine, type PoLineOption } from "@/lib/invoice-draft";
+import { applyExtracted, prefillLines, toInvoicePayload, unmatchedNote, type DraftLine, type PoLineOption } from "@/lib/invoice-draft";
 import type { ProposedInvoiceLine } from "@/domain/invoice-lines";
 
 export interface PoOption { id: string; label: string; supplierId: string; currency: string; lines: PoLineOption[] }
@@ -52,9 +52,12 @@ export function InvoiceForm({ pos }: { pos: PoOption[] }) {
     try {
       const result = await extract(file, po.id);
       if (result.draft.invoiceNumber) setNumber(result.draft.invoiceNumber);
-      setLines((current) => applyExtracted(current, result.lines, po.currency));
+      const fromLlm = result.linesSource === "llm";
+      const unmatched = fromLlm ? unmatchedNote(lines, result.lines) : null;
+      if (fromLlm) setLines((current) => applyExtracted(current, result.lines, po.currency));
       setNotes([
         `Lines source: ${result.linesSource}`,
+        ...(unmatched ? [unmatched] : []),
         ...(result.draft.issueDate ? [`Invoice date read from file: ${result.draft.issueDate}`] : []),
         ...(result.warnings ?? []),
       ]);

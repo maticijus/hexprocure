@@ -44,15 +44,25 @@ export function prefillLines(poLines: PoLineOption[], currency: string): DraftLi
   );
 }
 
+function matchedIds(proposed: ProposedInvoiceLine[]): Set<string> {
+  return new Set(proposed.flatMap((p) => (p.poLineId ? [p.poLineId] : [])));
+}
+
 export function applyExtracted(lines: DraftLine[], proposed: ProposedInvoiceLine[], currency: string): DraftLine[] {
   const byPoLine = new Map(proposed.filter((p) => p.poLineId).map((p) => [p.poLineId, p]));
   return lines.map((line) => {
     const hit = byPoLine.get(line.poLineId);
-    if (!hit) return line;
+    if (!hit) return { ...line, quantity: "0" };
     return line.kind === "SERVICE"
       ? { ...line, quantity: "1", unitPrice: toMajor(hit.amountMinor, currency) }
       : { ...line, quantity: String(hit.quantity), unitPrice: toMajor(hit.unitPriceMinor, currency) };
   });
+}
+
+export function unmatchedNote(lines: DraftLine[], proposed: ProposedInvoiceLine[]): string | null {
+  const matched = matchedIds(proposed);
+  const count = lines.filter((l) => !matched.has(l.poLineId)).length;
+  return count === 0 ? null : `${count} ${count === 1 ? "line" : "lines"} not found on the invoice, quantity set to 0`;
 }
 
 export function toInvoicePayload(lines: DraftLine[], currency: string): InvoicePayloadLine[] {
