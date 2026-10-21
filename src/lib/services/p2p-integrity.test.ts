@@ -485,3 +485,30 @@ describe("M2 service invoices need an accepted receipt", () => {
     expect((await serviceInvoice(true)).status).toBe("MATCHED");
   });
 });
+
+describe("M6 concurrent matches cannot jointly exceed the received cap", () => {
+  it("two invoices of 6 against 10 received: one MATCHED, one EXCEPTION", async () => {
+    const { s, purchaseOrderId, goods } = await openPo([{ quantity: 10, unitPriceMinor: 1000 }]);
+    await addReceipt(purchaseOrderId, [{ poLineId: goods.id, quantityReceived: 10 }], s.requester.id);
+    const mkInvoice = (number: string) =>
+      createInvoice(
+        {
+          supplierId: s.supplier.id,
+          purchaseOrderId,
+          number,
+          lines: [{ poLineId: goods.id, quantity: 6, unitPriceMinor: 1000 }],
+        },
+        s.finance.id,
+      );
+    const [a, b] = [await mkInvoice("INV-M6-A"), await mkInvoice("INV-M6-B")];
+    // Open the connections first so connection setup does not serialize the race.
+    await Promise.all(Array.from({ length: 4 }, () => pool.query("SELECT pg_sleep(0.05)")));
+    const results = await Promise.allSettled([
+      matchInvoiceById(a.id, s.finance.id),
+      matchInvoiceById(b.id, s.finance.id),
+    ]);
+
+    const statuses = results.map((r) => (r.status === "fulfilled" ? r.value.status : "REJECTED"));
+    expect(statuses.sort()).toEqual(["EXCEPTION", "MATCHED"]);
+  });
+});
