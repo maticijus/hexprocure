@@ -22,21 +22,21 @@ in source or object form, and any copy, modification or derivative work of
 them. "Licence Key" means a signed token issued by the Licensor that names a
 Tier, a licensee and a validity period and is verified by the licence check in
 the HexProcure code. "Tier" means a feature tier named in the feature map in
-ee/features.ts. "Order" means the written or electronic order, quote or
-invoice that identifies You and under which the Licensor issues a Licence Key.
-"Production Use" means any use of the Software other than evaluation,
-development, testing or contribution, including use for Your own operations or
-for Your customers. "You" means the person who accepts this licence. Where the
-Licence Key says so, "You" also covers Your affiliates, meaning entities that
-control You, are controlled by You or are under common control with You.
+ee/features.ts. "Order" means the order that You sign or confirm in writing,
+including by electronic means, against the Licensor's quote, that identifies
+You and under which the Licensor issues a Licence Key. "Production Use" means
+any use of the Software other than evaluation, development, testing or
+contribution, including use for Your own operations or for Your customers.
+"You" means the person who accepts this licence. Where the Licence Key says
+so, "You" also covers Your affiliates, meaning entities that control You, are
+controlled by You or are under common control with You.
 
 2. Who may accept this licence, and how
 
 The free grant in section 3 and the contribution licence in section 7 are open
 to any person. Production Use under section 4 is offered to legal entities,
-public bodies, non-profit organisations and persons acting in the course of
-their trade, business, craft or profession (entrepreneurs within the meaning
-of Sections 420(1) and 421 of Act No. 89/2012 Coll., the Czech Civil Code). It
+public bodies, non-profit organisations, and entrepreneurs within the meaning
+of Sections 420(1) and 421 of Act No. 89/2012 Coll., the Czech Civil Code. It
 is not offered to consumers. By copying, modifying or using the Software You
 accept this licence; where You act for an organisation, You confirm that You
 are authorised to bind it. This is an offer to an indeterminate circle of
@@ -63,7 +63,7 @@ Production Use of the Software is permitted only while You hold a valid
 Licence Key for the Tier that covers each feature You use, and only for the
 validity period and within the limits stated in the Licence Key. You obtain a
 Licence Key through an Order that identifies You. By placing the Order You
-accept this licence, including sections 9, 10 and 11, expressly and in
+accept this licence, including sections 8, 9, 10 and 11, expressly and in
 writing. The remuneration for Production Use is the fee stated in the Order. A
 Licence Key is issued to the licensee named in it, is non-transferable and may
 not be shared, lent, resold or offered to third parties. This also applies to
@@ -120,15 +120,19 @@ rights needed to grant this licence.
 8. Term and termination
 
 This licence runs until terminated. It ends automatically if You make
-Production Use without a valid Licence Key or breach section 5. For any other
-breach, the Licensor may withdraw from this licence and revoke the Licence Key
-by notice if You do not cure the breach within 30 days after the Licensor's
-written notice. The Licensor may also withdraw by notice if You fail to pay
-the fee in the Order within 30 days after a written reminder. Withdrawal has
-effect only for the future. On termination You must stop Production Use of the
-Software and delete the copies used in production. Fees for the period before
-termination are not refunded where termination follows Your breach. Sections
-1, 5, 6, 7, 9, 10, 11 and 12 survive termination.
+Production Use without ever having held a Licence Key, or if You breach
+section 5. If Your Licence Key expires or is revoked, or You use a feature
+outside the Tier named in it, You must stop that use within 14 days after the
+Licensor's written notice; after that the Licensor may withdraw from this
+licence by notice. For any other breach, the Licensor may withdraw from this
+licence and revoke the Licence Key by notice if You do not cure the breach
+within 30 days after the Licensor's written notice. The Licensor may also
+withdraw by notice if You fail to pay the fee in the Order within 30 days
+after a written reminder. Withdrawal has effect only for the future. On
+termination You must stop Production Use of the Software and delete the copies
+used in production. Fees for the period before termination are not refunded
+where termination follows Your breach. Sections 1, 5, 7, 9, 10, 11 and 12, the
+restrictions in section 6 and the duties in this section survive termination.
 
 9. Warranty and defects
 
