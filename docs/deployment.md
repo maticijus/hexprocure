@@ -55,7 +55,7 @@ npm ci
 npm run build
 ```
 
-### 3.1 Configuration — `/opt/hexprocure/app/.env` (chmod 600)
+### 3.1 Configuration: `/opt/hexprocure/app/.env` (chmod 600)
 
 | Variable | Required | Description |
 |---|---|---|
@@ -63,30 +63,41 @@ npm run build
 | `AUTH_SECRET` | ✅ | Session signing secret. `openssl rand -hex 32`. Rotating it logs everyone out. Min 32 chars, placeholders rejected at startup. |
 | `SMTP_URL` | ⚠️ rec. | e.g. `smtp://user:pass@smtp.provider.com:587`. Without it notifications are logged, not sent. |
 | `SMTP_FROM` | w/ SMTP | Sender address, e.g. `procurement@yourcompany.com` |
+| `ALLOW_SELF_REGISTRATION` | first admin | In production, `POST /api/v1/auth/register` is refused unless this is exactly `true`. Set it for §3.3, then remove it. |
+| `TRUST_PROXY` | behind nginx | Set to `true` only behind a proxy that appends the real client IP as the last `X-Forwarded-For` hop (see §6). Otherwise rate limits key on `X-Real-IP` or one shared bucket. |
+| `INTEGRATION_DISPATCH_INTERVAL_MS` | optional | Run the outbox drain inside the app every N ms (see §5.1; it needs the dispatch cron call too). Unset = off. |
 | `INTEGRATION_OCR_URL` | optional | OCR sidecar, e.g. `http://localhost:8100`. Unset = invoice intake disabled (501). |
 | `DATA_DIR` | optional | Attachment storage root (default `.data/uploads`). Put it OUTSIDE the repo dir if you deploy by re-cloning. |
 | `INTEGRATION_WEBHOOK_URL` | optional | Push events to an external endpoint |
 | `INTEGRATION_WEBHOOK_SECRET` | optional | HMAC key receivers verify (`X-HexProcure-Signature`) |
-| `INTEGRATION_ENC_KEY` | for §6 | AES-256-GCM key for OAuth tokens (`openssl rand -base64 32`) |
-| `QBO_CLIENT_ID` / `QBO_CLIENT_SECRET` | for §6 | Intuit app credentials |
-| `INTEGRATION_REDIRECT_URI` | for §6 | Must match Intuit app registration |
+| `INTEGRATION_ENC_KEY` | for QuickBooks | AES-256-GCM key for OAuth tokens (`openssl rand -base64 32`) |
+| `QBO_CLIENT_ID` / `QBO_CLIENT_SECRET` | for QuickBooks | Intuit app credentials. `QBO_SANDBOX` defaults to sandbox; set `false` for live. |
+| `INTEGRATION_REDIRECT_URI` | for QuickBooks | Must match Intuit app registration |
 
 **Never commit `.env`. It contains session-signing and database secrets.**
 
 ### 3.2 Database schema
 
 ```bash
-node scripts/migrate.mjs          # applies all migrations in drizzle/
+node --env-file=.env scripts/migrate.mjs   # applies all migrations in drizzle/
 ```
 
-`npx drizzle-kit migrate` exits 1 silently with drizzle-kit 0.31.x, so use the script. Use `npx drizzle-kit generate` only to create new migrations after schema changes.
+The script does not read `.env` itself, so pass it with `--env-file=.env` (or export `DATABASE_URL`). `npx drizzle-kit migrate` exits 1 silently with drizzle-kit 0.31.x, so use the script. Use `npx drizzle-kit generate` only to create new migrations after schema changes.
 
-Do NOT run `scripts/seed.ts` in production — it creates demo accounts with a
+Do NOT run `scripts/seed.ts` in production. It creates demo accounts with a
 public password.
 
 ### 3.3 First login & first admin
 
-1. Open the site → register your account (defaults to role `REQUESTER`).
+1. In production, self-registration is off unless `ALLOW_SELF_REGISTRATION=true` is in `.env` (restart the app after setting it). The login page has no registration form, so register through the API; it always creates a `REQUESTER`:
+
+```bash
+curl -X POST https://procure.yourcompany.com/api/v1/auth/register \
+  -H "content-type: application/json" \
+  -H "origin: https://procure.yourcompany.com" \
+  -d '{"name":"You","email":"you@yourcompany.com","password":"at-least-8-chars"}'
+```
+
 2. Promote yourself from the server:
 
 ```bash
@@ -94,8 +105,10 @@ sudo -u postgres psql hexprocure \
   -c "UPDATE users SET role='ADMIN' WHERE email='you@yourcompany.com';"
 ```
 
+   With Docker Compose use `docker compose exec db psql -U hexprocure hexprocure -c "..."` instead. Then log in at `/login`.
+
 3. As ADMIN: configure suppliers, cost centers, budgets and approval rules
-   (approval rules currently via DB insert into `approval_rules`; UI is roadmap).
+   (there is no UI or API for suppliers, cost centers, budgets or approval rules yet: insert them with SQL).
    Example ruleset:
 
 ```sql
@@ -104,29 +117,36 @@ INSERT INTO approval_rules (sequence, min_minor, max_minor, approver_role) VALUE
   (2, 50000,  NULL,    'FINANCE');
 ```
 
-4. Register the other users (their default role fits: employees = REQUESTER;
-   promote team leads to MANAGER, accounting to FINANCE).
+4. Register the other users the same way (new accounts are REQUESTER; promote team
+   leads to MANAGER, accounting to FINANCE). Once everyone is registered, remove
+   `ALLOW_SELF_REGISTRATION` from `.env` and restart.
 
 ## 4. Role model
 
-Assigned via `users.role`; enforced per endpoint and in the UI.
+Assigned via `users.role`. Rows marked "any user" are not role-checked by the API.
 
 | Capability | REQUESTER | MANAGER | FINANCE | ADMIN |
 |---|---|---|---|---|
-| Create/submit requisitions | ✓ | ✓ | ✓ | ✓ |
-| Approve/reject own band's items | – | ✓ | ✓ | ✓ (any step) |
-| Receive goods / accept services | ✓ | ✓ | ✓ | ✓ |
-| Match invoices | – | – | ✓ | ✓ |
+| Create/submit requisitions | ✓ | ✓ | ✓ | ✓ (any user) |
+| Approve/reject items whose rule names your role | – | ✓ | ✓ | ✓ (any step) |
+| Receive goods / accept services | ✓ | ✓ | ✓ | ✓ (any user) |
+| Match invoices | ✓ | ✓ | ✓ | ✓ (any user) |
 | Approve invoices | – | – | ✓ | ✓ |
-| Send PO to supplier | – | – | ✓* | ✓ (*any authenticated can POST; transport must be configured) |
+| Send PO to supplier | – | – | ✓* | ✓ (*UI shows the action to FINANCE and ADMIN only; the API accepts any authenticated user; SMTP must be configured) |
 | Dispatch integrations | – | – | ✓ | ✓ |
 | Run recurring-order generation | – | – | ✓ | ✓ |
 | Upload attachments | ✓ | ✓ | ✓ | ✓ |
 | Delete attachments | own only | own only | own only | any |
 | Promote users / configure rules | – | – | – | ✓ (via DB today) |
 
-Escalation rule of thumb: amounts above the highest band ceiling route to
-FINANCE; add an open-ended ADMIN band if you want final sign-off on huge POs.
+Each rule has a `min_minor`, an optional `max_minor` (NULL = open-ended) and an
+`approver_role`. An amount matches at most one bounded band (limits inclusive; on a
+shared boundary the higher band wins), plus every open-ended rule whose
+`min_minor` is at or below the amount, added as later steps. Overlapping bounded
+bands or mixed currencies fail when a requisition is submitted. If no rule
+matches, submit fails with "No approval rule matches this amount": there is no
+automatic escalation. Add an open-ended rule (for example `ADMIN` with a higher
+`min_minor`) if you want final sign-off on large POs.
 
 ## 5. Process management (systemd)
 
@@ -158,21 +178,21 @@ systemctl daemon-reload && systemctl enable --now hexprocure
 Create a machine token once as an admin:
 
 ```bash
-curl -X POST https://procure.yourcompany.com/api/v1/auth/tokens   -H "content-type: application/json"   -H "cookie: <your admin session>"   -d '{"name":"cron"}'
-# → {"id":"…","plaintext":"hxp_…"} — store it, it is shown only once
+curl -X POST https://procure.yourcompany.com/api/v1/auth/tokens   -H "content-type: application/json"   -H "origin: https://procure.yourcompany.com"   -H "cookie: hexprocure_session=<admin session cookie from your browser>"   -d '{"name":"cron"}'
+# → {"id":"…","name":"cron","plaintext":"hxp_…"}: store it, it is shown only once
 ```
 
 ```cron
-# drain integration outbox (CSV/webhook/email/QBO) every 5 minutes
+# drain integration outbox (email, QBO, webhook; the CSV connector writes no file) every 5 minutes
 */5 * * * * curl -s -X POST http://localhost:3000/api/v1/integrations/dispatch -H "Authorization: Bearer hxp_…" >/dev/null
 # generate recurring requisitions daily at 06:00
 0 6 * * * curl -s -X POST http://localhost:3000/api/v1/order-templates/run -H "Authorization: Bearer hxp_…" >/dev/null
 ```
 
-Alternatively, set `INTEGRATION_DISPATCH_INTERVAL_MS` (for example `60000`) in `.env` and the app drains the integration outbox itself on that interval, with no cron entry or machine token needed. The scheduler runs inside the app process, skips a tick while the previous one is still running, and logs counts only. It is off when the variable is unset. Run it on a single app instance: multiple instances would each drain the outbox and may deliver an event twice. Use either the scheduler or the cron line above, not both.
+Optionally, also set `INTEGRATION_DISPATCH_INTERVAL_MS` (for example `60000`) in `.env` and the app drains the integration outbox itself on that interval. Connectors are registered only when `POST /api/v1/integrations/dispatch` runs, so the scheduler delivers nothing until that route has been called at least once in the same app process: keep the cron call above (it can then run less often). The scheduler runs inside the app process, skips a tick while the previous one is still running, and logs counts only. It is off when the variable is unset. Run it on a single app instance: multiple instances would each drain the outbox and may deliver an event twice. Each event type has one connector (order: csv, email, QBO if `QBO_CLIENT_ID` and `QBO_CLIENT_SECRET` are set, webhook if `INTEGRATION_WEBHOOK_URL` is set; the last registered wins).
 
 The token carries the role of the admin who created it; revoke and rotate from
-`GET/DELETE /api/v1/auth/tokens` without touching cron schedules.
+`GET /api/v1/auth/tokens` and `DELETE /api/v1/auth/tokens/:id` (ADMIN only) without touching cron schedules.
 
 ### 5.2 OCR sidecar (optional)
 
@@ -206,6 +226,7 @@ server {
         proxy_pass http://127.0.0.1:3000;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 }
 ```
@@ -215,13 +236,18 @@ certbot --nginx -d procure.yourcompany.com
 ```
 
 Cookies are `SameSite=Lax` and work over the proxied HTTPS domain unchanged.
+Set `TRUST_PROXY=true` in `.env` so rate limits apply per client IP. Limits per
+minute: 10 for login and register (`RATE_LIMIT_AUTH_PER_MIN`), 60 for every other
+API request, reads included (`RATE_LIMIT_MUTATION_PER_MIN`).
+`RATE_LIMIT_READ_PER_MIN` is parsed but not applied.
+They are held in memory, per app process.
 Set `INTEGRATION_REDIRECT_URI=https://procure.yourcompany.com/api/v1/integrations/qbo/callback`
 when enabling QBO.
 
 ## 7. Post-deploy smoke test (5 minutes)
 
 1. `curl -I https://procure.yourcompany.com/login` → 200
-2. Register your account; promote to ADMIN (§3.3); re-login.
+2. Register your account and promote it to ADMIN (§3.3); log in.
 3. Insert approval rules; create supplier + cost center + current-month budget as ADMIN (or SQL).
 4. As a second (REQUESTER) account: create + submit a requisition → approver receives email (check SMTP).
 5. Approve → order → verify budget reservation appears; download `/pdf`.
@@ -236,7 +262,7 @@ when enabling QBO.
 ```bash
 0 2 * * * sudo -u postgres pg_dump hexprocure | gzip > /var/backups/hexprocure-$(date +\%F).sql.gz
 # attachments:
-0 2 * * * tar czf /var/backups/hexprocure-files-$(date +\%F).tgz /opt/hexprocure/.data/uploads
+0 2 * * * tar czf /var/backups/hexprocure-files-$(date +\%F).tgz /opt/hexprocure/app/.data/uploads
 # keep 30 days:
 30 2 * * * find /var/backups -name 'hexprocure-*' -mtime +30 -delete
 ```
@@ -247,26 +273,26 @@ when enabling QBO.
 cd /opt/hexprocure/app
 sudo -u hexprocure git pull
 sudo -u hexprocure npm ci
-sudo -u hexprocure node scripts/migrate.mjs
+sudo -u hexprocure node --env-file=.env scripts/migrate.mjs
 sudo -u hexprocure npm run build
 systemctl restart hexprocure
 ```
 
 **Rollback:** `git checkout <previous-tag-or-sha>`, rebuild, restart.
-Migrations are forward-only — restore the DB dump taken before the update if a
+Migrations are forward-only: restore the DB dump taken before the update if a
 migration must be undone.
 
 ## 9. Alternative: Docker Compose
 
 Replaces §2 (server prep), §3 (application setup) and §5 (process management):
 one command brings up app + Postgres 16 + the OCR sidecar, with healthchecks
-and persistent volumes. You still need §4 (role model), §6 (reverse proxy —
-point it at `localhost:3000`), §7–§8 and §10.
+and persistent volumes. You still need §4 (role model), §6 (reverse proxy,
+point it at `localhost:3000`), §7 to §8 and §10.
 
 ### 9.1 Prerequisites
 
-- Docker Engine ≥ 24 and Compose v2 (`docker compose version`)
-- Port 3000 free for the app
+- Docker Engine and Compose v2 (`docker compose version`)
+- Port 3000 free for the app (or set `APP_PORT` in `.env` to publish another host port)
 
 ### 9.2 Configuration
 
@@ -275,8 +301,8 @@ git clone https://github.com/maticijus/hexprocure.git && cd hexprocure
 cp .env.example .env && chmod 600 .env
 ```
 
-Edit `.env`: set `AUTH_SECRET` (`openssl rand -base64 32`) and any optional
-integration variables. Ignore `DATABASE_URL` from the example — Compose
+Edit `.env`: set `AUTH_SECRET` (`openssl rand -hex 32`) and any optional
+integration variables. Ignore `DATABASE_URL` from the example: Compose
 overrides it to point at the `db` service, and wires `INTEGRATION_OCR_URL` to
 `http://ocr:8100`. Non-default Postgres credentials: set `POSTGRES_USER`,
 `POSTGRES_PASSWORD`, `POSTGRES_DB`.
@@ -289,19 +315,23 @@ curl -s localhost:3000/api/health   # {"status":"ok","database":true}
 ```
 
 Migrations run automatically before the app starts (`_migrations` table tracks
-applied files). Register your first admin as in §3.3. Cron jobs (§5.1) can run
-on the host against `localhost:3000` exactly as documented.
+applied files). Register your first admin as in §3.3 (set `ALLOW_SELF_REGISTRATION=true`
+in `.env` first and recreate the app with `docker compose up -d`). Compose sets
+`INTEGRATION_DISPATCH_INTERVAL_MS=60000` for the app, but connectors are only
+registered once `POST /api/v1/integrations/dispatch` has run in the app process,
+so keep both cron lines from §5.1 and run them on the host against
+`localhost:3000` (or your `APP_PORT`).
 
 ### 9.4 Data & lifecycle
 
 | Volume | Contents | Survives `down` |
 |---|---|---|
 | `pgdata` | database | yes |
-| `uploads` | attachments (`DATA_DIR`) | yes |
+| `uploads` | attachments (mounted at the default `DATA_DIR`, `/app/.data/uploads`) | yes |
 
 ```bash
 docker compose logs -f app     # troubleshoot
-docker compose pull && docker compose up -d --build   # update
+git pull && docker compose up -d --build   # update
 docker compose down            # keeps volumes; add -v to wipe everything
 ```
 
@@ -311,9 +341,10 @@ Backups: `docker compose exec db pg_dump -U hexprocure hexprocure > backup.sql`
 ## 10. Security checklist before go-live
 
 - [ ] `.env` chmod 600, owned by `hexprocure`, never committed
-- [ ] Strong unique `AUTH_SECRET`; separate `INTEGRATION_ENC_KEY` when §6 lands
+- [ ] `ALLOW_SELF_REGISTRATION` removed from `.env` after the users exist
+- [ ] Strong unique `AUTH_SECRET`; separate `INTEGRATION_ENC_KEY` when QuickBooks is enabled
 - [ ] Postgres listens on localhost only (`listen_addresses = 'localhost'`)
-- [ ] ufw: only 22/80/443 open; app (3000) and OCR (8100) bound to 127.0.0.1
+- [ ] ufw: only 22/80/443 open; OCR (8100) bound to 127.0.0.1; with Compose the app port is published on all interfaces, so keep `APP_PORT` closed at the network firewall
 - [ ] Demo seed data absent; demo users deleted if ever seeded on prod copy
 - [ ] Unattended-upgrades enabled; SSH key-only auth
 - [ ] Backup restore rehearsed once (a backup you haven't restored is a rumor)
