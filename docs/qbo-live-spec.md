@@ -183,7 +183,7 @@ lifecycle/refresh 1d · QboConnector + idempotency 1d · tests/docs 1–1.5d.
 Wipe semantics: the token columns are `NOT NULL`, so disconnect overwrites both with
 a fresh envelope of the literal `revoked` instead of nulling them.
 
-Also fixed: an expired refresh token (past `refresh_expires_at`) now marks the
+Also fixed: dispatch now orders the batch by fewest attempts first, so events stuck behind a down connector cannot starve fresh ones such as the reconnect notification; an expired refresh token (past `refresh_expires_at`) now marks the
 connection `EXPIRED` and notifies once, instead of failing on every dispatch.
 
 ### Live contract smoke (criterion 2, real sandbox)

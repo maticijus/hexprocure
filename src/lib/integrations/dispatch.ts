@@ -22,11 +22,12 @@ export interface DispatchResult {
 }
 
 export async function dispatchPendingEvents(limit = 100): Promise<DispatchResult> {
+  // Fewest attempts first: events stuck behind a down connector must not starve fresh ones (e.g. the reconnect notification).
   const pending = await db
     .select()
     .from(integrationEvents)
     .where(eq(integrationEvents.status, "PENDING"))
-    .orderBy(asc(integrationEvents.createdAt))
+    .orderBy(asc(integrationEvents.attempts), asc(integrationEvents.createdAt))
     .limit(limit);
 
   const result: DispatchResult = { delivered: 0, failed: 0, skipped: 0 };
