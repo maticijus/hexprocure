@@ -38,7 +38,7 @@ async function seededServicePo(opts?: { mixed?: boolean }) {
     const decider = a.approverRole === "FINANCE" ? s.finance : a.approverRole === "MANAGER" ? s.manager : s.finance;
     await decideApproval(a.id, decider.id, "approve");
   }
-  const po = await createPurchaseOrder(req.id, s.requester.id);
+  const po = await createPurchaseOrder(req.id, s.manager.id);
   const lines = (await db.execute(sql`SELECT id, kind FROM po_lines WHERE purchase_order_id = ${po.purchaseOrderId} ORDER BY description`)).rows as { id: string; kind: string }[];
   return { s, req, poId: po.purchaseOrderId, lines };
 }

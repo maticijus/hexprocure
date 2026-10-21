@@ -10,6 +10,7 @@ import {
   requisitionLines,
   requisitions,
   suppliers,
+  users,
 } from "@/lib/db/schema";
 import { Money } from "@/domain/money";
 import { guard as budgetGuard } from "@/domain/budget";
@@ -86,8 +87,18 @@ async function emitPoCreated(
   });
 }
 
+const ORDER_ROLES = new Set(["MANAGER", "FINANCE", "ADMIN"]);
+
+async function assertCanOrder(tx: Tx, actorUserId: string) {
+  const [actor] = await tx.select().from(users).where(eq(users.id, actorUserId));
+  if (!actor || !ORDER_ROLES.has(actor.role)) {
+    throw new DomainError("FORBIDDEN", "Requires MANAGER, FINANCE or ADMIN role");
+  }
+}
+
 export async function createPurchaseOrder(requisitionId: string, actorUserId: string) {
   return db.transaction(async (tx) => {
+    await assertCanOrder(tx, actorUserId);
     const req = await lockApprovedRequisition(tx, requisitionId);
 
     const lines = await tx

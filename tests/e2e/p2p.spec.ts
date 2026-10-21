@@ -54,7 +54,7 @@ test("rita requests → max approves → order → receive → fiona matches & a
 
   // order + receive via the API surface
   const worker = await browser.newPage();
-  await login(worker, "rita@hexprocure.dev");
+  await login(worker, "max@hexprocure.dev");
   const orderRes = await apiPost(worker, `/api/v1/requisitions/${requisitionId}/order`);
   expect(orderRes.status()).toBe(201);
   const { purchaseOrderId } = await orderRes.json();

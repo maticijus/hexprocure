@@ -173,7 +173,7 @@ describe("full HTTP flow: create → submit → decide → order", () => {
       { params: Promise.resolve({ id: approval.id }) } as never,
     );
     const ordered = await order(
-      req("http://x", { method: "POST", headers: { cookie: authCookie(s.requester.id) } }),
+      req("http://x", { method: "POST", headers: { cookie: authCookie(s.manager.id) } }),
       { params: Promise.resolve({ id }) } as never,
     );
     const { purchaseOrderId } = (await ordered.json()) as { purchaseOrderId: string };
@@ -215,11 +215,32 @@ describe("full HTTP flow: create → submit → decide → order", () => {
     expect((await decided.json()).requisitionStatus).toBe("APPROVED");
 
     const ordered = await order(
-      req("http://localhost/x", { method: "POST", headers: { "cookie": authCookie(s.requester.id) } }),
+      req("http://localhost/x", { method: "POST", headers: { "cookie": authCookie(s.manager.id) } }),
       { params: Promise.resolve({ id }) } as never,
     );
     expect(ordered.status).toBe(201);
     expect((await ordered.json()).totalMinor).toBe(50000);
+  });
+
+  it("rejects a plain requester ordering with 403", async () => {
+    const s = await seed();
+    const created = await createRequisition(
+      req("http://localhost/api/v1/requisitions", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: authCookie(s.requester.id) },
+        body: JSON.stringify({
+          supplierId: s.supplier.id,
+          costCenterId: s.cc.id,
+          lines: [{ description: "Desks", quantity: 1, unitPriceMinor: 1000 }],
+        }),
+      }),
+    );
+    const { id } = await created.json();
+    const ordered = await order(
+      req("http://x", { method: "POST", headers: { cookie: authCookie(s.requester.id) } }),
+      { params: Promise.resolve({ id }) } as never,
+    );
+    expect(ordered.status).toBe(403);
   });
 
   it("maps domain errors to 422 for budget overrun", async () => {
@@ -252,7 +273,7 @@ describe("full HTTP flow: create → submit → decide → order", () => {
     );
 
     const ordered = await order(
-      req("http://x", { method: "POST", headers: { "cookie": authCookie(s.requester.id) } }),
+      req("http://x", { method: "POST", headers: { "cookie": authCookie(s.manager.id) } }),
       { params: Promise.resolve({ id }) } as never,
     );
     expect(ordered.status).toBe(422);
