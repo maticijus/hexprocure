@@ -5,6 +5,7 @@ import {
   budgets,
   approvals,
   invoices,
+  users,
   integrationEvents as integrationEventsTable,
 } from "@/lib/db/schema";
 import { seedOrg, createRequisitionWithLine, truncateAll } from "@/lib/testing/seed";
@@ -281,6 +282,24 @@ describe("authorization and state guards", () => {
     await expect(createPurchaseOrder(req2.id, s.manager.id)).resolves.toMatchObject({
       totalMinor: 7500,
     });
+  });
+});
+
+describe("submitRequisition actor guard", () => {
+  it("forbids a user other than the requester from submitting", async () => {
+    const s = await seedOrg();
+    const req = await createRequisitionWithLine(s.requester.id, s.supplier.id, s.cc.id, 1, 1999);
+    await expect(submitRequisition(req.id, s.manager.id)).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("lets an ADMIN submit someone else's draft", async () => {
+    const s = await seedOrg();
+    const [admin] = await db
+      .insert(users)
+      .values({ name: "Admin Ada", email: `ada-${Date.now()}@hex.test`, role: "ADMIN" })
+      .returning();
+    const req = await createRequisitionWithLine(s.requester.id, s.supplier.id, s.cc.id, 1, 1999);
+    await expect(submitRequisition(req.id, admin.id)).resolves.toMatchObject({ status: "SUBMITTED" });
   });
 });
 
