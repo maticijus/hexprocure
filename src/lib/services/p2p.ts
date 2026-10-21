@@ -313,7 +313,11 @@ async function loadBudgetStateWithin(tx: Tx, costCenterId: string, yearMonth: st
 
 export async function cancelPurchaseOrder(purchaseOrderId: string, actorUserId: string) {
   return db.transaction(async (tx) => {
-    const [po] = await tx.select().from(purchaseOrders).where(eq(purchaseOrders.id, purchaseOrderId));
+    const [po] = await tx
+      .select()
+      .from(purchaseOrders)
+      .where(eq(purchaseOrders.id, purchaseOrderId))
+      .for("update");
     if (!po) throw new DomainError("NOT_FOUND", "PO not found");
     if (po.status !== "OPEN") {
       throw new DomainError("INVALID_STATE", `Cannot cancel from ${po.status}`);
@@ -322,6 +326,13 @@ export async function cancelPurchaseOrder(purchaseOrderId: string, actorUserId: 
       .update(purchaseOrders)
       .set({ status: "CANCELLED" })
       .where(eq(purchaseOrders.id, purchaseOrderId));
+
+    if (po.requisitionId) {
+      await tx
+        .update(requisitions)
+        .set({ status: "APPROVED" })
+        .where(eq(requisitions.id, po.requisitionId));
+    }
 
     await tx
       .delete(budgetReservations)

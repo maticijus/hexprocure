@@ -151,7 +151,7 @@ export const purchaseOrders = pgTable(
   (t) => [
     uniqueIndex("purchase_order_requisition_uq")
       .on(t.requisitionId)
-      .where(sql`${t.requisitionId} IS NOT NULL`),
+      .where(sql`${t.requisitionId} IS NOT NULL AND ${t.status} <> 'CANCELLED'`),
   ],
 );
 
