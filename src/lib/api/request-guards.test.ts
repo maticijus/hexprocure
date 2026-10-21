@@ -122,13 +122,45 @@ describe("rate limit client key", () => {
     expect(checkRateLimit(req({ ip: "5.5.5.6" }), 10, 60_000)).toBeNull();
   });
 
-  it("caps tracked keys and evicts the oldest", () => {
-    vi.stubEnv("TRUST_PROXY", "true");
-    for (let i = 0; i < 10_050; i++) checkRateLimit(req({ ip: `ip-${i}` }), 10, 60_000);
-    expect(rateLimitKeyCount()).toBeLessThanOrEqual(10_000);
-    // oldest key was evicted, so it starts a fresh window
-    for (let i = 0; i < 9; i++) checkRateLimit(req({ ip: "ip-0" }), 10, 60_000);
-    expect(checkRateLimit(req({ ip: "ip-0" }), 10, 60_000)).toBeNull();
+  describe("bounded key map", () => {
+    const hit = (ip: string, limit = 10) => checkRateLimit(req({ ip }), limit, 60_000);
+    const fill = (n: number) => {
+      for (let i = 0; i < n; i++) hit(`fill-${i}`);
+    };
+
+    beforeEach(() => vi.stubEnv("TRUST_PROXY", "true"));
+
+    it("never tracks more than the cap", () => {
+      fill(10_050);
+      expect(rateLimitKeyCount()).toBeLessThanOrEqual(10_000);
+    });
+
+    it("keeps a live offender's counter when fresh keys flood a full map", () => {
+      for (let i = 0; i < 10; i++) hit("offender");
+      fill(10_000);
+      for (let i = 0; i < 200; i++) hit(`flood-${i}`);
+      expect(hit("offender")?.status).toBe(429);
+    });
+
+    it("limits fresh keys through one shared overflow bucket once full", () => {
+      fill(10_000);
+      let last: Response | null = null;
+      for (let i = 0; i < 11; i++) last = hit(`new-${i}`);
+      expect(last?.status).toBe(429);
+    });
+
+    it("evicts expired entries first, so fresh keys get their own bucket", () => {
+      vi.useFakeTimers();
+      try {
+        fill(10_000);
+        vi.advanceTimersByTime(61_000);
+        expect(hit("late-a", 1)).toBeNull();
+        expect(hit("late-b", 1)).toBeNull();
+        expect(rateLimitKeyCount()).toBeLessThanOrEqual(10_000);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });
 
