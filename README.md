@@ -60,11 +60,11 @@ The UI formats every amount in its own row's currency (`formatMoney` in `src/lib
 
 ### Integrations (ERP/AP connectivity)
 
-Domain events (`PO_CREATED`, `PO_CANCELLED`, `INVOICE_APPROVED`) are written to a **transactional outbox** in the same database transaction as the business change — events cannot be lost even if delivery fails. A dispatch loop drains pending events through registered connectors:
+Domain events (`PO_CREATED`, `PO_CANCELLED`, `INVOICE_APPROVED`) are written to a **transactional outbox** in the same database transaction as the business change — events cannot be lost even if delivery fails. A dispatch loop drains pending events through the registered connectors. Connectors fan out per event type: every connector registered for a type receives the event, and the event is marked delivered only when all of them succeed. If any fails, the whole event is retried on the next run, so connectors must tolerate repeats:
 
 | Connector | Target | Delivery semantics |
 |---|---|---|
-| **CSV flat-file** | Any ERP/AP with a file import | Wide-format rows (header + line records), RFC-4180 escaping, stable column order |
+| **CSV flat-file** | Any ERP/AP with a file import | Wide-format rows (header + line records), RFC-4180 escaping, stable column order; appended to one file per day and event type in `INTEGRATION_CSV_DIR` (off when unset) |
 | **Generic webhook** | Zapier/Make/custom HTTP endpoints | Signed POSTs (`X-HexProcure-Signature`, HMAC-SHA256), 4xx = non-retryable, 5xx/429/network = retryable |
 | **Email notifications** | Approvers, requesters, finance | Approval requests, decisions, and invoice exceptions via SMTP (`SMTP_URL`); log-only mode when unset |
 | **QuickBooks Online mappers** | QBO `PurchaseOrder` / `Bill` payloads | Minor-unit→decimal conversion at the boundary only |

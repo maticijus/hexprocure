@@ -45,8 +45,10 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-hexprocure}:${POSTGRES_PASSWORD:-hexprocure}@db:5432/${POSTGRES_DB:-hexprocure}
       INTEGRATION_OCR_URL: http://ocr:8100
       INTEGRATION_DISPATCH_INTERVAL_MS: "60000"
+      INTEGRATION_CSV_DIR: /app/.data/csv
     volumes:
       - uploads:/app/.data/uploads
+      - csvexports:/app/.data/csv
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -56,3 +58,4 @@ services:
 volumes:
   pgdata:
   uploads:
+  csvexports:

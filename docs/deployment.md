@@ -65,6 +65,7 @@ npm run build
 | `SMTP_FROM` | w/ SMTP | Sender address, e.g. `procurement@yourcompany.com` |
 | `INTEGRATION_OCR_URL` | optional | OCR sidecar, e.g. `http://localhost:8100`. Unset = invoice intake disabled (501). |
 | `DATA_DIR` | optional | Attachment storage root (default `.data/uploads`). Put it OUTSIDE the repo dir if you deploy by re-cloning. |
+| `INTEGRATION_CSV_DIR` | optional | Directory the CSV connector appends to: one file per UTC day and event type (`PO_CREATED-2026-10-21.csv`), header written once. Unset = CSV connector off. Compose sets it to the `csvexports` volume. Rows are appended again if an event is retried. |
 | `INTEGRATION_WEBHOOK_URL` | optional | Push events to an external endpoint |
 | `INTEGRATION_WEBHOOK_SECRET` | optional | HMAC key receivers verify (`X-HexProcure-Signature`) |
 | `INTEGRATION_ENC_KEY` | for §6 | AES-256-GCM key for OAuth tokens (`openssl rand -base64 32`) |
