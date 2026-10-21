@@ -50,7 +50,7 @@ async function persistPurchaseOrder(
       description: l.description,
       quantityOrdered: l.quantity,
       unitPriceMinor: l.unitPriceMinor,
-      kind: (l as { kind?: "GOODS" | "SERVICE" }).kind ?? "GOODS",
+      kind: l.kind,
     })),
   );
   await tx.insert(budgetReservations).values({ budgetId, purchaseOrderId: po.id, amountMinor: total });
