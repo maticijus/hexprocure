@@ -18,7 +18,8 @@ export function middleware(request: NextRequest) {
     if (csrf) return csrf;
     const isAuth = PUBLIC_API_PATHS.some((p) => pathname.startsWith(p));
     const limits = limitsPerMinute();
-    const limit = isAuth ? limits.auth : limits.mutation;
+    const isRead = request.method === "GET" || request.method === "HEAD";
+    const limit = isAuth ? limits.auth : isRead ? limits.read : limits.mutation;
     const limited = checkRateLimit(request, limit, 60_000, isAuth ? "auth" : "api");
     if (limited) return limited;
   }

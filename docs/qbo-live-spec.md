@@ -1,6 +1,6 @@
 # §6 Spec: QuickBooks Online Live Integration (OAuth + Sync)
 
-Status: READY TO BUILD · Prerequisite listed in §10 · Part of MVP2 roadmap
+Status: BUILT (see §12) · Prerequisite listed in §10 · Part of MVP2 roadmap
 
 ## 1. Goal
 
@@ -38,9 +38,8 @@ CREATE TABLE integrations_connections (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   provider text NOT NULL,                       -- 'qbo' | future providers
   realm_id text NOT NULL,                       -- QBO company id
-  access_token_enc bytea NOT NULL,              -- AES-256-GCM ciphertext
-  refresh_token_enc bytea NOT NULL,
-  token_nonce bytea NOT NULL,                   -- GCM nonce (unique per row write)
+  access_token_enc text NOT NULL,               -- v1:<nonce_b64>:<ciphertext+tag_b64>
+  refresh_token_enc text NOT NULL,
   access_expires_at timestamptz NOT NULL,
   refresh_expires_at timestamptz NOT NULL,      -- QBO: 100 days after issuance
   status text NOT NULL DEFAULT 'ACTIVE',        -- ACTIVE | EXPIRED | REVOKED | ERROR
@@ -68,7 +67,7 @@ documents inside QBO.
   Deliberately **separate from `AUTH_SESSION_SECRET`**: session compromise must not
   yield token-decryption capability.
 - Cipher: AES-256-GCM, random 12-byte nonce stored alongside, auth tag appended.
-- Envelope: `enc:v1:<nonce_b64>:<ciphertext+tag_b64>` stored in the bytea columns.
+- Envelope: `v1:<nonce_b64>:<ciphertext+tag_b64>` stored in the text columns.
 - Rotation: `INTEGRATION_ENC_KEY_PREVIOUS` optional; reads try current then previous;
   writes always use current. Re-encrypt lazily on next token refresh.
 - Tokens are **never** logged, never placed in audit payloads, never returned by any
@@ -140,7 +139,7 @@ INTEGRATION_ENC_KEY=                  # openssl rand -base64 32
   (injected fetch, same pattern as webhook/OCR tests): happy path, rotating refresh,
   401→REVOKED, idempotent double-dispatch.
 - Contract smoke (manual, gated): with real sandbox credentials,
-  `SKIP_QBO_LIVE !== true npm run test:contract` exercises sandbox end-to-end.
+  `SKIP_QBO_LIVE !== true npm run test:qbo-live` exercises sandbox end-to-end.
 
 ## 9. Acceptance criteria
 
