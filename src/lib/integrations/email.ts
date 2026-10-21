@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/format";
 import type { Connector, IntegrationEvent } from "./types";
 
 export interface MailMessage {
@@ -8,8 +9,8 @@ export interface MailMessage {
 
 export type MailTransport = (message: MailMessage) => Promise<unknown>;
 
-const eur = (minor: unknown) =>
-  `€${(Number(minor ?? 0) / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })}`;
+const amount = (p: Record<string, unknown>) =>
+  formatMoney(Number(p.totalMinor ?? 0), String(p.currency ?? "EUR"), "de-DE");
 
 type NotificationEvent = Extract<
   IntegrationEvent["type"],
@@ -37,9 +38,9 @@ export function renderNotification(event: IntegrationEvent): MailMessage | null 
     case "APPROVAL_REQUESTED":
       return {
         to,
-        subject: `Approval needed: ${p.supplier ?? "requisition"} ${eur(p.totalMinor)}`,
+        subject: `Approval needed: ${p.supplier ?? "requisition"} ${amount(p)}`,
         text:
-          `A requisition from ${p.supplier ?? "a supplier"} for ${eur(p.totalMinor)} ` +
+          `A requisition from ${p.supplier ?? "a supplier"} for ${amount(p)} ` +
           `is waiting for your approval.\n` +
           `Open it in HexProcure → Approvals (requisition ${p.requisitionId}).`,
       };

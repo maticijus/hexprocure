@@ -10,8 +10,8 @@ Protocol: ~/.claude/rules/common/parallel-sessions.md
   **machine:** local-mac
   **scope:** main in ~/dev/hexprocure (merges, pushes, .env for demo); six worker lanes in new Orca worktrees off main (PO lock, rate-limit hardening, session store, multi-currency UI, dispatch scheduler, QBO acceptance audit)
   **started:** 2026-10-21T06:15:00Z
-  **heartbeat:** 2026-10-21T06:15:00Z
-  **next:** dispatch lanes, run demo on :3000, gate and merge lanes as they finish
+  **heartbeat:** 2026-10-21T07:00:00Z
+  **next:** merged L1 PO lock, L6 QBO audit, L4 currency; L3 sessions awaiting Cursor review; L2, L5, L8 running; L7 UI happy path dispatching off main; demo on :3000
 
 
 

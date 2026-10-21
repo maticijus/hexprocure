@@ -6,6 +6,7 @@ export type AnalyticsGroupBy = "supplier" | "costCenter" | "month";
 
 export interface SpendRow {
   key: string;
+  currency: string;
   totalMinor: number;
   documentCount: number;
 }
@@ -40,16 +41,16 @@ function buildQuery(groupBy: AnalyticsGroupBy, from?: string, to?: string) {
   const toCond = to ? sql`AND i.created_at <= (${to} || ' 23:59:59')::timestamptz` : sql``;
   return sql`
     SELECT ${expr} AS key,
+           po.currency AS currency,
            COALESCE(SUM(il.quantity * il.unit_price_minor), 0)::int AS total_minor,
            COUNT(DISTINCT i.id)::int AS document_count
     FROM invoices i
     LEFT JOIN suppliers s ON s.id = i.supplier_id
-    LEFT JOIN cost_centers cc ON cc.id = (
-      SELECT po.cost_center_id FROM purchase_orders po WHERE po.id = i.purchase_order_id
-    )
+    JOIN purchase_orders po ON po.id = i.purchase_order_id
+    LEFT JOIN cost_centers cc ON cc.id = po.cost_center_id
     LEFT JOIN invoice_lines il ON il.invoice_id = i.id
     WHERE i.status = 'APPROVED' ${fromCond} ${toCond}
-    GROUP BY ${expr}
+    GROUP BY ${expr}, po.currency
     ORDER BY total_minor DESC
   `;
 }
@@ -62,37 +63,54 @@ export async function spendByGroup(opts: {
   assertDate("from", opts.from);
   assertDate("to", opts.to);
   const result = await db.execute(buildQuery(opts.groupBy, opts.from, opts.to));
-  return (result.rows as { key: string | null; total_minor: number; document_count: number }[])
+  return (result.rows as { key: string | null; currency: string; total_minor: number; document_count: number }[])
     .filter((r) => r.key !== null)
     .map((r) => ({
       key: r.key as string,
+      currency: r.currency,
       totalMinor: Number(r.total_minor),
       documentCount: Number(r.document_count),
     }));
 }
 
-export interface AnalyticsSummary {
-  approvedTotalMinor: number;
+export interface CurrencyTotal {
+  currency: string;
+  totalMinor: number;
   invoiceCount: number;
-  topSupplier: { key: string; totalMinor: number } | null;
+}
+
+export interface AnalyticsSummary {
+  totals: CurrencyTotal[];
+  topSuppliers: { key: string; currency: string; totalMinor: number }[];
 }
 
 export async function analyticsSummary(): Promise<AnalyticsSummary> {
-  const [totals] = (
+  const totals = (
     await db.execute(sql`
-      SELECT COALESCE(SUM(quantity * unit_price_minor), 0)::int AS approved_total,
-             COUNT(DISTINCT invoice_id)::int AS invoice_count
-      FROM invoice_lines il
-      JOIN invoices i ON i.id = il.invoice_id
+      SELECT po.currency AS currency,
+             COALESCE(SUM(il.quantity * il.unit_price_minor), 0)::int AS total_minor,
+             COUNT(DISTINCT i.id)::int AS invoice_count
+      FROM invoices i
+      JOIN purchase_orders po ON po.id = i.purchase_order_id
+      LEFT JOIN invoice_lines il ON il.invoice_id = i.id
       WHERE i.status = 'APPROVED'
+      GROUP BY po.currency
+      ORDER BY po.currency
     `)
-  ).rows as { approved_total: number; invoice_count: number }[];
+  ).rows as { currency: string; total_minor: number; invoice_count: number }[];
 
-  const top = (await spendByGroup({ groupBy: "supplier" }))[0] ?? null;
+  const bySupplier = await spendByGroup({ groupBy: "supplier" });
+  const topSuppliers = totals.flatMap((t) => {
+    const top = bySupplier.find((r) => r.currency === t.currency);
+    return top ? [{ key: top.key, currency: top.currency, totalMinor: top.totalMinor }] : [];
+  });
 
   return {
-    approvedTotalMinor: Number(totals?.approved_total ?? 0),
-    invoiceCount: Number(totals?.invoice_count ?? 0),
-    topSupplier: top ? { key: top.key, totalMinor: top.totalMinor } : null,
+    totals: totals.map((t) => ({
+      currency: t.currency,
+      totalMinor: Number(t.total_minor),
+      invoiceCount: Number(t.invoice_count),
+    })),
+    topSuppliers,
   };
 }

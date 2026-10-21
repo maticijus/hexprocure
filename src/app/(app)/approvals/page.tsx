@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { ApprovalActions } from "@/components/ApprovalActions";
-import { formatEur } from "@/components/ui";
+import { formatMoney } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,7 @@ export default async function ApprovalsPage() {
   if (!user) return null;
   const rows = (
     await db.execute(sql`
-      SELECT a.id, a.approver_role, r.id AS req_id, s.name AS supplier,
+      SELECT a.id, a.approver_role, r.id AS req_id, r.currency, s.name AS supplier,
              COALESCE(SUM(rl.quantity * rl.unit_price_minor),0) AS total_minor
       FROM approvals a
       JOIN requisitions r ON r.id = a.requisition_id
@@ -21,7 +21,7 @@ export default async function ApprovalsPage() {
         AND (a.approver_role = ${user.role} OR ${user.role} = 'ADMIN')
       GROUP BY a.id, r.id, s.name ORDER BY r.created_at
     `)
-  ).rows as { id: string; approver_role: string; req_id: string; supplier: string; total_minor: string }[];
+  ).rows as { id: string; approver_role: string; req_id: string; currency: string; supplier: string; total_minor: string }[];
 
   return (
     <div>
@@ -42,7 +42,7 @@ export default async function ApprovalsPage() {
               <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50/60">
                 <td className="px-5 py-3 font-mono text-xs">{r.req_id.slice(0, 8)}…</td>
                 <td className="px-5 py-3 font-medium">{r.supplier ?? "—"}</td>
-                <td className="px-5 py-3">{formatEur(Number(r.total_minor))}</td>
+                <td className="px-5 py-3">{formatMoney(Number(r.total_minor), r.currency)}</td>
                 <td className="px-5 py-3"><ApprovalActions approvalId={r.id} /></td>
               </tr>
             ))}

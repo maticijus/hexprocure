@@ -21,7 +21,3 @@ export function StatusPill({ status }: { status: string }) {
     </span>
   );
 }
-
-export function formatEur(minor: number): string {
-  return `€${(minor / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })}`;
-}
