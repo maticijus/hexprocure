@@ -303,6 +303,27 @@ describe("submitRequisition actor guard", () => {
   });
 });
 
+describe("createPurchaseOrder role guard", () => {
+  async function approvedReq() {
+    const s = await seedOrg();
+    const req = await createRequisitionWithLine(s.requester.id, s.supplier.id, s.cc.id, 1, 1999);
+    await submitRequisition(req.id, s.requester.id);
+    const [approval] = await db.select().from(approvals);
+    await decideApproval(approval.id, s.manager.id, "approve");
+    return { s, req };
+  }
+
+  it("forbids a REQUESTER from creating a purchase order", async () => {
+    const { s, req } = await approvedReq();
+    await expect(createPurchaseOrder(req.id, s.requester.id)).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("lets FINANCE create a purchase order", async () => {
+    const { s, req } = await approvedReq();
+    await expect(createPurchaseOrder(req.id, s.finance.id)).resolves.toMatchObject({ totalMinor: 1999 });
+  });
+});
+
 afterAll(async () => {
   await pool.end();
 });
