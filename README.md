@@ -203,8 +203,9 @@ Dependency rule: `app → lib → domain`; the domain layer is pure and fully un
 
 The core in this repository is MIT and free to self-host with no seat cap.
 Paid features (AI lanes, connector packs, SSO and more) live in [`ee/`](ee/)
-under the source-available [HexProcure Commercial Licence](ee/LICENSE) and
-unlock with an offline signed licence key in `HEXPROCURE_LICENSE`. Without a
+under the source-available [HexProcure Commercial Licence](ee/LICENSE). That
+directory is not open source; everything else is MIT. Paid features unlock
+with an offline signed licence key in `HEXPROCURE_LICENSE`. Without a
 key the app runs as Community and nothing breaks. Tiers per feature:
 [`ee/features.ts`](ee/features.ts). Keys: matic@hexenkraft.cz.
 
