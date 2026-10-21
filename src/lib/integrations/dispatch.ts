@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { integrationEvents } from "@/lib/db/schema";
 import type { Connector, DeliveryStatus, IntegrationEvent } from "./types";
@@ -21,19 +21,36 @@ export interface DispatchResult {
   skipped: number;
 }
 
-/** Delivers to every connector for the event; the first failure wins. A failed
- *  event is retried whole, so connectors must tolerate repeats. */
-async function deliverToAll(connectors: Connector[], event: IntegrationEvent): Promise<DeliveryStatus> {
+/** Delivers to each connector not yet recorded as delivered for the event and
+ *  records every success immediately, so a retry calls only the failed ones.
+ *  The first failure wins. Returns the outcome and the names now delivered. */
+async function deliverToPending(
+  connectors: Connector[],
+  event: IntegrationEvent,
+  done: readonly string[],
+): Promise<{ outcome: DeliveryStatus; delivered: string[] }> {
+  const delivered = new Set(done);
   const outcomes = await Promise.all(
-    connectors.map(async (c): Promise<DeliveryStatus> => {
-      try {
-        return await c.deliver(event);
-      } catch (error) {
-        return { ok: false, error: String(error), retryable: true };
-      }
-    }),
+    connectors
+      .filter((c) => !delivered.has(c.name))
+      .map(async (c): Promise<DeliveryStatus> => {
+        let outcome: DeliveryStatus;
+        try {
+          outcome = await c.deliver(event);
+        } catch (error) {
+          return { ok: false, error: String(error), retryable: true };
+        }
+        if (outcome.ok) {
+          delivered.add(c.name);
+          await db
+            .update(integrationEvents)
+            .set({ deliveredConnectors: sql`${integrationEvents.deliveredConnectors} || ${JSON.stringify([c.name])}::jsonb` })
+            .where(eq(integrationEvents.id, event.id));
+        }
+        return outcome;
+      }),
   );
-  return outcomes.find((o) => !o.ok) ?? { ok: true };
+  return { outcome: outcomes.find((o) => !o.ok) ?? { ok: true }, delivered: [...delivered] };
 }
 
 export async function dispatchPendingEvents(limit = 100): Promise<DispatchResult> {
@@ -58,9 +75,9 @@ export async function dispatchPendingEvents(limit = 100): Promise<DispatchResult
       type: event.eventType as IntegrationEvent["type"],
       payload: event.payload,
     };
-    const outcome = await deliverToAll(connectors, integrationEvent);
+    const { outcome, delivered } = await deliverToPending(connectors, integrationEvent, event.deliveredConnectors);
     const attempts = event.attempts + 1;
-    if (outcome.ok) {
+    if (outcome.ok && connectors.every((c) => delivered.includes(c.name))) {
       await db
         .update(integrationEvents)
         .set({ status: "DELIVERED", attempts, lastError: null, deliveredAt: new Date() })
@@ -69,7 +86,7 @@ export async function dispatchPendingEvents(limit = 100): Promise<DispatchResult
     } else {
       await db
         .update(integrationEvents)
-        .set({ status: "PENDING", attempts, lastError: outcome.error })
+        .set({ status: "PENDING", attempts, lastError: outcome.ok ? null : outcome.error })
         .where(eq(integrationEvents.id, event.id));
       result.failed++;
     }
