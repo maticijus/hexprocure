@@ -1,4 +1,4 @@
-# HexProcure — Architecture
+# HexProcure Architecture
 
 ```mermaid
 flowchart TB
@@ -55,7 +55,7 @@ src/
 
 ## Core model
 
-- **Money**: integers in minor units (cents). Never floats.
+- **Money**: integers in the smallest currency unit (minor units). Never floats.
 - **ApprovalRule**: `{ minAmount, maxAmount?, approverRole }`. A requisition gets at
   most one bounded band (limits inclusive; on a shared boundary the higher band wins)
   plus every open-ended rule (no `maxAmount`) whose `minAmount` is at or below the
