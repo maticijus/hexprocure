@@ -69,7 +69,7 @@ Domain events (`PO_CREATED`, `PO_CANCELLED`, `INVOICE_APPROVED`) are written to 
 | **Email notifications** | Approvers, requesters, finance | Approval requests, decisions, and invoice exceptions via SMTP (`SMTP_URL`); log-only mode when unset |
 | **QuickBooks Online mappers** | QBO `PurchaseOrder` / `Bill` payloads | Minor-unit→decimal conversion at the boundary only |
 
-Failed deliveries stay `PENDING` with attempt counts and last error, retried on next dispatch. Dispatch is triggered via `POST /api/v1/integrations/dispatch` (FINANCE/ADMIN).
+Failed deliveries stay `PENDING` with attempt counts and last error, retried on next dispatch. Dispatch is triggered via `POST /api/v1/integrations/dispatch` (FINANCE/ADMIN). Set `INTEGRATION_DISPATCH_INTERVAL_MS` (e.g. `60000`) to also drain the outbox from an in-process scheduler; it is single-instance, so only one app container should run it.
 
 ## AI functionality
 
@@ -202,7 +202,6 @@ Dependency rule: `app → lib → domain`; the domain layer is pure and fully un
 ## Known gaps
 
 - QBO live sync is built (OAuth connect, encrypted rotating tokens, idempotent PO/Bill push, revoke/expiry notifications) and covered by stubbed tests; it still needs Intuit sandbox credentials for the live contract smoke (`npm run test:qbo-live`, see [docs/qbo-live-spec.md](docs/qbo-live-spec.md) §12) and a public HTTPS redirect URI for production OAuth
-- Integration dispatch is pull-based (`POST /api/v1/integrations/dispatch`); wire it to a scheduler in production
 - Rate limiting is single-instance in-memory; multi-node deployments need the Redis adapter
 
 ## Editions
