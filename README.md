@@ -141,7 +141,7 @@ Prereqs: Node 22+, a local PostgreSQL. (Optional, for AI intake: Docker or Pytho
 ```bash
 npm install
 cp .env.example .env            # then set DATABASE_URL and AUTH_SECRET (openssl rand -hex 32)
-npx drizzle-kit migrate         # apply schema to your database
+node scripts/migrate.mjs           # apply schema to your database
 npx tsx scripts/seed.ts         # demo users + data
 npm run dev                     # http://localhost:3000/login
 ```
@@ -174,7 +174,7 @@ npx tsc --noEmit     # typecheck
 npx vitest run             # all tests
 npx vitest run --coverage  # with coverage gate on business logic
 npm run test:e2e           # Playwright suite (builds, boots on :3100, hexprocure_e2e DB)
-npx drizzle-kit migrate    # apply schema migrations
+node scripts/migrate.mjs      # apply schema migrations (new migration from schema edits: npx drizzle-kit generate)
 ```
 
 Tests use their own databases via `.env.test` / `.env.e2e` so they never touch dev data.
