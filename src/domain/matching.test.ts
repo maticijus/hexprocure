@@ -166,4 +166,30 @@ describe("running total when one invoice repeats a PO line (B6)", () => {
       expect.objectContaining({ type: "OVER_INVOICED_AMOUNT", invoiceLineIndex: 1 }),
     ]);
   });
+
+  describe("service acceptance", () => {
+    const svcCtx = (accepted?: Record<string, number>): MatchContext => ({
+      poLines: [{ id: "svc-1", quantityOrdered: 1, unitPriceMinor: 1000, kind: "SERVICE" }],
+      receivedQtyByPoLine: {},
+      previouslyInvoicedQtyByPoLine: {},
+      acceptedAmountByPoLine: accepted,
+    });
+    const svcLine = { poLineId: "svc-1", quantity: 1, unitPriceMinor: 0, amountMinor: 1000 };
+
+    it("flags SERVICE_NOT_ACCEPTED when nothing is accepted", () => {
+      const r = matchInvoice(svcCtx({}), [svcLine]);
+      expect(r.exceptions).toEqual([
+        expect.objectContaining({ type: "SERVICE_NOT_ACCEPTED", invoiceLineIndex: 0 }),
+      ]);
+    });
+
+    it("matches when the accepted amount covers the invoiced amount", () => {
+      expect(matchInvoice(svcCtx({ "svc-1": 1000 }), [svcLine]).status).toBe("MATCHED");
+    });
+
+    it("flags SERVICE_NOT_ACCEPTED when invoiced exceeds accepted", () => {
+      const r = matchInvoice(svcCtx({ "svc-1": 400 }), [svcLine]);
+      expect(r.exceptions.map((e) => e.type)).toContain("SERVICE_NOT_ACCEPTED");
+    });
+  });
 });

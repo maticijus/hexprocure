@@ -450,3 +450,38 @@ describe("M3 only committed invoices count as previously invoiced", () => {
     expect((await priorInvoice("MATCHED", kind)).status).toBe("EXCEPTION");
   });
 });
+
+describe("M2 service invoices need an accepted receipt", () => {
+  async function serviceInvoice(accept: boolean) {
+    const { s, purchaseOrderId, service } = await openPo([
+      { quantity: 1, unitPriceMinor: 5000, kind: "SERVICE" },
+    ]);
+    if (accept) {
+      await addReceipt(
+        purchaseOrderId,
+        [{ poLineId: service!.id, quantityReceived: 0, accepted: true }],
+        s.requester.id,
+      );
+    }
+    const invoice = await createInvoice(
+      {
+        supplierId: s.supplier.id,
+        purchaseOrderId,
+        number: "INV-M2",
+        lines: [{ poLineId: service!.id, quantity: 1, unitPriceMinor: 5000, amountMinor: 5000 }],
+      },
+      s.finance.id,
+    );
+    return matchInvoiceById(invoice.id, s.finance.id);
+  }
+
+  it("raises SERVICE_NOT_ACCEPTED when the service was never accepted", async () => {
+    const result = await serviceInvoice(false);
+    expect(result.status).toBe("EXCEPTION");
+    expect(result.exceptions).toEqual([expect.objectContaining({ type: "SERVICE_NOT_ACCEPTED" })]);
+  });
+
+  it("matches once the service is accepted", async () => {
+    expect((await serviceInvoice(true)).status).toBe("MATCHED");
+  });
+});
