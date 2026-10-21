@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { StatusPill, formatEur } from "@/components/ui";
+import { StatusPill } from "@/components/ui";
+import { formatMoney } from "@/lib/format";
 import { eq as eq_, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
@@ -24,16 +25,24 @@ export default async function DashboardPage() {
   const [counts] = (await db.execute(sql`
     SELECT
       (SELECT COUNT(*) FROM requisitions WHERE status IN ('DRAFT','SUBMITTED')) AS open_reqs,
-      (SELECT COALESCE(SUM(budgeted_minor),0) FROM budgets WHERE year_month = ${month}) AS budget_minor,
-      (SELECT COALESCE(SUM(amount_minor),0) FROM budget_reservations) AS reserved_minor,
       (SELECT COUNT(*) FROM invoices WHERE status = 'EXCEPTION') AS exception_invoices
   `).then((r) => r.rows)) as {
-    open_reqs: number; budget_minor: string; reserved_minor: string; exception_invoices: number;
+    open_reqs: number; exception_invoices: number;
   }[];
+
+  const budgetRows = (await db.execute(sql`
+    SELECT b.currency,
+           SUM(b.budgeted_minor) AS budget_minor,
+           COALESCE(SUM((SELECT SUM(br.amount_minor) FROM budget_reservations br WHERE br.budget_id = b.id)), 0) AS reserved_minor
+    FROM budgets b
+    WHERE b.year_month = ${month}
+    GROUP BY b.currency
+    ORDER BY b.currency
+  `)).rows as { currency: string; budget_minor: string; reserved_minor: string }[];
 
   const recentReqs = (
     await db.execute(sql`
-      SELECT r.id, r.status, r.created_at,
+      SELECT r.id, r.status, r.created_at, r.currency,
              s.name AS supplier_name,
              COALESCE(SUM(rl.quantity * rl.unit_price_minor), 0) AS total_minor
       FROM requisitions r
@@ -44,26 +53,31 @@ export default async function DashboardPage() {
       LIMIT 6
     `)
   ).rows as {
-    id: string; status: string; created_at: string; supplier_name: string | null; total_minor: string;
+    id: string; status: string; created_at: string; currency: string; supplier_name: string | null; total_minor: string;
   }[];
 
   const [budget] = await db
-    .select({ cc: costCenters.name, minor: budgets.budgetedMinor })
+    .select({ cc: costCenters.name, currency: budgets.currency })
     .from(budgets)
     .innerJoin(costCenters, eq_(costCenters.id, budgets.costCenterId))
     .where(sql`${budgets.yearMonth} = ${month}`)
     .limit(1);
 
+  const usage = budgetRows.find((b) => b.currency === budget?.currency);
   const usedPct =
-    counts && Number(counts.budget_minor) > 0
-      ? Math.min(100, Math.round((Number(counts.reserved_minor) / Number(counts.budget_minor)) * 100))
+    usage && Number(usage.budget_minor) > 0
+      ? Math.min(100, Math.round((Number(usage.reserved_minor) / Number(usage.budget_minor)) * 100))
       : 0;
+  const perCurrency = (pick: (b: (typeof budgetRows)[number]) => string) =>
+    budgetRows.length === 0
+      ? [formatMoney(0, "EUR")]
+      : budgetRows.map((b) => formatMoney(Number(pick(b)), b.currency));
 
-  const cards = [
-    { label: "Open Requisitions", value: String(counts?.open_reqs ?? 0), accent: "text-[var(--brand)]" },
-    { label: "Monthly Budget", value: formatEur(Number(counts?.budget_minor ?? 0)), accent: "" },
-    { label: "Reserved This Month", value: formatEur(Number(counts?.reserved_minor ?? 0)), accent: "" },
-    { label: "Invoice Exceptions", value: String(counts?.exception_invoices ?? 0), accent: "text-amber-600" },
+  const cards: { label: string; values: string[]; accent: string }[] = [
+    { label: "Open Requisitions", values: [String(counts?.open_reqs ?? 0)], accent: "text-[var(--brand)]" },
+    { label: "Monthly Budget", values: perCurrency((b) => b.budget_minor), accent: "" },
+    { label: "Reserved This Month", values: perCurrency((b) => b.reserved_minor), accent: "" },
+    { label: "Invoice Exceptions", values: [String(counts?.exception_invoices ?? 0)], accent: "text-amber-600" },
   ];
 
   return (
@@ -85,7 +99,9 @@ export default async function DashboardPage() {
         {cards.map((c) => (
           <div key={c.label} className="rounded-xl bg-white p-5 shadow-sm border border-gray-100">
             <div className="text-xs font-medium uppercase tracking-wide text-gray-500">{c.label}</div>
-            <div className={`mt-2 text-2xl font-bold ${c.accent}`}>{c.value}</div>
+            {c.values.map((v) => (
+              <div key={v} className={`mt-2 text-2xl font-bold ${c.accent}`}>{v}</div>
+            ))}
           </div>
         ))}
       </div>
@@ -95,7 +111,7 @@ export default async function DashboardPage() {
       {budget && (
         <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100 mb-8">
           <div className="flex justify-between text-sm mb-2">
-            <span className="font-medium">Budget utilization — {budget.cc}</span>
+            <span className="font-medium">Budget utilization — {budget.cc} ({budget.currency})</span>
             <span className="text-gray-500">{usedPct}%</span>
           </div>
           <div className="h-3 rounded-full bg-gray-100 overflow-hidden">
@@ -127,7 +143,7 @@ export default async function DashboardPage() {
             {recentReqs.map((r) => (
               <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50/60">
                 <td className="px-5 py-3 font-medium">{r.supplier_name ?? "—"}</td>
-                <td className="px-5 py-3">{formatEur(Number(r.total_minor))}</td>
+                <td className="px-5 py-3">{formatMoney(Number(r.total_minor), r.currency)}</td>
                 <td className="px-5 py-3"><StatusPill status={r.status} /></td>
                 <td className="px-5 py-3 text-gray-500">
                   {new Date(r.created_at).toLocaleDateString("en-GB")}
