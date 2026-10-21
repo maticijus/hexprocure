@@ -3,7 +3,7 @@ import { pool, db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { hashPassword } from "@/lib/auth";
 import { truncateAll } from "@/lib/testing/seed";
-import { resetRateLimits } from "@/lib/api/request-guards";
+import { checkRateLimit, resetRateLimits } from "@/lib/api/request-guards";
 import { POST } from "./route";
 
 const GOOD_PASSWORD = "correct-password";
@@ -65,6 +65,28 @@ describe("POST /api/v1/auth/login per-email rate limit", () => {
     for (let i = 0; i < 15; i++) {
       expect((await login("victim@hex.test", "10.5.0.1", GOOD_PASSWORD)).status).toBe(200);
     }
+  });
+});
+
+describe("POST /api/v1/auth/login under key-flood pressure", () => {
+  it("a client flooding 10,000 paths does not deny another client's first login", async () => {
+    for (let i = 0; i < 10_100; i++) {
+      const flood = new Request(`https://procure.example.com/api/v1/f${i}/x`, {
+        method: "POST",
+        headers: { "x-forwarded-for": "10.6.0.1" },
+      });
+      checkRateLimit(flood, 10, 60_000);
+    }
+    expect((await login("victim@hex.test", "10.6.0.2")).status).toBe(403);
+  });
+
+  it("a success resets only its own email plus client pair", async () => {
+    await db.insert(users).values({ name: "V", email: "victim@hex.test", passwordHash: hashPassword(GOOD_PASSWORD) });
+    await failTimes(10, "victim@hex.test", "10.7.0.2");
+    await failTimes(9, "victim@hex.test", "10.7.0.1");
+    expect((await login("victim@hex.test", "10.7.0.1", GOOD_PASSWORD)).status).toBe(200);
+    expect((await login("victim@hex.test", "10.7.0.2")).status).toBe(429);
+    await failTimes(10, "victim@hex.test", "10.7.0.1");
   });
 });
 

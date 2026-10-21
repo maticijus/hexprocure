@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   checkCsrfOrigin,
+  checkLoginRateLimit,
   checkRateLimit,
   limitsPerMinute,
   rateLimitKeyCount,
+  recordLoginFailure,
   resetRateLimits,
 } from "./request-guards";
 
@@ -161,6 +163,47 @@ describe("rate limit client key", () => {
         vi.useRealTimers();
       }
     });
+  });
+});
+
+describe("per-client key cap", () => {
+  const MAX_PER_CLIENT = 64;
+  const at = (ip: string, path: string) =>
+    new Request(`https://procure.example.com/api/v1/${path}/x`, {
+      method: "POST",
+      headers: { host: "procure.example.com", "x-real-ip": ip },
+    });
+  const flood = (ip: string, n: number) => {
+    const results: (Response | null)[] = [];
+    for (let i = 0; i < n; i++) results.push(checkRateLimit(at(ip, `p${i}`), 10, 60_000));
+    return results;
+  };
+
+  beforeEach(() => vi.stubEnv("TRUST_PROXY", "true"));
+
+  it("never lets one client own more than the cap of live keys", () => {
+    flood("20.0.0.1", 1000);
+    expect(rateLimitKeyCount()).toBeLessThanOrEqual(MAX_PER_CLIENT);
+  });
+
+  it("throttles the flooding client itself through its own overflow bucket", () => {
+    const results = flood("20.0.0.2", 200);
+    expect(results[results.length - 1]?.status).toBe(429);
+  });
+
+  it("10,000 distinct paths from one client leave another client's first request alone", () => {
+    flood("20.0.0.3", 10_100);
+    expect(checkRateLimit(at("20.0.0.4", "login"), 10, 60_000)).toBeNull();
+  });
+
+  it("per-email failures from a flooding client do not limit another client", () => {
+    const post = (ip: string) =>
+      new Request("https://procure.example.com/api/v1/auth/login", {
+        method: "POST",
+        headers: { "x-real-ip": ip },
+      });
+    for (let i = 0; i < 10_100; i++) recordLoginFailure(post("20.0.0.5"), `e${i}@hex.test`, 60_000);
+    expect(checkLoginRateLimit(post("20.0.0.6"), "victim@hex.test", 10)).toBeNull();
   });
 });
 
