@@ -7,6 +7,7 @@ import { parseInvoiceText } from "@/lib/integrations/invoice-parser";
 import { getLlmProvider, NoopLlmProvider } from "@/lib/integrations/llm-provider";
 import { recordLlmUsage, type LlmUsageEntry } from "@/lib/integrations/llm-usage";
 import { normaliseExtractedLines, type PoLineContext, type ProposedInvoiceLine } from "@/domain/invoice-lines";
+import { invoiceFileProblem } from "@/lib/invoice-upload";
 import { DomainError } from "@/lib/services/p2p";
 import { errorToResponse, getActor } from "@/lib/api/helpers";
 
@@ -58,6 +59,8 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+    const problem = invoiceFileProblem(file);
+    if (problem) throw new DomainError("VALIDATION", problem);
     const rawPoId = form.get("purchaseOrderId");
     const purchaseOrderId = typeof rawPoId === "string" && rawPoId !== "" ? rawPoId : null;
     if (purchaseOrderId !== null && !UUID_RE.test(purchaseOrderId)) {

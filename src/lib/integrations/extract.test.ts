@@ -67,7 +67,7 @@ async function seedPo() {
 
 function post(purchaseOrderId?: string) {
   const form = new FormData();
-  form.append("file", new Blob([Buffer.from("%PDF-1.4 fake")]), "invoice.pdf");
+  form.append("file", new File([Buffer.from("%PDF-1.4 fake")], "invoice.pdf", { type: "application/pdf" }));
   if (purchaseOrderId) form.append("purchaseOrderId", purchaseOrderId);
   return POST(new Request("http://x", { method: "POST", body: form }));
 }
@@ -77,7 +77,7 @@ describe("POST /api/v1/invoices/extract", () => {
     const original = process.env.INTEGRATION_OCR_URL;
     delete process.env.INTEGRATION_OCR_URL;
     const form = new FormData();
-    form.append("file", new Blob(["x"]), "a.pdf");
+    form.append("file", new File(["x"], "a.pdf", { type: "application/pdf" }));
     const res = await POST(new Request("http://x", { method: "POST", body: form }));
     expect(res.status).toBe(501);
     if (original === undefined) delete process.env.INTEGRATION_OCR_URL;
@@ -93,7 +93,7 @@ describe("POST /api/v1/invoices/extract", () => {
     });
 
     const form = new FormData();
-    form.append("file", new Blob([Buffer.from("%PDF-1.4 fake")]), "invoice.pdf");
+    form.append("file", new File([Buffer.from("%PDF-1.4 fake")], "invoice.pdf", { type: "application/pdf" }));
     const res = await POST(new Request("http://x", { method: "POST", body: form }));
     expect(res.status).toBe(200);
     const data = await res.json();

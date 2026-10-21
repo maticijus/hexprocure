@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ErrorNote } from "@/components/ui";
 import { INPUT } from "@/components/RequisitionLineFields";
+import { invoiceFileProblem } from "@/lib/invoice-upload";
 import { postJson } from "@/lib/client-api";
 import { applyExtracted, prefillLines, toInvoicePayload, unmatchedNote, type DraftLine, type PoLineOption } from "@/lib/invoice-draft";
 import type { ProposedInvoiceLine } from "@/domain/invoice-lines";
@@ -47,6 +48,8 @@ export function InvoiceForm({ pos }: { pos: PoOption[] }) {
 
   async function onFile(file: File | undefined) {
     if (!file || !po) return setError(file ? "Choose a purchase order before uploading a file" : null);
+    const problem = invoiceFileProblem(file);
+    if (problem) return setError(problem);
     setBusy(true);
     setError(null);
     try {
