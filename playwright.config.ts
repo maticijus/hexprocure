@@ -12,6 +12,9 @@ const webServerEnv: Record<string, string> = {
   AUTH_SECRET: process.env.AUTH_SECRET!,
   INTEGRATION_ENC_KEY: process.env.INTEGRATION_ENC_KEY ?? "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
   NODE_ENV: "production",
+  // The suite signs in about 19 times within a minute from one address; the
+  // production default of 10 would block it. Override with RATE_LIMIT_AUTH_PER_MIN.
+  RATE_LIMIT_AUTH_PER_MIN: process.env.RATE_LIMIT_AUTH_PER_MIN ?? "1000",
 };
 for (const key of [
   "RATE_LIMIT_AUTH_PER_MIN",
