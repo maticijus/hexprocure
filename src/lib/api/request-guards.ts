@@ -6,20 +6,33 @@ import { NextResponse } from "next/server";
 
 const MAX_IP_LENGTH = 45;
 
-// Middleware runs on the edge runtime, which has no node:net, so validate by shape:
-// dotted IPv4 with octets 0-255, or IPv6 made of hex groups and colons (zone ids excluded).
+// Middleware runs on the edge runtime, which has no node:net, so validate by shape.
 const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
-const IPV6 = /^(?=.*:)[0-9a-fA-F:.]{2,45}$/;
+const HEXTET = /^[0-9a-fA-F]{1,4}$/;
+
+// Hextets in one side of an IPv6 address, or -1 when a piece is malformed.
+// A trailing dotted IPv4 counts as two hextets.
+function hextets(side: string, allowIpv4Tail: boolean): number {
+  if (side === "") return 0;
+  const pieces = side.split(":");
+  let count = 0;
+  for (let i = 0; i < pieces.length; i++) {
+    const piece = pieces[i];
+    if (HEXTET.test(piece)) count += 1;
+    else if (allowIpv4Tail && i === pieces.length - 1 && IPV4.test(piece)) count += 2;
+    else return -1;
+  }
+  return count;
+}
+
 function isIpLiteral(value: string): boolean {
   if (IPV4.test(value)) return true;
-  if (!IPV6.test(value) || (value.match(/:/g) ?? []).length < 2) return false;
-  if (value.split("::").length > 2) return false;
-  const groups = value.split(":").filter((g) => g !== "");
-  const last = groups.length - 1;
-  return (
-    groups.length <= 8 &&
-    groups.every((g, i) => /^[0-9a-fA-F]{1,4}$/.test(g) || (i === last && IPV4.test(g)))
-  );
+  const halves = value.split("::");
+  if (halves.length > 2) return false;
+  const left = hextets(halves[0], halves.length === 1);
+  const right = halves.length === 2 ? hextets(halves[1], true) : 0;
+  if (left < 0 || right < 0) return false;
+  return halves.length === 2 ? left + right <= 7 : left === 8;
 }
 
 /** Only a syntactically valid IPv4 or IPv6 literal may become a key component. */

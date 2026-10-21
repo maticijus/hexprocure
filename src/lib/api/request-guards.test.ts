@@ -313,6 +313,17 @@ describe("client IP validation", () => {
     expect(keyFor({ ip: "1.2.3.4:8080" })).toBe("direct");
   });
 
+  it("accepts real IPv6 literals and rejects look-alikes", () => {
+    for (const ip of ["::1", "2001:db8::1", "fe80::", "1:2:3:4:5:6:7:8", "::ffff:1.2.3.4",
+      "0000:0000:0000:0000:0000:ffff:255.255.255.255"]) {
+      expect(keyFor({ ip })).not.toBe("direct");
+    }
+    for (const ip of [":::", "1:2:3", "1:2:3:4:5:6:7:8::", "1:2:3:4:5:6:7:1.2.3.4", ":1:2:3:4:5:6:7",
+      "1:2:3:4:5:6:7:8:9", "1::2::3", "12345::", "g::1", "1.2.3", "1.2.3.4.5"]) {
+      expect(keyFor({ ip })).toBe("direct");
+    }
+  });
+
   it("malformed values never grow the key map", () => {
     for (let i = 0; i < 100; i++) checkRateLimit(req({ xff: `junk-${i}` }), 10, 60_000);
     expect(rateLimitKeyCount()).toBe(1);
