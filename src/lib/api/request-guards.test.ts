@@ -3,6 +3,7 @@ import {
   checkCsrfOrigin,
   checkLoginRateLimit,
   checkRateLimit,
+  getClientIp,
   limitsPerMinute,
   rateLimitKeyCount,
   recordLoginFailure,
@@ -237,5 +238,32 @@ describe("guard isolation", () => {
       });
     for (let i = 0; i < 500; i++) checkRateLimit(at(`p${i}`), 10, 60_000);
     expect(checkRateLimit(at("auth"), 10, 60_000, "auth")).toBeNull();
+  });
+});
+
+describe("client IP validation", () => {
+  beforeEach(() => vi.stubEnv("TRUST_PROXY", "true"));
+  const keyFor = (opts: { xff?: string; ip?: string }) => getClientIp(req(opts));
+
+  it("accepts valid IPv4 and IPv6 literals, trimmed", () => {
+    expect(keyFor({ xff: "1.1.1.1,  203.0.113.9 " })).toBe("203.0.113.9");
+    expect(keyFor({ xff: "2001:db8::1" })).toBe("2001:db8::1");
+    expect(keyFor({ ip: "198.51.100.7" })).toBe("198.51.100.7");
+  });
+
+  it("falls back to the shared bucket for an oversized header value", () => {
+    expect(keyFor({ xff: "1".repeat(5000) })).toBe("direct");
+    expect(keyFor({ ip: "a".repeat(200) })).toBe("direct");
+  });
+
+  it("falls back to the shared bucket for malformed values", () => {
+    expect(keyFor({ xff: "1.1.1.1, not-an-ip" })).toBe("direct");
+    expect(keyFor({ xff: "999.1.1.1" })).toBe("direct");
+    expect(keyFor({ ip: "1.2.3.4:8080" })).toBe("direct");
+  });
+
+  it("malformed values never grow the key map", () => {
+    for (let i = 0; i < 100; i++) checkRateLimit(req({ xff: `junk-${i}` }), 10, 60_000);
+    expect(rateLimitKeyCount()).toBe(1);
   });
 });
