@@ -59,6 +59,22 @@ beforeEach(async () => {
   await truncateAll();
 });
 
+function postWith(
+  s: { requester: { id: string }; supplier: { id: string }; cc: { id: string } },
+  extra: Record<string, unknown>,
+) {
+  return req("http://localhost/api/v1/requisitions", {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie: authCookie(s.requester.id) },
+    body: JSON.stringify({
+      supplierId: s.supplier.id,
+      costCenterId: s.cc.id,
+      lines: [{ description: "Chairs", quantity: 5, unitPriceMinor: 8900 }],
+      ...extra,
+    }),
+  });
+}
+
 describe("POST /api/v1/requisitions", () => {
   it("creates a requisition (201) with valid body and actor header", async () => {
     const s = await seed();
@@ -76,6 +92,22 @@ describe("POST /api/v1/requisitions", () => {
     expect(res.status).toBe(201);
     const data = await res.json();
     expect(data.status).toBe("DRAFT");
+  });
+
+  it("stores a supported non-EUR currency", async () => {
+    const s = await seed();
+    const res = await createRequisition(postWith(s, { currency: "USD" }));
+    expect(res.status).toBe(201);
+    const { id } = await res.json();
+    const row = (await db.execute(sql`SELECT currency FROM requisitions WHERE id = ${id}`)).rows[0];
+    expect(row).toMatchObject({ currency: "USD" });
+  });
+
+  it.each(["JPY", "eur", "EU", "EURO", 5])("rejects currency %j with 400", async (currency) => {
+    const s = await seed();
+    const res = await createRequisition(postWith(s, { currency }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.message).toMatch(/currency/);
   });
 
   it("rejects missing actor header with 403", async () => {
