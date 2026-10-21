@@ -222,15 +222,7 @@ export async function createPurchaseOrder(requisitionId: string, actorUserId: st
       throw new DomainError("INVALID_STATE", `No budget set for ${yearMonth}`);
     }
 
-    const [po] = await tx
-      .insert(purchaseOrders)
-      .values({
-        requisitionId,
-        supplierId: req.supplierId,
-        costCenterId: req.costCenterId,
-        currency: req.currency,
-      })
-      .returning();
+    const po = await insertPurchaseOrder(tx, requisitionId, req);
 
     await tx.insert(poLines).values(
       lines.map((l) => ({
@@ -272,6 +264,40 @@ export async function createPurchaseOrder(requisitionId: string, actorUserId: st
 
     return { purchaseOrderId: po.id, totalMinor: total };
   });
+}
+
+type PgError = { code?: string; constraint?: string };
+
+function pgError(error: unknown): PgError {
+  return (error as { cause?: PgError }).cause ?? (error as PgError);
+}
+
+function pgErrorCode(error: unknown): string | undefined {
+  return (error as PgError).code ?? pgError(error).code;
+}
+
+async function insertPurchaseOrder(
+  tx: Tx,
+  requisitionId: string,
+  req: { supplierId: string; costCenterId: string; currency: string },
+) {
+  try {
+    const [po] = await tx
+      .insert(purchaseOrders)
+      .values({
+        requisitionId,
+        supplierId: req.supplierId,
+        costCenterId: req.costCenterId,
+        currency: req.currency,
+      })
+      .returning();
+    return po;
+  } catch (error) {
+    if (pgErrorCode(error) === "23505" && pgError(error).constraint === "purchase_order_requisition_uq") {
+      throw new DomainError("INVALID_STATE", "Requisition already ordered");
+    }
+    throw error;
+  }
 }
 
 type TxCallback = Parameters<typeof db.transaction>[0];
@@ -528,10 +554,7 @@ export async function createInvoice(input: CreateInvoiceInput, actorUserId: stri
       await audit(tx, "invoice", invoice.id, "CREATED", actorUserId, { number });
       return invoice;
     } catch (error) {
-      const pgCode =
-        (error as { code?: string }).code ??
-        (error as { cause?: { code?: string } }).cause?.code;
-      if (pgCode === "23505") {
+      if (pgErrorCode(error) === "23505") {
         throw new DomainError("INVALID_STATE", "Invoice number already exists for this supplier");
       }
       throw error;
