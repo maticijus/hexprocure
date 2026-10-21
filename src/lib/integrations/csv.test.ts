@@ -25,12 +25,14 @@ describe("CSV connector", () => {
     const rows = eventToCsvRows(poEvent);
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({
+      event_id: poEvent.id,
       record_type: "PO_HEADER",
       reference: "po-1",
       supplier: "Acme GmbH",
       total_minor: "19990",
     });
     expect(rows[1]).toMatchObject({
+      event_id: poEvent.id,
       record_type: "PO_LINE",
       reference: "po-1",
       description: "Laptop",
@@ -108,8 +110,8 @@ describe("CSV file connector", () => {
 
     expect(outcome.ok).toBe(true);
     const text = await readFile(join(dir, "INVOICE_APPROVED-2026-10-21.csv"), "utf8");
-    expect(text).toContain("INVOICE_HEADER,i1");
-    expect(text.startsWith("record_type,")).toBe(true);
+    expect(text).toContain("e1,INVOICE_HEADER,i1");
+    expect(text.startsWith("event_id,record_type,")).toBe(true);
   });
 
   it("appends later events and writes the header once", async () => {
@@ -119,7 +121,7 @@ describe("CSV file connector", () => {
 
     const lines = (await readFile(join(dir, "INVOICE_APPROVED-2026-10-21.csv"), "utf8")).trim().split("\n");
     expect(lines).toHaveLength(3);
-    expect(lines.filter((l) => l.startsWith("record_type,"))).toHaveLength(1);
+    expect(lines.filter((l) => l.startsWith("event_id,record_type,"))).toHaveLength(1);
   });
 
   it("reports a write failure instead of delivering", async () => {

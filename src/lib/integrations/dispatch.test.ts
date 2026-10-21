@@ -54,7 +54,7 @@ describe("dispatch loop", () => {
 
     const [file] = await readdir(csvDir);
     expect(file).toMatch(/^INVOICE_APPROVED-\d{4}-\d{2}-\d{2}\.csv$/);
-    expect(await readFile(join(csvDir, file), "utf8")).toContain("INVOICE_HEADER,i9");
+    expect(await readFile(join(csvDir, file), "utf8")).toContain(",INVOICE_HEADER,i9");
   });
 
   it("records failure and keeps event PENDING for retry on connector error", async () => {
