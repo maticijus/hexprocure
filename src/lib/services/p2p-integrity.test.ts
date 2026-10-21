@@ -393,3 +393,60 @@ describe("M5 duplicate PO for one requisition", () => {
     });
   });
 });
+
+describe("M3 only committed invoices count as previously invoiced", () => {
+  async function priorInvoice(
+    status: "MATCHED" | "EXCEPTION",
+    kind: "GOODS" | "SERVICE",
+  ) {
+    const { s, purchaseOrderId, goods, service } = await openPo([
+      kind === "GOODS"
+        ? { quantity: 10, unitPriceMinor: 1000 }
+        : { quantity: 1, unitPriceMinor: 5000, kind: "SERVICE" },
+    ]);
+    const line = kind === "GOODS" ? goods : service!;
+    await addReceipt(
+      purchaseOrderId,
+      [{ poLineId: line.id, quantityReceived: kind === "GOODS" ? 10 : 0, accepted: true }],
+      s.requester.id,
+    );
+    const [prior] = await db
+      .insert(invoices)
+      .values({ supplierId: s.supplier.id, purchaseOrderId, number: "INV-M3-PRIOR", status })
+      .returning();
+    const qty = kind === "GOODS" ? 10 : 1;
+    const unit = kind === "GOODS" ? 1000 : 5000;
+    await db.insert(invoiceLines).values({
+      invoiceId: prior.id,
+      poLineId: line.id,
+      quantity: qty,
+      unitPriceMinor: unit,
+      amountMinor: kind === "SERVICE" ? 5000 : null,
+    });
+    const next = await createInvoice(
+      {
+        supplierId: s.supplier.id,
+        purchaseOrderId,
+        number: "INV-M3-NEXT",
+        lines: [
+          {
+            poLineId: line.id,
+            quantity: qty,
+            unitPriceMinor: unit,
+            amountMinor: kind === "SERVICE" ? 5000 : undefined,
+          },
+        ],
+      },
+      s.finance.id,
+    );
+    return matchInvoiceById(next.id, s.finance.id);
+  }
+
+  it.each(["GOODS", "SERVICE"] as const)("%s: a prior EXCEPTION invoice does not block a correct one", async (kind) => {
+    expect((await priorInvoice("EXCEPTION", kind)).status).toBe("MATCHED");
+  });
+
+  it.each(["GOODS", "SERVICE"] as const)("%s: a prior MATCHED invoice still counts", async (kind) => {
+    expect((await priorInvoice("MATCHED", kind)).status).toBe("EXCEPTION");
+  });
+});
