@@ -1,6 +1,6 @@
 # MVP3 Spec & Plan — Hardening, Surfaces, Release
 
-Status: PLANNED · All items are **buildable without external access** (no credentials,
+Status: §7–§13 SHIPPED in v0.1.0 (tag v0.1.0) · All items are **buildable without external access** (no credentials,
 no third-party accounts, no hosting decisions). Derived from the post-MVP2 review.
 
 ## Sequencing rationale
