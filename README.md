@@ -115,7 +115,22 @@ Email + password registration and login. Passwords are hashed with scrypt (uniqu
 
 ## UI
 
-Coupa-inspired enterprise layout: sidebar navigation, dashboard KPI cards (open requisitions, monthly budget, reserved spend, invoice exceptions), budget utilization bar, approval inbox with inline approve/reject, and list views with color-coded status pills throughout.
+A sidebar groups the work areas: dashboard, requisitions, approvals, purchase orders, invoices, analytics, recurring orders, attachments and suppliers. The dashboard shows KPI cards (open requisitions, monthly budget, reserved spend, invoice exceptions) and a budget utilization bar. The approval inbox lets an approver approve or reject inline. List views use color-coded status pills, and detail pages cover requisitions, purchase orders, invoices and suppliers. The requisition form takes multiple lines and a currency. Invoice capture prefills the form from OCR.
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/dashboard.png" alt="Dashboard with KPI cards and budget utilization bar"></td>
+    <td><img src="docs/screenshots/approvals.png" alt="Approval inbox with inline approve and reject"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/requisition-new.png" alt="Requisition form with two filled lines"></td>
+    <td><img src="docs/screenshots/purchase-order-detail.png" alt="Purchase order detail page"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/invoice-detail.png" alt="Invoice detail page with match result"></td>
+    <td><img src="docs/screenshots/analytics.png" alt="Spend analytics"></td>
+  </tr>
+</table>
 
 ## Roadmap
 
@@ -198,6 +213,38 @@ services/
 ```
 
 Dependency rule: `app → lib → domain`; the domain layer is pure and fully unit-tested (coverage gate ≥80% on business logic). API contract and product brief live in [`docs/`](docs/).
+
+Document flow (state names from `src/lib/db/schema.ts`):
+
+```mermaid
+flowchart LR
+  subgraph REQ[Requisition]
+    R1[DRAFT] --> R2[SUBMITTED] --> R3[APPROVED]
+    R2 --> R4[REJECTED]
+    R3 --> R5[ORDERED]
+  end
+  subgraph PO[Purchase order]
+    P1[OPEN] --> P2[CLOSED]
+    P1 --> P3[CANCELLED]
+  end
+  subgraph INV[Invoice]
+    I1[PENDING] --> I2[MATCHED]
+    I1 --> I3[EXCEPTION]
+    I2 --> I4[APPROVED]
+    I3 -->|re-match| I2
+  end
+  R5 -->|PO created| P1
+  P1 -->|all lines received| P2
+  P1 -->|invoice received| I1
+  B[(budget reservation)]
+  O[(integration outbox)]
+  P1 -.->|reserves| B
+  P3 -.->|releases| B
+  R2 -.->|APPROVAL_REQUESTED| O
+  P1 -.->|PO_CREATED| O
+  I3 -.->|INVOICE_EXCEPTION| O
+  I4 -.->|INVOICE_APPROVED| O
+```
 
 ## Known gaps
 
