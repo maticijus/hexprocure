@@ -97,4 +97,66 @@ describe("dispatch loop", () => {
     const [after] = await db.select().from(integrationEvents).where(eq(integrationEvents.id, fresh.id));
     expect(after.status).toBe("DELIVERED");
   });
+
+  it("sends an event to every connector registered for its type", async () => {
+    const seen: string[] = [];
+    const mk = (name: string): Connector => ({
+      name,
+      handles: ["PO_CREATED"],
+      deliver: async () => {
+        seen.push(name);
+        return { ok: true };
+      },
+    });
+    clearConnectors();
+    registerConnector(mk("a"));
+    registerConnector(mk("b"));
+    await db.insert(integrationEvents).values({ eventType: "PO_CREATED", payload: {} });
+
+    const result = await dispatchPendingEvents();
+
+    expect(seen.sort()).toEqual(["a", "b"]);
+    expect(result.delivered).toBe(1);
+    const [after] = await db.select().from(integrationEvents);
+    expect(after.status).toBe("DELIVERED");
+  });
+
+  it("marks the event failed with the first error when any connector fails", async () => {
+    const ok: Connector = { name: "ok", handles: ["PO_CREATED"], deliver: async () => ({ ok: true }) };
+    const bad: Connector = {
+      name: "bad",
+      handles: ["PO_CREATED"],
+      deliver: async () => ({ ok: false, error: "ERP down", retryable: true }),
+    };
+    clearConnectors();
+    registerConnector(bad);
+    registerConnector(ok);
+    await db.insert(integrationEvents).values({ eventType: "PO_CREATED", payload: {} });
+
+    const result = await dispatchPendingEvents();
+
+    expect(result.failed).toBe(1);
+    expect(result.delivered).toBe(0);
+    const [after] = await db.select().from(integrationEvents);
+    expect(after.status).toBe("PENDING");
+    expect(after.lastError).toBe("ERP down");
+  });
+
+  it("reports a thrown connector error as name and message only", async () => {
+    const boom: Connector = {
+      name: "boom",
+      handles: ["PO_CREATED"],
+      deliver: async () => {
+        throw new TypeError("socket closed");
+      },
+    };
+    clearConnectors();
+    registerConnector(boom);
+    await db.insert(integrationEvents).values({ eventType: "PO_CREATED", payload: {} });
+
+    await dispatchPendingEvents();
+
+    const [after] = await db.select().from(integrationEvents);
+    expect(after.lastError).toBe("TypeError: socket closed");
+  });
 });
