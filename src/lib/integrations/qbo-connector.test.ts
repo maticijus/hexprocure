@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   integrationsConnections,
@@ -8,6 +9,7 @@ import {
 import { seedOrg, truncateAll } from "@/lib/testing/seed";
 import { upsertQboConnection } from "./qbo-connection";
 import { createQboConnector } from "./qbo-connector";
+import { clearConnectors, dispatchPendingEvents, registerConnector } from "./dispatch";
 import type { IntegrationEvent } from "./types";
 
 const KEYS = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
@@ -113,17 +115,20 @@ describe("createQboConnector", () => {
     expect(!result.ok && result.error).toContain("400");
   });
 
-  it("skips delivery when no healthy connection exists", async () => {
+  it("leaves the event PENDING and makes no API call when the connection is not healthy", async () => {
     const fetchMock = vi.fn().mockResolvedValue(qboOk("1"));
-    const connector = createQboConnector({ fetchImpl: fetchMock as unknown as typeof fetch });
     const { event } = await seedConnectionAndEvent("PO_CREATED");
-    await db.update(integrationsConnections).set({ status: "EXPIRED" });
+    await db.update(integrationsConnections).set({ status: "REVOKED" });
+    clearConnectors();
+    registerConnector(createQboConnector({ fetchImpl: fetchMock as unknown as typeof fetch }));
 
-    const result = await connector.deliver(event);
-    expect(result.ok).toBe(true);
-    expect(
-      result.ok && (result.response as { skipped?: boolean } | undefined)?.skipped,
-    ).toBe(true);
+    const result = await dispatchPendingEvents();
+
+    expect(result).toMatchObject({ delivered: 0, failed: 1 });
     expect(fetchMock).not.toHaveBeenCalled();
+    const [after] = await db.select().from(integrationEvents).where(eq(integrationEvents.id, event.id));
+    expect(after.status).toBe("PENDING");
+    expect(after.deliveredAt).toBeNull();
+    expect(after.lastError).toMatch(/not active/i);
   });
 });
