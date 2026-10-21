@@ -68,7 +68,7 @@ Domain events (`PO_CREATED`, `PO_CANCELLED`, `INVOICE_APPROVED`) are written to 
 | **Email notifications** | Approvers, requesters, finance | Approval requests, decisions, and invoice exceptions via SMTP (`SMTP_URL`); log-only mode when unset |
 | **QuickBooks Online mappers** | QBO `PurchaseOrder` / `Bill` payloads | Minor-unit→decimal conversion at the boundary only |
 
-Failed deliveries stay `PENDING` with attempt counts and last error, retried on next dispatch. Dispatch is triggered via `POST /api/v1/integrations/dispatch` (FINANCE/ADMIN).
+Failed deliveries stay `PENDING` with attempt counts and last error, retried on next dispatch. Dispatch is triggered via `POST /api/v1/integrations/dispatch` (FINANCE/ADMIN). Set `INTEGRATION_DISPATCH_INTERVAL_MS` (e.g. `60000`) to also drain the outbox from an in-process scheduler; it is single-instance, so only one app container should run it.
 
 ## AI functionality
 
@@ -202,7 +202,6 @@ Dependency rule: `app → lib → domain`; the domain layer is pure and fully un
 
 - Session revocation (stateless tokens until a session store lands)
 - QBO live sync not implemented yet — payload mappers exist; OAuth + token encryption specced in [docs/qbo-live-spec.md](docs/qbo-live-spec.md) (needs Intuit sandbox credentials for the contract test only — everything else is buildable now)
-- Integration dispatch is pull-based (`POST /api/v1/integrations/dispatch`); wire it to a scheduler in production
 - Single-currency display (EUR); money stored currency-aware but UI assumes EUR
 - Invoice line items are entered manually after extraction; automatic line-item extraction from OCR text is future work
 - Rate limiting is single-instance in-memory; multi-node deployments need the Redis adapter

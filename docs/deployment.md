@@ -167,6 +167,8 @@ curl -X POST https://procure.yourcompany.com/api/v1/auth/tokens   -H "content-ty
 0 6 * * * curl -s -X POST http://localhost:3000/api/v1/order-templates/run -H "Authorization: Bearer hxp_…" >/dev/null
 ```
 
+Alternatively, set `INTEGRATION_DISPATCH_INTERVAL_MS` (for example `60000`) in `.env` and the app drains the integration outbox itself on that interval, with no cron entry or machine token needed. The scheduler runs inside the app process, skips a tick while the previous one is still running, and logs counts only. It is off when the variable is unset. Run it on a single app instance: multiple instances would each drain the outbox and may deliver an event twice. Use either the scheduler or the cron line above, not both.
+
 The token carries the role of the admin who created it; revoke and rotate from
 `GET/DELETE /api/v1/auth/tokens` without touching cron schedules.
 
