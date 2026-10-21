@@ -1,9 +1,10 @@
-# HexProcure — Product Brief
+# HexProcure: Product Brief
 
 ## Problem
 SMBs (10–50 employees) manage purchasing over email/spreadsheets: no approval control,
 no PO trail, invoice mismatches discovered at month-end. Enterprise tools (Coupa ~$2.5k/mo,
 Procurify ~$1–2k/mo) are overkill; Precoro ($499/mo) is the current floor for real P2P.
+Prices as researched on unknown; verify before quoting.
 
 ## Users
 - **Requester** (any employee): raises purchase requests, tracks status

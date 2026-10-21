@@ -14,17 +14,22 @@ licence-key check. Only secrets and cloud plumbing go to a private repo.
 hexprocure/                      public
   LICENSE                        MIT, applies to everything outside ee/
   src/, services/, drizzle/      Community tier: full P2P loop, OCR, CSV, webhooks,
-                                 BYOK lane 1, community QBO and Xero connectors,
+                                 email, BYOK lane 1, QBO connector (exists today).
+                                 Planned, not in the repo: Xero connector,
                                  read-only MCP server
   ee/
     LICENSE                      HexProcure Commercial Licence (source-available:
                                  read, modify, contribute; production use needs a key)
-    ai/                          lanes 2 to 7
-    connectors/                  Team and Business connector packs, McpConnector
-    mcp-write/                   write tools for the HexProcure MCP server
-    sso/, audit-export/
-  src/lib/license.ts             verifies a signed licence (Ed25519 public key
-                                 committed here); returns the tier and limits
+                                 (draft for legal review)
+    README.md, features.ts       exist today: feature id to tier map, not yet used to
+                                 gate anything
+    ai/                          planned: lanes 2 to 7
+    connectors/                  planned: Team and Business connector packs, McpConnector
+    mcp-write/                   planned: write tools for the HexProcure MCP server
+    sso/, audit-export/          planned
+  src/lib/license.ts             verifies a signed licence (Ed25519; the public key is
+                                 read from HEXPROCURE_LICENSE_PUBLIC_KEY); returns the
+                                 tier and limits
 
 hexprocure-cloud/                private
   licence issuer (private key), billing (Stripe), tenant provisioning,
@@ -57,8 +62,8 @@ security reviewers like.
 - **`ee/`: HexProcure Commercial Licence**, modelled on the PostHog or Cal.com
   enterprise licence text: source visible, modification and contribution
   allowed, production use requires a valid key, no removal of the key check.
-- **Trademark:** register or at least assert "HexProcure" in `TRADEMARK.md` so
-  forks cannot ship under the name.
+- **Trademark:** register or at least assert "HexProcure" in `TRADEMARK.md` (not
+  yet in the repo) so forks cannot ship under the name.
 - **Contributions:** a lightweight CLA or DCO sign-off so `ee/` contributions
   can be relicensed. DCO is enough.
 
@@ -66,14 +71,18 @@ security reviewers like.
 
 - `src/lib/license.ts` verifies a signed JWT (Ed25519) offline, reads
   `tier`, `expiresAt`, `aiDocsPerMonth`, `connectors[]`. Public key in the
-  repo, private key only in `hexprocure-cloud`.
+  `HEXPROCURE_LICENSE_PUBLIC_KEY` env var (not committed), private key only in
+  `hexprocure-cloud`. `scripts/license-sign.ts` signs test tokens.
 - `HEXPROCURE_LICENSE` env var carries the token. Absent or invalid means
-  Community: the app runs, `ee/` features render as locked with an upgrade
-  link, nothing crashes.
-- Build flag `HEXPROCURE_EDITION=community` excludes `ee/` from the bundle for
-  users who want a pure MIT image. The default image includes `ee/` locked.
-- Usage counters (AI documents) live in the existing `llm_usage` table, so the
-  cap is enforced where the cost is incurred.
+  Community: the app runs and nothing crashes. Planned, not built: `ee/` features
+  rendering as locked with an upgrade link (no feature is gated yet;
+  `isFeatureEnabled` is not called in `src/`).
+- Planned, not built: build flag `HEXPROCURE_EDITION=community` to exclude `ee/`
+  from the bundle for users who want a pure MIT image. The default image would
+  include `ee/` locked.
+- Planned: usage counters (AI documents) in the existing `llm_usage` table (it
+  exists and logs every LLM call), so the cap is enforced where the cost is
+  incurred. `aiDocsPerMonth` is parsed from the licence but not enforced.
 
 ## 5. Before the repo earns traffic: hygiene
 
@@ -86,8 +95,8 @@ must be handled before any launch post:
    (register as ADMIN, SQL injection in analytics). Keep it on the feature
    branch or in the private repo until then, then publish it as a fixed
    changelog entry.
-2. **Add `SECURITY.md`** with a private disclosure address, and fix the two
-   CRITICAL findings in the same release.
+2. **`SECURITY.md`** exists (the disclosure address in it is a placeholder the
+   founder must confirm). Fix the two CRITICAL findings in the same release.
 
 ## 6. Content that makes the free story work
 
@@ -116,10 +125,10 @@ In priority order, each a small pull request:
 
 ## 7. Decisions
 
-- **Decided 2026-10-20 by the founder:** core stays MIT; proceed with the `ee/` layout and licence gate. Build lane dispatched the same day (branch `ee-license`).
+- **Decided 2026-10-20 by the founder:** core stays MIT; proceed with the `ee/` layout and licence gate. Build lane dispatched the same day (branch `ee-license`). Landed so far: `src/lib/license.ts`, `GET /api/v1/license`, `ee/LICENSE` (draft), `ee/features.ts`. No paid feature code exists and nothing is gated.
 
 Still open:
 
-- `ee/` licence text: adapt PostHog's or Cal.com's, or have counsel draft one.
+- `ee/` licence text: `ee/LICENSE` is a draft for legal review; adapt PostHog's or Cal.com's, or have counsel draft the final one.
 - Name of the private repo and whether it sits under HEXENKRAFT's GitHub org.
-- DCO versus CLA for contributions.
+- DCO versus CLA for contributions (`CONTRIBUTING.md` currently requires a DCO sign-off).

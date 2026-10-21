@@ -18,8 +18,8 @@ different product.
 
 ## The ranked list
 
-### 1. Invoice line-item extraction (first lane, specced)
-**Pain.** Today extraction returns four header fields; finance retypes every line, which is where the matching value is.
+### 1. Invoice line-item extraction (first lane, shipped)
+**Pain.** Header extraction returns number, date, total and VAT ID only; finance retypes every line, which is where the matching value is. Lines now come from the LLM when `ANTHROPIC_API_KEY` is set (`linesSource: "llm"`); otherwise `linesSource` is `"none"`.
 **What.** Given OCR text and the PO's lines, return structured invoice lines (description, quantity, unit price in minor units, suggested `poLineId`, confidence). Human reviews, saves, and the existing 2/3-way match runs.
 **Why first.** Pipeline, UI slot, review pattern and audit all exist. Pure additive. One provider interface unlocks every other item below.
 **Friction.** Low. Needs one API key.
@@ -72,8 +72,8 @@ different product.
 ## Sequencing
 
 ```text
-Lane 1  line-item extraction        (now)      establishes LlmProvider, usage log, review UI pattern
-Lane 2  exception triage            (next)     reuses provider, read-only
+Lane 1  line-item extraction        (shipped)  establishes LlmProvider, usage log, review UI pattern
+Lane 2  exception triage            (planned)  reuses provider, read-only
 Lane 3  requisition drafting                   reuses provider, adds retrieval over PO lines
 Lane 4  spend categorisation                   migration + batch job; unlocks 7 and 9
 Lane 5  duplicate detection                    small
@@ -81,9 +81,11 @@ Lane 6  supplier screening                     external APIs, scheduler
 Lanes 7-10 after the above
 ```
 
+Only lane 1 exists in code. Lanes 2 to 5 have feature ids in `ee/features.ts` (`ai-triage`, `ai-duplicates` as team; `ai-drafting`, `ai-categorisation`, `ai-anomaly` as business). They are mapped to tiers but not gated anywhere: `isFeatureEnabled` is not called in `src/`, and `ee/` holds no AI code. Lane 1 is not licence-gated.
+
 ## Provider and model
 
-Default provider is the Claude API through `@anthropic-ai/sdk`, model `claude-opus-5-5` (configurable). Structured outputs via `output_config.format` guarantee schema-valid JSON. Adaptive thinking stays on; effort `low` for extraction and classification, `medium` for triage text. Prompt caching on the system prompt and the PO context. A self-hosted provider (OpenAI-compatible endpoint such as Ollama or vLLM) is a second implementation of the same interface for operators who must keep documents in-house; it is not in lane 1.
+Default provider is the Claude API through `@anthropic-ai/sdk`, model `claude-opus-5-5` (configurable). Structured outputs via `output_config.format` guarantee schema-valid JSON. No thinking parameter is set in code. Effort is `low` for extraction (shipped) and planned as `low` for classification and `medium` for triage text. Prompt caching (`cache_control`) is set on the system prompt only. The key is `ANTHROPIC_API_KEY`, the model override is `INTEGRATION_LLM_MODEL`, and every call is logged to the `llm_usage` table. A self-hosted provider (OpenAI-compatible endpoint such as Ollama or vLLM) is a second implementation of the same interface for operators who must keep documents in-house; it is not in lane 1.
 
 ## Open decisions for the founder
 

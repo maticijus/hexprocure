@@ -1,4 +1,4 @@
-# §6 Spec — QuickBooks Online Live Integration (OAuth + Sync)
+# §6 Spec: QuickBooks Online Live Integration (OAuth + Sync)
 
 Status: READY TO BUILD · Prerequisite listed in §10 · Part of MVP2 roadmap
 
@@ -116,7 +116,7 @@ connection exists):
 3. `POST https://{sandbox-?}.api.intuit.com/v3/company/{realmId}/purchaseorder|bill`
    with `Authorization: Bearer <access>` and `Content-Type: application/json`.
 4. On success: insert `qbo_sync_map` row (idempotency), event → DELIVERED.
-5. On 4xx: FAILED, non-retryable, lastError preserved (payload problem — human fix).
+5. On 4xx: FAILED, non-retryable, lastError preserved (payload problem: human fix).
    On 5xx/network: retryable (existing semantics).
 6. Connection missing/unhealthy → events stay PENDING (current behavior).
 
@@ -153,11 +153,11 @@ INTEGRATION_ENC_KEY=                  # openssl rand -base64 32
 5. No test, log line, or audit row ever contains a plaintext token (grep-enforced test).
 6. Disconnect wipes ciphertext in the same request.
 
-## 10. Prerequisites — what is actually blocked
+## 10. Prerequisites: what is actually blocked
 
 | Need | Blocked on |
 |---|---|
-| Sandbox development (unit + stubbed integration) | **Nothing — buildable now** |
+| Sandbox development (unit + stubbed integration) | **Nothing: buildable now** |
 | Live contract test | Intuit developer account → app → `CLIENT_ID/SECRET` (free) |
 | Production OAuth | Public HTTPS redirect URI (deployed host) |
 
@@ -203,7 +203,10 @@ the sandbox company). It runs against the `hexprocure_test` database from `.env.
 and refuses to run with `QBO_SANDBOX=false`. A missing variable fails the run; it is
 never skipped.
 
-Known risk for the first live run: the PO mapper emits `VendorRef` as a plain string,
-while the QBO API expects `{ "value": "<vendor id>" }`. The stubbed tests cannot
-see this; the first live run is expected to confirm or correct it.
+Known risk for the first live run: the PO mapper emits `VendorRef` as
+`{ "value": <supplier>, "name": <supplier> }` (`src/lib/integrations/qbo.ts`), where
+`<supplier>` is the HexProcure supplier name from the event payload
+(`src/lib/services/p2p/purchase-orders.ts`), while the QBO API expects the vendor id
+in `value`. The stubbed tests cannot see this; the first live run is expected to
+confirm or correct it.
 

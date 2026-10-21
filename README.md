@@ -1,12 +1,12 @@
 # HexProcure
 
-Lightweight, open procure-to-pay for SMBs: requisitions → rule-based approvals → purchase orders → goods receipt → invoice matching — with budget control, ERP/AP integrations, and AI-assisted invoice intake.
+Open-source procure-to-pay for small and mid-sized businesses: requisitions, rule-based approvals, purchase orders, goods receipt and invoice matching, with budget control, ERP/AP integrations and AI-assisted invoice intake.
 
-**Status:** v0.1.0 — feature-complete for the indirect procure-to-pay loop, in production use behind a reverse proxy. See [Known gaps](#known-gaps) before deploying. Changes are tracked in the [CHANGELOG](CHANGELOG.md).
+**Status:** v0.1.0. The indirect procure-to-pay loop works end to end in the API and the UI. See [Known gaps](#known-gaps) before deploying. Changes are tracked in the [CHANGELOG](CHANGELOG.md).
 
 ## Why
 
-Small teams manage purchasing over email and spreadsheets: no approval control, no PO trail, invoice mismatches discovered at month-end. Enterprise suites cost thousands per month and take weeks to implement. HexProcure covers the essential procure-to-pay loop with transparent, self-hosted simplicity.
+Small teams manage purchasing over email and spreadsheets: no approval control, no PO trail, invoice mismatches discovered at month-end. Enterprise suites cost thousands per month and take weeks to implement. HexProcure covers the core procure-to-pay loop and runs on your own server.
 
 ## Functionality
 
@@ -14,11 +14,11 @@ Small teams manage purchasing over email and spreadsheets: no approval control, 
 
 The core loop walks a purchase through five states, each enforced by domain logic:
 
-1. **Requisition** — any user creates a request with line items (description, quantity, unit price) against a supplier and cost center.
-2. **Approval** — submitting resolves an approval chain from configured amount-band rules (see below) and creates one approval task per step. Approvers see only tasks matching their role; admins can act on any step.
-3. **Purchase order** — once every step approves, ordering generates a PO with lines mirrored from the requisition. This is where the budget guard runs.
-4. **Goods receipt** — receipts are recorded per PO line; cumulative received quantity can never exceed ordered quantity. A fully-received PO closes automatically.
-5. **Invoice matching** — invoices are matched 2/3-way against PO and receipts (details below). Only `MATCHED` invoices can be approved by finance.
+1. **Requisition**: any user creates a request with line items (description, quantity, unit price) against a supplier and cost center.
+2. **Approval**: submitting resolves an approval chain from configured amount-band rules (see below) and creates one approval task per step. Approvers see only tasks matching their role; admins can act on any step.
+3. **Purchase order**: once every step approves, ordering generates a PO with lines mirrored from the requisition. This is where the budget guard runs.
+4. **Goods receipt**: receipts are recorded per PO line; cumulative received quantity can never exceed ordered quantity. A fully-received PO closes automatically.
+5. **Invoice matching**: invoices are matched 2/3-way against PO and receipts (details below). Only `MATCHED` invoices can be approved, by FINANCE or ADMIN.
 
 Every state change appends an immutable audit event (`who`, `what`, `when`, payload).
 
@@ -34,22 +34,24 @@ Rules are ordered amount bands, e.g.:
 
 - A requisition's total lands in exactly **one band**; boundary amounts belong to the higher band.
 - Open-ended rules act as **escalation steps**: a €9,000 request is approved by FINANCE alone, while a €6,000 request under rules "manager up to ∞" + "finance above €2k" requires both, in sequence.
-- Overlapping bands are rejected at configuration time; currency mixing between rules is rejected too.
+- Overlapping bounded bands and rules in mixed currencies are rejected when a requisition is submitted and its chain is resolved. An amount that matches no rule cannot be submitted; there is no automatic escalation.
 
 ### Budget control
 
-Monthly budgets per cost center. Creating a PO **reserves** its total atomically (`SELECT … FOR UPDATE` serializes concurrent orders, so two buyers can never double-spend the same budget). Cancelling a PO releases its reservation. Ordering without sufficient budget fails with a distinct `BUDGET_EXCEEDED` error carrying the available amount.
+Monthly budgets per cost center. Ordering fails when the cost center has no budget for the current month. Creating a PO **reserves** its total atomically (`SELECT … FOR UPDATE` serializes concurrent orders, so two buyers can never double-spend the same budget). Cancelling a PO releases its reservation. Ordering without sufficient budget fails with a distinct `BUDGET_EXCEEDED` error carrying the available amount.
 
 ### Invoice matching
 
-Each invoice line is checked against three dimensions:
+Each goods line on an invoice is checked four ways:
 
 | Check | Rule |
 |---|---|
 | `UNMATCHED_LINE` | line has no PO reference or points at an unknown PO line |
-| `QUANTITY_MISMATCH` | invoiced quantity exceeds received quantity for that PO line |
+| `QUANTITY_MISMATCH` | cumulative invoiced quantity (this + prior invoices on the same PO line) exceeds received quantity |
 | `OVER_INVOICED` | cumulative invoiced quantity (this + prior invoices on the same PO) exceeds ordered quantity |
-| `PRICE_MISMATCH` | unit price deviates more than max(2%, €0.005 floor) from the PO price |
+| `PRICE_MISMATCH` | unit price deviates from the PO price by more than max(2% of the PO price, 0.5 minor units) |
+
+Service lines are checked by amount instead: `OVER_INVOICED_AMOUNT` when the cumulative invoiced amount exceeds the ordered amount, `SERVICE_NOT_ACCEPTED` when it exceeds the accepted amount.
 
 Clean invoices become `MATCHED`; anything else lands in `EXCEPTION` with a structured exception list for review. Approved invoices emit integration events (below).
 
@@ -60,16 +62,18 @@ The UI formats every amount in its own row's currency (`formatMoney` in `src/lib
 
 ### Integrations (ERP/AP connectivity)
 
-Domain events (`PO_CREATED`, `PO_CANCELLED`, `INVOICE_APPROVED`) are written to a **transactional outbox** in the same database transaction as the business change — events cannot be lost even if delivery fails. A dispatch loop drains pending events through registered connectors:
+Domain events (`PO_CREATED`, `PO_CANCELLED`, `INVOICE_APPROVED`, plus the notification events `APPROVAL_REQUESTED`, `REQUISITION_DECIDED`, `INVOICE_EXCEPTION`, `INTEGRATION_ERROR`) are written to a **transactional outbox** in the same database transaction as the business change, so a failed delivery does not lose the event. A dispatch loop drains pending events through registered connectors:
 
 | Connector | Target | Delivery semantics |
 |---|---|---|
-| **CSV flat-file** | Any ERP/AP with a file import | Wide-format rows (header + line records), RFC-4180 escaping, stable column order |
-| **Generic webhook** | Zapier/Make/custom HTTP endpoints | Signed POSTs (`X-HexProcure-Signature`, HMAC-SHA256), 4xx = non-retryable, 5xx/429/network = retryable |
+| **CSV flat-file** | Any ERP/AP with a file import | Renders wide-format rows (header + line records), RFC-4180 escaping, stable column order. Writes no file yet, see [Known gaps](#known-gaps) |
+| **Generic webhook** | Zapier/Make/custom HTTP endpoints (`INTEGRATION_WEBHOOK_URL`) | Signed POSTs (`X-HexProcure-Signature`, HMAC-SHA256), 4xx = non-retryable, 5xx/429/network = retryable |
 | **Email notifications** | Approvers, requesters, finance | Approval requests, decisions, and invoice exceptions via SMTP (`SMTP_URL`); log-only mode when unset |
-| **QuickBooks Online mappers** | QBO `PurchaseOrder` / `Bill` payloads | Minor-unit→decimal conversion at the boundary only |
+| **QuickBooks Online** | QBO `PurchaseOrder` / `Bill` (`QBO_CLIENT_ID`, `QBO_CLIENT_SECRET`) | OAuth connection, idempotent push; minor-unit to decimal conversion at the boundary only |
 
-Failed deliveries stay `PENDING` with attempt counts and last error, retried on next dispatch. Dispatch is triggered via `POST /api/v1/integrations/dispatch` (FINANCE/ADMIN). Set `INTEGRATION_DISPATCH_INTERVAL_MS` (e.g. `60000`) to also drain the outbox from an in-process scheduler; it is single-instance, so only one app container should run it.
+Each event type goes to one connector; the last one registered wins. Registration order is CSV, email, QuickBooks (when configured), webhook (when configured), so `PO_CREATED` and `INVOICE_APPROVED` go to the webhook when it is set, else to QuickBooks when it is configured, else to CSV. `PO_CANCELLED` goes only to the webhook; the notification events go to email.
+
+Failed retryable deliveries stay `PENDING` with attempt counts and last error and are retried on the next dispatch. Dispatch is triggered via `POST /api/v1/integrations/dispatch` (FINANCE/ADMIN). Set `INTEGRATION_DISPATCH_INTERVAL_MS` (e.g. `60000`) to also run dispatch from an in-process scheduler; it is single-instance, so only one app container should run it, and it depends on the dispatch route having run first (see [Known gaps](#known-gaps)).
 
 ## AI functionality
 
@@ -88,7 +92,8 @@ invoice.pdf ──▶ POST /api/v1/invoices/extract
                   • grand total      (labeled-total preference, EU decimal-comma aware,
                                       converted to integer minor units)
                   • VAT ID           (EU-style country-prefixed pattern)
-                  • confidence flag  (HIGH = key fields found; LOW = human must fill blanks)
+                  • confidence flag  (HIGH = total plus number or date found;
+                                      LOW = human must fill blanks)
                   ▼
                Draft response → human reviews/edits → invoice created
                   → existing 2/3-way matching takes over
@@ -142,8 +147,8 @@ Redis-backed rate limiting for multi-node installs, and S3 attachment storage.
 
 ## Deployment
 
-Full step-by-step production guide — server prep, configuration reference, role
-model, systemd/cron setup, nginx+TLS, backups and a go-live checklist — lives in
+Full step-by-step production guide (server prep, configuration reference, role
+model, systemd/cron setup, nginx+TLS, backups and a go-live checklist) lives in
 [docs/deployment.md](docs/deployment.md), which also documents a **Docker
 Compose variant** (app + Postgres 16 + OCR sidecar, `docker compose up -d`).
 
@@ -158,7 +163,7 @@ Prereqs: Node 22+, a local PostgreSQL. (Optional, for AI intake: Docker or Pytho
 ```bash
 npm install
 cp .env.example .env            # then set DATABASE_URL and AUTH_SECRET (openssl rand -hex 32)
-node scripts/migrate.mjs           # apply schema to your database
+node --env-file=.env scripts/migrate.mjs   # apply schema (the script does not read .env itself)
 npx tsx scripts/seed.ts         # demo users + data
 npm run dev                     # http://localhost:3000/login
 ```
@@ -188,10 +193,10 @@ npm run dev          # dev server
 npm run build        # production build
 npm run lint         # eslint
 npx tsc --noEmit     # typecheck
-npx vitest run             # all tests
+npx vitest run             # unit + integration tests (50 files, 421 tests)
 npx vitest run --coverage  # with coverage gate on business logic
-npm run test:e2e           # Playwright suite (builds, boots on :3100, hexprocure_e2e DB)
-node scripts/migrate.mjs      # apply schema migrations (new migration from schema edits: npx drizzle-kit generate)
+npm run test:e2e           # Playwright suite, 12 tests in 7 files (builds, boots on :3100, DB from .env.e2e)
+node --env-file=.env scripts/migrate.mjs   # apply schema migrations (new migration from schema edits: npx drizzle-kit generate)
 ```
 
 Tests use their own databases via `.env.test` / `.env.e2e` so they never touch dev data.
@@ -249,15 +254,20 @@ flowchart LR
 ## Known gaps
 
 - QBO live sync is built (OAuth connect, encrypted rotating tokens, idempotent PO/Bill push, revoke/expiry notifications) and covered by stubbed tests; it still needs Intuit sandbox credentials for the live contract smoke (`npm run test:qbo-live`, see [docs/qbo-live-spec.md](docs/qbo-live-spec.md) §12) and a public HTTPS redirect URI for production OAuth
-- Rate limiting is single-instance in-memory; multi-node deployments need the Redis adapter
+- Rate limiting is single-instance in-memory; multi-node deployments need a Redis adapter, which does not exist yet
+- The in-process dispatch scheduler delivers nothing until `POST /api/v1/integrations/dispatch` has run in the same process (it does not register connectors itself)
+- The CSV connector renders rows and counts bytes but writes no file and exposes no download
 
 ## Editions
 
 The core in this repository is MIT and free to self-host with no seat cap.
-Paid features (AI lanes, connector packs, SSO and more) live in [`ee/`](ee/)
-under the source-available [HexProcure Commercial Licence](ee/LICENSE) and
-unlock with an offline signed licence key in `HEXPROCURE_LICENSE`. Without a
-key the app runs as Community and nothing breaks. Tiers and prices:
+[`ee/`](ee/) carries the source-available [HexProcure Commercial Licence](ee/LICENSE)
+(a draft) and `ee/features.ts`, the map from planned paid features (AI lanes,
+connector packs, SSO and more) to the tier that will unlock them. No feature is
+gated yet: everything in v0.1.0 works without a key. A licence key in
+`HEXPROCURE_LICENSE`, verified offline against `HEXPROCURE_LICENSE_PUBLIC_KEY`,
+sets the tier shown by `GET /api/v1/license`; without a valid key the app runs
+as Community. Tiers and prices:
 [docs/pricing-tiers.md](docs/pricing-tiers.md).
 
 ## License
