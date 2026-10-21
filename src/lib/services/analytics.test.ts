@@ -196,7 +196,7 @@ describe("analyticsSummary", () => {
     await approvedInvoice({ supplierName: "Acme", ccName: "IT", amountMinor: 250_000 });
     const s = await analyticsSummary();
     expect(s.totals).toEqual([{ currency: "EUR", totalMinor: 250_000, invoiceCount: 1 }]);
-    expect(s.topSupplier).toMatchObject({ key: "Acme", currency: "EUR" });
+    expect(s.topSuppliers).toEqual([{ key: "Acme", currency: "EUR", totalMinor: 250_000 }]);
   });
 
   it("returns one total per currency and never a cross-currency sum", async () => {
@@ -207,6 +207,7 @@ describe("analyticsSummary", () => {
       { currency: "EUR", totalMinor: 250_000, invoiceCount: 1 },
       { currency: "USD", totalMinor: 90_000, invoiceCount: 1 },
     ]);
+    expect(s.topSuppliers.map((t) => `${t.currency}:${t.key}`)).toEqual(["EUR:Acme", "USD:Globex"]);
     expect(s).not.toHaveProperty("approvedTotalMinor");
   });
 });
