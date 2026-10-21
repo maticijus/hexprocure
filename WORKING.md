@@ -15,4 +15,4 @@ Protocol: ~/.claude/rules/common/parallel-sessions.md
 
 ## History
 <!-- released claims, trimmed periodically -->
-- 2026-10-21 claude-fable released `maticijus/ee-license` licence finalisation (78f35e2). Open: Czech advokát review of ee/LICENSE, chain-of-title check.
+- 2026-10-21 claude-fable released `maticijus/ee-license` licence finalisation (23d971b). Open: Czech advokát review of ee/LICENSE, chain-of-title check.
