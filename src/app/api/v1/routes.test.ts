@@ -15,6 +15,7 @@ import { POST as submit } from "@/app/api/v1/requisitions/[id]/submit/route";
 import { POST as decide } from "@/app/api/v1/approvals/[id]/decide/route";
 import { POST as order } from "@/app/api/v1/requisitions/[id]/order/route";
 import { POST as addReceiptRoute } from "@/app/api/v1/purchase-orders/[id]/receipts/route";
+import { POST as cancelPoRoute } from "@/app/api/v1/purchase-orders/[id]/cancel/route";
 import { POST as createInvoiceRoute } from "@/app/api/v1/invoices/route";
 import {
   errorToResponse,
@@ -381,4 +382,30 @@ describe("POST /api/v1/purchase-orders/[id]/receipts", () => {
 
 afterAll(async () => {
   await pool.end();
+});
+
+describe("POST /api/v1/purchase-orders/[id]/cancel", () => {
+  const cancelAs = (userId: string, id: string) =>
+    cancelPoRoute(
+      req("http://localhost/x", { method: "POST", headers: { cookie: authCookie(userId) } }),
+      { params: Promise.resolve({ id }) } as never,
+    );
+
+  it("lets a manager cancel an OPEN PO", async () => {
+    const { s, purchaseOrderId } = await orderToOpenPo();
+    const res = await cancelAs(s.manager.id, purchaseOrderId);
+    expect(res.status).toBe(200);
+    expect((await res.json()).status).toBe("CANCELLED");
+  });
+
+  it("rejects a plain requester with 403", async () => {
+    const { s, purchaseOrderId } = await orderToOpenPo();
+    expect((await cancelAs(s.requester.id, purchaseOrderId)).status).toBe(403);
+  });
+
+  it("returns 409 when the PO is already cancelled", async () => {
+    const { s, purchaseOrderId } = await orderToOpenPo();
+    await cancelAs(s.manager.id, purchaseOrderId);
+    expect((await cancelAs(s.manager.id, purchaseOrderId)).status).toBe(409);
+  });
 });
