@@ -60,6 +60,8 @@ Add-ons for either paid tier: extra AI documents in blocks of 1,000 per month; a
 
 From `research/market-2026-10-20.md` (third-party figures, verify before quoting).
 
+Prices as researched on 2026-10-20; verify before quoting.
+
 | Product | Entry price | Model | Free tier | Where AI sits |
 |---|---|---|---|---|
 | Ramp | free; Plus 15 USD per user per month plus platform fee | per user | yes | OCR free; AI approvals in Plus; procurement is an add-on |
