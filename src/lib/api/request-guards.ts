@@ -116,20 +116,23 @@ function stateFor(key: string, windowMs: number, now: number): WindowState {
   return created;
 }
 
+function limitedResponse(state: WindowState, limit: number, now: number): Response | null {
+  state.hits = state.hits.filter((h) => now - h < state.windowMs);
+  if (state.hits.length < limit) return null;
+  const oldest = Math.min(...state.hits);
+  const retryAfterSec = Math.max(1, Math.ceil((oldest + state.windowMs - now) / 1000));
+  return NextResponse.json(
+    { error: { code: "RATE_LIMITED", message: "Too many requests" } },
+    { status: 429, headers: { "retry-after": String(retryAfterSec) } },
+  );
+}
+
 function consume(key: string, limit: number, windowMs: number): Response | null {
   const now = Date.now();
   const state = stateFor(key, windowMs, now);
-  state.hits = state.hits.filter((h) => now - h < windowMs);
-  if (state.hits.length >= limit) {
-    const oldest = Math.min(...state.hits);
-    const retryAfterSec = Math.max(1, Math.ceil((oldest + windowMs - now) / 1000));
-    return NextResponse.json(
-      { error: { code: "RATE_LIMITED", message: "Too many requests" } },
-      { status: 429, headers: { "retry-after": String(retryAfterSec) } },
-    );
-  }
-  state.hits.push(now);
-  return null;
+  const limited = limitedResponse(state, limit, now);
+  if (!limited) state.hits.push(now);
+  return limited;
 }
 
 export function checkRateLimit(
@@ -141,8 +144,29 @@ export function checkRateLimit(
   return consume(`${getClientIp(request)}:${path}`, limit, windowMs);
 }
 
-/** Per-account limit shared across all IPs, so rotating addresses does not
- *  reset the budget for password guessing against one email. */
-export function checkLoginRateLimit(email: string, limit: number, windowMs: number): Response | null {
-  return consume(`login:${email.trim().toLowerCase().slice(0, 254)}`, limit, windowMs);
+/** Per-account limit keyed on email plus client bucket, so one client cannot
+ *  exhaust a victim's budget for everyone else. Only failed attempts count
+ *  (recordLoginFailure) and a success clears the counter (clearLoginFailures). */
+function loginKey(request: Request, email: string): string {
+  return `login:${getClientIp(request)}:${email.trim().toLowerCase().slice(0, 254)}`;
+}
+
+export function checkLoginRateLimit(
+  request: Request,
+  email: string,
+  limit: number,
+  windowMs: number,
+): Response | null {
+  const key = loginKey(request, email);
+  const state = windows.get(key) ?? (windows.size >= MAX_TRACKED_KEYS ? overflow : null);
+  return state ? limitedResponse(state, limit, Date.now()) : null;
+}
+
+export function recordLoginFailure(request: Request, email: string, windowMs: number): void {
+  const now = Date.now();
+  stateFor(loginKey(request, email), windowMs, now).hits.push(now);
+}
+
+export function clearLoginFailures(request: Request, email: string): void {
+  windows.delete(loginKey(request, email));
 }

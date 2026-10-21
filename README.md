@@ -109,7 +109,7 @@ Email + password registration and login. Passwords are hashed with scrypt (uniqu
 
 - **Self-registration** always creates a `REQUESTER`; a client-supplied role is ignored. Set `ALLOW_SELF_REGISTRATION=true` to enable it in production (it is open by default in development, `false` disables it anywhere). Other roles are assigned in the database.
 - **`AUTH_SECRET`** must be at least 32 characters and not a known placeholder (`openssl rand -hex 32`); the app refuses to start otherwise.
-- **Rate limiting** keys on the right-most `X-Forwarded-For` hop only when `TRUST_PROXY=true` (set it behind a proxy you control), else on `X-Real-IP`, else one shared bucket. Logins are also limited per email address.
+- **Rate limiting** is in-memory per instance. The client bucket is the right-most `X-Forwarded-For` hop, else `X-Real-IP`, but only when `TRUST_PROXY=true` (set it behind a proxy you control); otherwise every client shares one bucket. The tracked-key map is capped: expired entries are dropped first, and when it is still full new keys share one overflow bucket, so live counters are never evicted. Logins also have a per-email limit keyed on email plus client bucket that counts failed attempts only and resets on success.
 
 ## UI
 
