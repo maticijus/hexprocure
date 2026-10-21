@@ -16,6 +16,7 @@ import { POST as decide } from "@/app/api/v1/approvals/[id]/decide/route";
 import { POST as order } from "@/app/api/v1/requisitions/[id]/order/route";
 import { POST as addReceiptRoute } from "@/app/api/v1/purchase-orders/[id]/receipts/route";
 import { POST as cancelPoRoute } from "@/app/api/v1/purchase-orders/[id]/cancel/route";
+import { POST as sendPoRoute } from "@/app/api/v1/purchase-orders/[id]/send/route";
 import { POST as createInvoiceRoute } from "@/app/api/v1/invoices/route";
 import {
   errorToResponse,
@@ -282,6 +283,23 @@ describe("POST /api/v1/purchase-orders/[id]/cancel", () => {
     const { s, purchaseOrderId } = await orderToOpenPo();
     await cancelAs(s.manager.id, purchaseOrderId);
     expect((await cancelAs(s.manager.id, purchaseOrderId)).status).toBe(409);
+  });
+});
+
+describe("POST /api/v1/purchase-orders/[id]/send", () => {
+  const sendAs = (userId: string, id: string) =>
+    sendPoRoute(
+      req("http://localhost/x", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: authCookie(userId) },
+        body: JSON.stringify({ to: "someone@example.com" }),
+      }),
+      { params: Promise.resolve({ id }) } as never,
+    );
+
+  it("rejects a plain requester with 403", async () => {
+    const { s, purchaseOrderId } = await orderToOpenPo();
+    expect((await sendAs(s.requester.id, purchaseOrderId)).status).toBe(403);
   });
 });
 
