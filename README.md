@@ -56,6 +56,7 @@ Clean invoices become `MATCHED`; anything else lands in `EXCEPTION` with a struc
 ### Money handling
 
 All amounts are **integers in minor units** (cents) wrapped in a currency-aware `Money` value object. Arithmetic refuses mixed currencies, negative results (unless explicitly allowed), and fractional minor units. No floats touch a balance anywhere.
+The UI formats every amount in its own row's currency (`formatMoney` in `src/lib/format.ts`, minor-unit aware: JPY has 0 decimals) and analytics totals are grouped per currency, never summed across currencies; requisitions accept EUR, USD, GBP, CZK, PLN or CHF.
 
 ### Integrations (ERP/AP connectivity)
 
@@ -121,7 +122,7 @@ Delivered in v0.1.0: machine API tokens, CSRF + rate limiting, spend analytics,
 full UI surfaces, Playwright E2E suite, Docker Compose deployment (§7–§12 of
 [docs/mvp3-spec.md](docs/mvp3-spec.md)). Next candidates: QBO live OAuth sync —
 specced and waiting only on Intuit credentials
-([docs/qbo-live-spec.md](docs/qbo-live-spec.md)) — plus multi-currency display,
+([docs/qbo-live-spec.md](docs/qbo-live-spec.md)) — plus
 Redis-backed rate limiting for multi-node installs, and S3 attachment storage.
 
 ## Deployment
@@ -203,7 +204,6 @@ Dependency rule: `app → lib → domain`; the domain layer is pure and fully un
 - Session revocation (stateless tokens until a session store lands)
 - QBO live sync not implemented yet — payload mappers exist; OAuth + token encryption specced in [docs/qbo-live-spec.md](docs/qbo-live-spec.md) (needs Intuit sandbox credentials for the contract test only — everything else is buildable now)
 - Integration dispatch is pull-based (`POST /api/v1/integrations/dispatch`); wire it to a scheduler in production
-- Single-currency display (EUR); money stored currency-aware but UI assumes EUR
 - Invoice line items are entered manually after extraction; automatic line-item extraction from OCR text is future work
 - Rate limiting is single-instance in-memory; multi-node deployments need the Redis adapter
 

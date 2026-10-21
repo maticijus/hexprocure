@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { currencySymbol, formatMoney } from "./format";
+import { currencySymbol, formatMoney, toMinorUnits } from "./format";
 
 const plain = (s: string) => s.replace(/ /g, " ");
 
@@ -30,6 +30,13 @@ describe("formatMoney", () => {
 
   it("rejects malformed currency codes", () => {
     expect(() => formatMoney(100, "eu")).toThrow();
+  });
+});
+
+describe("toMinorUnits", () => {
+  it("scales by the currency's fraction digits", () => {
+    expect(toMinorUnits(12.34, "EUR")).toBe(1_234);
+    expect(toMinorUnits(1_500, "JPY")).toBe(1_500);
   });
 });
 

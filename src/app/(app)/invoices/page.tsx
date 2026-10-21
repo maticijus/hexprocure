@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
-import { StatusPill, formatEur } from "@/components/ui";
+import { StatusPill } from "@/components/ui";
+import { formatMoney } from "@/lib/format";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 
@@ -10,14 +11,15 @@ export default async function InvoicesPage() {
   await getCurrentUser();
   const rows = (
     await db.execute(sql`
-      SELECT i.id, i.number, i.status, s.name AS supplier,
+      SELECT i.id, i.number, i.status, po.currency, s.name AS supplier,
              COALESCE(SUM(il.quantity * il.unit_price_minor),0) AS total_minor
       FROM invoices i
+      JOIN purchase_orders po ON po.id = i.purchase_order_id
       LEFT JOIN suppliers s ON s.id = i.supplier_id
       LEFT JOIN invoice_lines il ON il.invoice_id = i.id
-      GROUP BY i.id, s.name ORDER BY i.created_at DESC
+      GROUP BY i.id, s.name, po.currency ORDER BY i.created_at DESC
     `)
-  ).rows as { id: string; number: string; status: string; supplier: string; total_minor: string }[];
+  ).rows as { id: string; number: string; status: string; currency: string; supplier: string; total_minor: string }[];
 
   return (
     <div>
@@ -37,7 +39,7 @@ export default async function InvoicesPage() {
               <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50/60">
                 <td className="px-5 py-3 font-medium">{r.number}</td>
                 <td className="px-5 py-3">{r.supplier ?? "—"}</td>
-                <td className="px-5 py-3">{formatEur(Number(r.total_minor))}</td>
+                <td className="px-5 py-3">{formatMoney(Number(r.total_minor), r.currency)}</td>
                 <td className="px-5 py-3">
                   <StatusPill status={r.status} />
                 </td>

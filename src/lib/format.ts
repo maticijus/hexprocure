@@ -14,6 +14,12 @@ export function formatMoney(minor: number, currency: string, locale = "en-US"): 
   return formatter.format(minor / 10 ** digits);
 }
 
+export function toMinorUnits(major: number, currency: string): number {
+  const digits = new Intl.NumberFormat("en-US", { style: "currency", currency }).resolvedOptions()
+    .maximumFractionDigits;
+  return Math.round(major * 10 ** (digits ?? 2));
+}
+
 export function currencySymbol(currency: string, locale = "en-US"): string {
   if (!isIsoCurrency(currency)) throw new RangeError(`invalid ISO 4217 currency: ${currency}`);
   const parts = new Intl.NumberFormat(locale, { style: "currency", currency }).formatToParts(0);

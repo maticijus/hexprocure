@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { SUPPORTED_CURRENCIES, currencySymbol, toMinorUnits } from "@/lib/format";
 
 interface Option {
   id: string;
@@ -18,6 +19,7 @@ export default function NewRequisitionPage() {
   const [quantity, setQuantity] = useState(1);
   const [unitPrice, setUnitPrice] = useState("");
   const [kind, setKind] = useState<"GOODS" | "SERVICE">("GOODS");
+  const [currency, setCurrency] = useState<string>("EUR");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -41,12 +43,12 @@ export default function NewRequisitionPage() {
       body: JSON.stringify({
         supplierId,
         costCenterId,
-        currency: "EUR",
+        currency,
         lines: [
           {
             description,
             quantity,
-            unitPriceMinor: Math.round(parseFloat(unitPrice) * 100),
+            unitPriceMinor: toMinorUnits(parseFloat(unitPrice), currency),
             kind,
           },
         ],
@@ -64,6 +66,7 @@ export default function NewRequisitionPage() {
 
   const input =
     "mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-light)]";
+  const symbol = currencySymbol(currency);
   const label = "block text-sm font-medium text-gray-700";
 
   return (
@@ -85,6 +88,12 @@ export default function NewRequisitionPage() {
           </select>
         </label>
         <label className={label}>
+          Currency
+          <select value={currency} onChange={(e) => setCurrency(e.target.value)} className={input}>
+            {SUPPORTED_CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </label>
+        <label className={label}>
           Description
           <input required value={description} onChange={(e) => setDescription(e.target.value)} className={input} placeholder="What are you buying?" />
         </label>
@@ -97,11 +106,11 @@ export default function NewRequisitionPage() {
             </select>
           </label>
           <label className={label}>
-            {kind === "SERVICE" ? "Total Amount (€)" : "Quantity"}
+            {kind === "SERVICE" ? `Total Amount (${symbol})` : "Quantity"}
             <input type="number" min={1} required value={quantity} onChange={(e) => setQuantity(parseInt(e.target.value))} className={input} />
           </label>
           <label className={label}>
-            {kind === "SERVICE" ? "Ordered Amount (€)" : "Unit Price (€)"}
+            {kind === "SERVICE" ? `Ordered Amount (${symbol})` : `Unit Price (${symbol})`}
             <input type="number" step="0.01" min="0" required value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} className={input} placeholder="0.00" />
           </label>
         </div>

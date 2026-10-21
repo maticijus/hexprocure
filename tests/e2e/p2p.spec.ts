@@ -113,7 +113,7 @@ test("approval inbox reject action removes the task", async ({ browser }) => {
   await page.getByLabel("Unit Price (€)").fill("10.00");
   await page.getByRole("button", { name: "Create Requisition" }).click();
   await page.waitForURL("**/requisitions");
-  const row = page.locator("tr", { hasText: "€10,00" }).first();
+  const row = page.locator("tr", { hasText: "€10.00" }).first();
   await expect(row).toContainText("DRAFT");
   await expect(async () => {
     await row.getByRole("button", { name: "Submit" }).click();
@@ -124,7 +124,7 @@ test("approval inbox reject action removes the task", async ({ browser }) => {
   const manager = await browser.newPage();
   await login(manager, "max@hexprocure.dev");
   await manager.goto("/approvals");
-  const pending = manager.locator("tr", { hasText: "€10,00" }).first();
+  const pending = manager.locator("tr", { hasText: "€10.00" }).first();
   await expect(pending).toBeVisible();
   await expect(async () => {
     await pending.getByRole("button", { name: "Reject" }).click();
