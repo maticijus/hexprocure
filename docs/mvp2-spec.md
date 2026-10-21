@@ -1,4 +1,4 @@
-# MVP2 Spec — Daily-Usage Blockers & Scope Boundary
+# MVP2 Spec: Daily-Usage Blockers & Scope Boundary
 
 Status: §1–§5 SHIPPED · §6 BUILT against a stubbed Intuit layer, live sandbox smoke NOT run (see [qbo-live-spec.md](qbo-live-spec.md) §12) · Derived from the product-critical review of v1 (2026-08-24)
 Goal: turn HexProcure from *pilot-able* into *habit-forming* for the target SME
@@ -12,13 +12,13 @@ payments execution (we stop at the approved, matched invoice).
 
 ---
 
-## 1. Email notifications — P0, the loop-closer
+## 1. Email notifications: P0, the loop-closer
 
 **Problem.** Approvals exist only in the inbox page. Approvers don't check it;
 requests stall silently; users churn within a week.
 
 **Design.**
-Reuse the transactional outbox — do **not** build a second queue.
+Reuse the transactional outbox: do **not** build a second queue.
 
 - New integration event types: `APPROVAL_REQUESTED`, `REQUISITION_DECIDED`,
   `INVOICE_EXCEPTION`.
@@ -27,7 +27,7 @@ Reuse the transactional outbox — do **not** build a second queue.
 - New `EmailConnector` implementing the existing `Connector` interface:
   SMTP via env (`SMTP_URL`, `SMTP_FROM`), one templated email per event type.
   Template = plain-text + minimal HTML, stored as TS constants (no template engine).
-- Dispatch loop is unchanged — notifications are just another connector.
+- Dispatch loop is unchanged: notifications are just another connector.
 - Dev/test story: SMTP_URL unset ⇒ connector logs instead of sending; unit tests
   inject a fake transport (same pattern as webhook's injected `fetch`).
 
@@ -44,7 +44,7 @@ Reuse the transactional outbox — do **not** build a second queue.
 
 ---
 
-## 2. PO document: PDF generation + send-to-supplier — P0
+## 2. PO document: PDF generation + send-to-supplier: P0
 
 **Problem.** You can create a PO but cannot hand it to anyone. Screenshotting your
 own procurement system is disqualifying for daily use.
@@ -71,7 +71,7 @@ own procurement system is disqualifying for daily use.
 
 ---
 
-## 3. Attachments — P1
+## 3. Attachments: P1
 
 **Problem.** Quotes on requisitions, signed offers, invoice files. Procurement
 without document attachment feels broken and kills audit value.
@@ -80,7 +80,7 @@ without document attachment feels broken and kills audit value.
 
 - Table `attachments`: `id, entity_type ('requisition'|'purchase_order'|'invoice'),
   entity_id, filename, mime_type, size_bytes, storage_key, uploaded_by_user_id,
-  created_at`. Polymorphic, no FK cascade — deletion policy follows parent service logic.
+  created_at`. Polymorphic, no FK cascade: deletion policy follows parent service logic.
 - Storage behind a `FileStore` interface: `LocalFileStore` (disk under
   `DATA_DIR/uploads/`, path = uuid) now; `S3FileStore` later without call-site changes.
 - Uploads restricted: ≤10 MB, MIME allowlist (pdf/png/jpeg/webp/txt/zip).
@@ -92,14 +92,14 @@ without document attachment feels broken and kills audit value.
 **Acceptance criteria.**
 1. Round-trip upload→download preserves bytes (integration test).
 2. Oversized/disallowed MIME returns 400 with field-level message.
-3. Download requires authentication; 403 for cross-org (single-tenant v1: any authed user may read — documented).
+3. Download requires authentication; 403 for cross-org (single-tenant v1: any authed user may read: documented).
 4. Deleting a requisition soft-deletes nothing: attachments remain orphaned-but-listed under admin tooling (documented behavior v1).
 
 **Estimate:** 2 days backend, 1 day UI.
 
 ---
 
-## 4. Services procurement (fixed-price & milestones) — P1, unlocks the services answer
+## 4. Services procurement (fixed-price & milestones): P1, unlocks the services answer
 
 **Problem.** Quantity×price matching breaks down for services. Today users fake it
 (`1 × €10,000`), which works but is unprincipled; T&M doesn't fit at all.
@@ -108,7 +108,7 @@ without document attachment feels broken and kills audit value.
 
 - `po_lines.kind`: enum `GOODS | SERVICE` (default GOODS; migration backfill).
 - **SERVICE lines skip quantity semantics entirely**: no receipt requirement,
-  matching checks **amount only** — cumulative invoiced minor-units against the
+  matching checks **amount only**: cumulative invoiced minor-units against the
   line may not exceed ordered amount (tolerance €0).
 - Receipt for SERVICE lines becomes an explicit **acceptance action**
   (`POST …/receipts` accepts `{accepted: true}` without quantities) so the audit
@@ -116,7 +116,7 @@ without document attachment feels broken and kills audit value.
 - Invoice lines referencing SERVICE PO lines carry `amountMinor` instead of qty×price.
 - Matching exceptions unchanged otherwise (`PRICE_MISMATCH` n/a; `OVER_INVOICED`
   becomes `OVER_INVOICED_AMOUNT`).
-- Milestones = multiple SERVICE lines on one PO ("Phase 1", "Phase 2") — no new
+- Milestones = multiple SERVICE lines on one PO ("Phase 1", "Phase 2"): no new
   concept shipped; documented pattern.
 - **Explicitly out:** T&M/time sheets, rate cards, service-entry sheets (revisit P3).
 
@@ -130,18 +130,18 @@ without document attachment feels broken and kills audit value.
 
 ---
 
-## 5. Recurring orders / templates — P2
+## 5. Recurring orders / templates: P2
 
 **Problem.** SaaS renewals, rent, retainers: monthly repetition is re-keyed today.
 
 **Design sketch (spec-level, refine before build).** `order_templates` table
 (supplier, costCenterId, lines, cadence `MONTHLY|QUARTERLY|YEARLY`, next_run_date);
 a scheduler row generates DRAFT requisitions; human submits as usual (no auto-PO).
-Sequencing: after §1 (needs the scheduler habit) — defer detailed spec.
+Sequencing: after §1 (needs the scheduler habit): defer detailed spec.
 
 **Estimate:** 3–4 days when scheduled.
 
-## 6. Accounting write-back (QBO live) — P2
+## 6. Accounting write-back (QBO live): P2
 
 Status: BUILT (OAuth client, encrypted token storage, connector, status card); not
 verified against a real Intuit sandbox. Sequenced after §1–§4 because CSV export covers the need at MVP
