@@ -1,72 +1,149 @@
-HexProcure Commercial Licence (Draft for legal review)
+HexProcure Commercial Licence
+Version 1.0, effective 21 October 2026
 
-Copyright (c) 2026 HexProcure. All rights reserved.
+Copyright (c) 2026 HEXENKRAFT s.r.o. All rights reserved.
 
-This licence applies to every file in the ee/ directory of the HexProcure
-repository and to nothing else. All files outside ee/ are licensed under the
-MIT licence in the root LICENSE file.
+Licensor: HEXENKRAFT s.r.o., company ID (IČO) 296 65 931, registered seat V
+zahradách 2462/31, Libeň, 180 00 Praha 8, Czech Republic, registered in the
+Commercial Register kept by the Municipal Court in Prague, Section C, Insert
+450419 ("Licensor").
+
+This licence covers every file in the ee/ directory of the HexProcure
+repository and nothing else. Files outside ee/ are licensed under the MIT
+licence in the root LICENSE file.
 
 1. Definitions
 
-"Software" means the files in the ee/ directory and any copy or modification
-of them. "Licence Key" means a signed token issued by HexProcure and verified
-by the check in src/lib/license.ts. "Licensor" means HexProcure.
+"Software" means the files in the ee/ directory of the HexProcure repository,
+in source or object form, and any copy, modification or derivative work of
+them. "Licence Key" means a signed token issued by the Licensor that names a
+Tier and a validity period and is verified by the check in src/lib/license.ts.
+"Tier" means a feature tier named in the feature map in ee/features.ts.
+"Production Use" means any use of the Software other than evaluation,
+development, testing or contribution, including use for your own business
+operations or for your customers. "You" means the business that accepts this
+licence.
 
-2. Grant to view, modify and contribute
+2. Who may accept this licence, and how
 
-You may view, copy and modify the Software, and you may send contributions to
-the Licensor, for the purposes of evaluation, development, testing and
-contribution. This grant needs no Licence Key.
+The Software is offered only to persons acting in the course of their trade,
+business, craft or profession (entrepreneurs within the meaning of Sections
+420(1) and 421 of Act No. 89/2012 Coll., the Czech Civil Code). It is not
+offered to consumers. By copying, modifying or using the Software You accept
+this licence on behalf of the business You act for and confirm that You are
+authorised to bind it. This is an offer to an indeterminate circle of persons
+that is accepted by that conduct, without notice to the Licensor (Section 2373
+of the Civil Code).
 
-3. Production use needs a licence key
+3. Free grant: view, modify, test and contribute
 
-You may use the Software in production only while you hold a valid Licence Key
-for the tier that covers the feature you use. "Production" means any use that
-is not evaluation, development or testing, including use for your own business
-or for your customers. A Licence Key is personal to its licensee and may not be
-shared or resold.
+The Licensor grants You a non-exclusive, territorially unlimited, free of
+charge licence to view, copy, modify and test the Software, and to send
+contributions to the Licensor, for the purposes of evaluation, development,
+testing and contribution. This grant needs no Licence Key and carries no
+remuneration.
 
-4. No circumvention
+4. Production Use needs a Licence Key
 
-You may not remove, disable, weaken or work around the licence check, the
-feature tier map, or any notice that identifies the Software as licensed. You
-may not generate, forge or modify a Licence Key.
+Production Use of the Software is permitted only while You hold a valid
+Licence Key for the Tier that covers each feature You use, and only for the
+validity period and within the limits stated in the Licence Key. The
+remuneration for Production Use is the fee agreed in the order or invoice
+under which the Licensor issued the Licence Key. A Licence Key is issued to
+one licensee, is non-transferable and may not be shared, lent, resold or
+offered to third parties. Production Use without a valid Licence Key, or of a
+feature outside the Tier named in the Licence Key, is a breach of this
+licence.
 
-5. No redistribution as a standalone product
+5. No circumvention
 
-You may not sell, sublicense or distribute the Software, or a product that
-substantially consists of it, as a standalone offering or as part of a
-competing hosted service. You may distribute copies that keep this licence and
-all notices intact, such as a fork made for contribution.
+You may not remove, disable, weaken or work around the licence check in
+src/lib/license.ts, the feature map in ee/features.ts, or any notice that
+identifies the Software as licensed. You may not generate, forge, modify or
+extend a Licence Key. Nothing in this licence restricts a right that the law
+grants a lawful user of a computer program and that cannot be narrowed by
+agreement, such as error correction, a backup copy, study of the program's
+principles and decompilation for interoperability under Section 66(1) and (6)
+of Act No. 121/2000 Coll., the Czech Copyright Act.
 
-6. Contributions
+6. No redistribution as a product or service
 
-Contributions to ee/ are accepted under this licence. By sending a
-contribution you confirm the Developer Certificate of Origin (see
-CONTRIBUTING.md) and grant the Licensor the right to use, relicense and
-distribute it as part of the Software.
+You may not sell, sublicense, rent or distribute the Software, or a product or
+service that substantially consists of it, as a standalone offering. You may
+not offer the Software, or a service whose substantial function the Software
+provides, to third parties as a hosted or managed service. You may distribute
+copies that keep this licence and all notices intact, such as a fork made for
+contribution or an internal copy for Your own deployment. No sublicence right
+is granted except as stated in this section.
 
-7. Termination
+7. Contributions
 
-This licence ends automatically if you breach it. On termination you must stop
-production use of the Software and delete your copies used in production. The
-Licensor may revoke a Licence Key for non-payment or breach. Sections 4, 5, 8
-and 9 survive termination.
+By sending a contribution to the Software You grant the Licensor a non-
+exclusive, irrevocable, territorially unlimited, free of charge licence to use
+the contribution in all known ways of use, for the whole duration of the
+economic rights to it. This includes the right to modify, combine and
+distribute the contribution, to grant sublicences, and to make it available to
+third parties under this licence or under other terms. You consent to such
+modification and to publication of the contribution with or without
+attribution to You. You confirm the Developer Certificate of Origin (see
+CONTRIBUTING.md) for every contribution, including that You hold the rights
+needed to grant this licence. Moral rights are not waived; they are exercised
+in a way that does not obstruct the uses permitted here.
 
-8. No warranty
+8. Term and termination
 
-The Software is provided "as is", without warranty of any kind, express or
-implied, including merchantability, fitness for a particular purpose and
-non-infringement.
+This licence runs until terminated. It ends automatically, without notice, if
+You breach it (resolutive condition). The Licensor may also withdraw from this
+licence with immediate effect by notice if You fail to pay the agreed fee or
+otherwise breach it, and may revoke a Licence Key on the same grounds. On
+termination You must stop Production Use of the Software and delete the copies
+used in production. Sections 5, 6, 7, 9, 10 and 11 survive termination. Fees
+already paid are not refunded on termination for Your breach.
 
-9. Limitation of liability
+9. Warranty and defects
 
-To the extent the law allows, the Licensor is not liable for any indirect or
-consequential loss, or for any claim in excess of the fees you paid in the
-twelve months before the claim arose.
+The Software is provided "as is" and "as available". The Licensor gives no
+warranty of merchantability, fitness for a particular purpose, non-
+infringement, uninterrupted or error free operation, or compliance with any
+regulatory requirement that applies to Your business. Under the free grant in
+section 3 You have no rights from defective performance beyond those that
+mandatory law attaches to gratuitous performance. For Production Use, and to
+the extent Section 1916 of the Civil Code permits, Your rights from defective
+performance are limited to correction of the defect in a later release or, if
+the Licensor does not correct a material defect within a reasonable time after
+Your written notice, a proportionate refund of the fee for the affected
+period.
 
-10. General
+10. Limitation of liability
 
-This licence is the whole agreement about the Software. If a part is
-unenforceable, the rest stays in force. Questions and licence keys:
-licensing@hexprocure.dev (placeholder, founder confirms).
+To the extent permitted by law, the Licensor's total liability arising out of
+or in connection with the Software is limited to the fees You paid to the
+Licensor for the Software in the twelve months before the event giving rise to
+the claim. The Licensor is not liable for indirect, incidental or
+consequential loss, lost profits, loss of data, fines or regulatory penalties.
+Nothing in this licence limits liability that cannot be limited by law, in
+particular liability for harm caused intentionally or by gross negligence, or
+harm to a person's natural rights (Section 2898 of the Civil Code).
+
+11. Governing law and courts
+
+This licence and any dispute arising out of it are governed by the laws of the
+Czech Republic, excluding its conflict of law rules. The courts of the Czech
+Republic have exclusive jurisdiction; local jurisdiction follows the
+registered seat of the Licensor. This licence is written in English and the
+English text governs.
+
+12. General
+
+This licence is the whole agreement about the Software and replaces every
+earlier understanding. If a part is unenforceable, the rest stays in force and
+the unenforceable part is replaced by the valid rule that comes closest to its
+purpose. The parties, being entrepreneurs, agree that Sections 1799 and 1800
+of the Civil Code (adhesion contracts) do not apply, as Section 1801 permits
+between entrepreneurs. You consent in advance to the Licensor assigning this
+licence to a legal successor or to an entity that acquires the HexProcure
+business (Sections 1895 and 1897(1) of the Civil Code). The Licensor may
+publish new versions of this licence; a new version applies only to versions
+of the Software released after it.
+
+Licence Keys and licensing questions: matic@hexenkraft.cz

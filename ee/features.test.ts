@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-HexProcure-Commercial
+// Copyright (c) 2026 HEXENKRAFT s.r.o. See ee/LICENSE.
 import { describe, expect, it } from "vitest";
 import { FEATURES, featureTier, isFeatureEnabled } from "./features";
 import type { License, Tier } from "@/lib/license";
