@@ -33,6 +33,18 @@ describe("renderNotification", () => {
     expect(mail.to).toEqual(["rita@hex.test"]);
   });
 
+  it("renders an integration error telling an admin to reconnect", () => {
+    const mail = renderNotification({
+      id: "e4",
+      type: "INTEGRATION_ERROR",
+      payload: { to: ["ada@hex.test"], provider: "qbo", status: "REVOKED", reason: "HTTP 401" },
+    })!;
+    expect(mail.subject).toMatch(/QuickBooks|qbo/i);
+    expect(mail.text).toContain("REVOKED");
+    expect(mail.text).toMatch(/reconnect/i);
+    expect(mail.to).toEqual(["ada@hex.test"]);
+  });
+
   it("lists exception types for invoice exceptions", () => {
     const mail = renderNotification({
       id: "e3",

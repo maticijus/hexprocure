@@ -1,6 +1,6 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { integrationsConnections } from "@/lib/db/schema";
+import { integrationEvents, integrationsConnections, users } from "@/lib/db/schema";
 import {
   decryptSecret,
   encryptSecret,
@@ -88,6 +88,26 @@ async function loadActiveConnection(): Promise<TokenRow | null> {
   return row ?? null;
 }
 
+async function notifyConnectionProblem(status: "EXPIRED" | "REVOKED", reason: string) {
+  const recipients = await db
+    .select({ email: users.email })
+    .from(users)
+    .where(inArray(users.role, ["FINANCE", "ADMIN"]));
+  if (recipients.length === 0) return;
+  await db.insert(integrationEvents).values({
+    eventType: "INTEGRATION_ERROR",
+    payload: { to: recipients.map((r) => r.email), provider: "qbo", status, reason },
+  });
+}
+
+async function markExpired(id: string, reason: string) {
+  await db
+    .update(integrationsConnections)
+    .set({ status: "EXPIRED", lastError: reason, updatedAt: new Date() })
+    .where(eq(integrationsConnections.id, id));
+  await notifyConnectionProblem("EXPIRED", reason);
+}
+
 function secondsUntil(date: Date): number {
   return Math.floor((date.getTime() - Date.now()) / 1000);
 }
@@ -101,6 +121,7 @@ export async function getValidAccessToken(
   }
 
   if (secondsUntil(row.refreshExpiresAt) <= 0) {
+    await markExpired(row.id, "Refresh token expired");
     throw new Error("QBO connection requires re-authentication (refresh token expired)");
   }
 
@@ -126,10 +147,7 @@ export async function getValidAccessToken(
       body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: refreshToken }),
     });
     if (!res.ok) {
-      await db
-        .update(integrationsConnections)
-        .set({ status: "EXPIRED", lastError: `Refresh failed: HTTP ${res.status}`, updatedAt: new Date() })
-        .where(eq(integrationsConnections.id, row.id));
+      await markExpired(row.id, `Refresh failed: HTTP ${res.status}`);
       throw new Error("QBO connection expired — admin re-authentication required");
     }
     const data = (await res.json()) as {
@@ -157,6 +175,7 @@ export async function markRevoked(lastError: string): Promise<void> {
     .update(integrationsConnections)
     .set({ status: "REVOKED", lastError, updatedAt: new Date() })
     .where(eq(integrationsConnections.provider, "qbo"));
+  await notifyConnectionProblem("REVOKED", lastError);
 }
 
 export async function revokeConnection(): Promise<void> {

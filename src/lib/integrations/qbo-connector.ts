@@ -41,7 +41,7 @@ export function createQboConnector(deps: QboConnectorDeps = {}): Connector {
     async deliver(event): Promise<DeliveryStatus> {
       const healthy = await hasHealthyQboConnection();
       if (!healthy) {
-        return { ok: true, response: { skipped: true } };
+        return { ok: false, error: "QBO connection is not active; reconnect to resume sync", retryable: true };
       }
 
       const [already] = await db

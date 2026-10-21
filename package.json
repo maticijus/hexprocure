@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:qbo-live": "vitest run --config vitest.live.config.ts",
     "test:e2e": "next build && playwright test",
     "test:e2e:only": "playwright test",
     "license:keygen": "tsx scripts/license-keygen.ts",

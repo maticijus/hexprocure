@@ -168,3 +168,42 @@ external access.
 
 ~5 working days: crypto module ½d · connection store + OAuth routes 1d ·
 lifecycle/refresh 1d · QboConnector + idempotency 1d · tests/docs 1–1.5d.
+
+## 12. Acceptance status (2026-10-21)
+
+| # | Criterion | Proof | Status |
+|---|---|---|---|
+| 1 | Connect stores only ciphertext in raw columns | `qbo-connection.test.ts`: "stores only ciphertext" (raw `select` of both `*_enc` columns, `v1:` prefix, no plaintext) | PASS |
+| 2 | PO pushed once, second dispatch a no-op | Stubbed: `qbo-connector.test.ts`: "records a sync-map row so a second delivery is skipped". Real sandbox: `tests/live/qbo-live.test.ts` | PARTIAL (live smoke needs credentials) |
+| 3 | Refresh in the 5-minute window rotates the refresh token | `qbo-connection.test.ts`: "refreshes when the access token expires within 5 minutes and rotates both tokens" (ciphertext changed, decrypts to the new refresh token, `updated_at` advanced) | PASS |
+| 4 | Revoked/expired leaves events PENDING and notifies FINANCE/ADMIN | `qbo-connector.test.ts`: "leaves the event PENDING and makes no API call when the connection is not healthy" (through `dispatchPendingEvents`); `qbo-connection.test.ts`: "connection problem notifications" (4 tests); `email.test.ts`: "renders an integration error" | PASS (was MISSING; the connector used to return `ok:true`, so the dispatcher marked such events DELIVERED) |
+| 5 | No plaintext token in logs, audit rows or test output | `qbo-secrets.test.ts`: static scan of every QBO source file plus a runtime sentinel run over console, `audit_events`, `integration_events`, `last_error` | PASS |
+| 6 | Disconnect wipes ciphertext in the same request | `api/v1/integrations/qbo/disconnect/route.test.ts`: "wipes both stored tokens in the same request"; "rejects non-admin callers" | PASS |
+
+Wipe semantics: the token columns are `NOT NULL`, so disconnect overwrites both with
+a fresh envelope of the literal `revoked` instead of nulling them.
+
+Also fixed: dispatch now orders the batch by fewest attempts first, so events stuck behind a down connector cannot starve fresh ones such as the reconnect notification; an expired refresh token (past `refresh_expires_at`) now marks the
+connection `EXPIRED` and notifies once, instead of failing on every dispatch.
+
+### Live contract smoke (criterion 2, real sandbox)
+
+Not part of `npm test` or `npx vitest run`. One command, run once credentials exist:
+
+```bash
+QBO_CLIENT_ID=... QBO_CLIENT_SECRET=... QBO_SANDBOX=true \
+INTEGRATION_ENC_KEY="$(openssl rand -base64 32)" \
+QBO_LIVE_REALM_ID=<sandbox company id> QBO_LIVE_REFRESH_TOKEN=<sandbox refresh token> \
+npm run test:qbo-live
+```
+
+Optional: `QBO_LIVE_VENDOR_ID` (defaults to `1`). Obtain the realm id and refresh token
+from the Intuit developer account (app keys, then the OAuth 2.0 Playground against
+the sandbox company). It runs against the `hexprocure_test` database from `.env.test`
+and refuses to run with `QBO_SANDBOX=false`. A missing variable fails the run; it is
+never skipped.
+
+Known risk for the first live run: the PO mapper emits `VendorRef` as a plain string,
+while the QBO API expects `{ "value": "<vendor id>" }`. The stubbed tests cannot
+see this; the first live run is expected to confirm or correct it.
+
