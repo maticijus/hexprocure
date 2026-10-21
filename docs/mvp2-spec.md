@@ -1,6 +1,6 @@
 # MVP2 Spec — Daily-Usage Blockers & Scope Boundary
 
-Status: §1–§5 SHIPPED · §6 specced separately in [qbo-live-spec.md](qbo-live-spec.md) · Derived from the product-critical review of v1 (2026-08-24)
+Status: §1–§5 SHIPPED · §6 BUILT against a stubbed Intuit layer, live sandbox smoke NOT run (see [qbo-live-spec.md](qbo-live-spec.md) §12) · Derived from the product-critical review of v1 (2026-08-24)
 Goal: turn HexProcure from *pilot-able* into *habit-forming* for the target SME
 (20–100 employees, indirect-heavy spend, QuickBooks/Xero/Lexware accounting).
 
@@ -143,8 +143,8 @@ Sequencing: after §1 (needs the scheduler habit) — defer detailed spec.
 
 ## 6. Accounting write-back (QBO live) — P2
 
-Current QBO mappers produce payloads; OAuth client + token storage + sync status
-UI are missing. Sequenced after §1–§4 because CSV export covers the need at MVP
+Status: BUILT (OAuth client, encrypted token storage, connector, status card); not
+verified against a real Intuit sandbox. Sequenced after §1–§4 because CSV export covers the need at MVP
 scale. Requires secret handling design (token encryption at rest) before build.
 
 **Estimate:** 4–5 days incl. sandbox testing.
