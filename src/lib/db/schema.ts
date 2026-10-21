@@ -346,6 +346,7 @@ export const integrationEvents = pgTable("integration_events", {
   status: integrationEventStatus("status").notNull().default("PENDING"),
   attempts: integer("attempts").notNull().default(0),
   lastError: text("last_error"),
+  deliveredConnectors: jsonb("delivered_connectors").$type<string[]>().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

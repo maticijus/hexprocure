@@ -66,7 +66,7 @@ Domain events (`PO_CREATED`, `PO_CANCELLED`, `INVOICE_APPROVED`, plus the notifi
 
 | Connector | Target | Delivery semantics |
 |---|---|---|
-| **CSV flat-file** | Any ERP/AP with a file import | Renders wide-format rows (header + line records), RFC-4180 escaping, stable column order. Writes no file yet, see [Known gaps](#known-gaps) |
+| **CSV flat-file** | Any ERP/AP with a file import | Wide-format rows (header + line records), RFC-4180 escaping, stable column order; appended to one file per day and event type in `INTEGRATION_CSV_DIR` (off when unset) |
 | **Generic webhook** | Zapier/Make/custom HTTP endpoints (`INTEGRATION_WEBHOOK_URL`) | Signed POSTs (`X-HexProcure-Signature`, HMAC-SHA256), 4xx = non-retryable, 5xx/429/network = retryable |
 | **Email notifications** | Approvers, requesters, finance | Approval requests, decisions, and invoice exceptions via SMTP (`SMTP_URL`); log-only mode when unset |
 | **QuickBooks Online** | QBO `PurchaseOrder` / `Bill` (`QBO_CLIENT_ID`, `QBO_CLIENT_SECRET`) | OAuth connection, idempotent push; minor-unit to decimal conversion at the boundary only |
@@ -255,8 +255,6 @@ flowchart LR
 
 - QBO live sync is built (OAuth connect, encrypted rotating tokens, idempotent PO/Bill push, revoke/expiry notifications) and covered by stubbed tests; it still needs Intuit sandbox credentials for the live contract smoke (`npm run test:qbo-live`, see [docs/qbo-live-spec.md](docs/qbo-live-spec.md) §12) and a public HTTPS redirect URI for production OAuth
 - Rate limiting is single-instance in-memory; multi-node deployments need a Redis adapter, which does not exist yet
-- The in-process dispatch scheduler delivers nothing until `POST /api/v1/integrations/dispatch` has run in the same process (it does not register connectors itself)
-- The CSV connector renders rows and counts bytes but writes no file and exposes no download
 
 ## Editions
 

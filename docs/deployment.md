@@ -68,6 +68,7 @@ npm run build
 | `INTEGRATION_DISPATCH_INTERVAL_MS` | optional | Run the outbox drain inside the app every N ms (see §5.1; it needs the dispatch cron call too). Unset = off. |
 | `INTEGRATION_OCR_URL` | optional | OCR sidecar, e.g. `http://localhost:8100`. Unset = invoice intake disabled (501). |
 | `DATA_DIR` | optional | Attachment storage root (default `.data/uploads`). Put it OUTSIDE the repo dir if you deploy by re-cloning. |
+| `INTEGRATION_CSV_DIR` | optional | Directory the CSV connector appends to: one file per UTC day and event type (`PO_CREATED-2026-10-21.csv`), header written once. Unset = CSV connector off. Compose sets it to the `csvexports` volume. Columns, in order: `event_id`, `record_type`, `reference`, `line_number`, `description`, `quantity`, `unit_price_minor`, `supplier`, `cost_center`, `currency`, `total_minor`, `issued_on`, `invoice_number`, `purchase_order`. Every row carries the outbox `event_id`, so an importer can dedupe a replayed file. Delivery is tracked per connector, so a retry after another connector failed does not append the rows again. |
 | `INTEGRATION_WEBHOOK_URL` | optional | Push events to an external endpoint |
 | `INTEGRATION_WEBHOOK_SECRET` | optional | HMAC key receivers verify (`X-HexProcure-Signature`) |
 | `INTEGRATION_ENC_KEY` | for QuickBooks | AES-256-GCM key for OAuth tokens (`openssl rand -base64 32`) |

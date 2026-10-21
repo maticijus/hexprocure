@@ -14,7 +14,7 @@ export function createWebhookConnector(
   fetchImpl: typeof fetch = fetch,
 ): Connector {
   return {
-    name: `webhook:${config.url}`,
+    name: "webhook",
     handles: config.handles,
     async deliver(event) {
       const body = JSON.stringify(event);

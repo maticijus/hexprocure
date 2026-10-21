@@ -1,11 +1,6 @@
 import { NextResponse } from "next/server";
 import { dispatchPendingEvents } from "@/lib/integrations/dispatch";
-import { csvConnector } from "@/lib/integrations/csv";
-import { createEmailConnector } from "@/lib/integrations/email";
-import { createQboConnector } from "@/lib/integrations/qbo-connector";
-import { hasHealthyQboConnection } from "@/lib/integrations/qbo-connection";
-import { createWebhookConnector } from "@/lib/integrations/webhook";
-import { registerConnector, clearConnectors } from "@/lib/integrations/dispatch";
+import { registerConfiguredConnectors } from "@/lib/integrations/registry";
 import { DomainError } from "@/lib/services/p2p";
 import { errorToResponse, getActor } from "@/lib/api/helpers";
 
@@ -15,30 +10,10 @@ export async function POST(request: Request) {
     if (actor.role !== "ADMIN" && actor.role !== "FINANCE") {
       throw new DomainError("FORBIDDEN", "Requires ADMIN or FINANCE role");
     }
-    configureConnectors();
+    registerConfiguredConnectors();
     const result = await dispatchPendingEvents();
     return NextResponse.json(result);
   } catch (error) {
     return errorToResponse(error);
-  }
-}
-
-function configureConnectors() {
-  clearConnectors();
-  registerConnector(csvConnector);
-  registerConnector(createEmailConnector());
-  if (process.env.QBO_CLIENT_ID && process.env.QBO_CLIENT_SECRET) {
-    registerConnector(createQboConnector());
-  }
-  void hasHealthyQboConnection;
-  const webhookUrl = process.env.INTEGRATION_WEBHOOK_URL;
-  if (webhookUrl) {
-    registerConnector(
-      createWebhookConnector({
-        url: webhookUrl,
-        secret: process.env.INTEGRATION_WEBHOOK_SECRET,
-        handles: ["PO_CREATED", "PO_CANCELLED", "INVOICE_APPROVED"],
-      }),
-    );
   }
 }
