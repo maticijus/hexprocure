@@ -1,4 +1,4 @@
-import { csvConnector } from "./csv";
+import { createCsvConnector } from "./csv";
 import { clearConnectors, registerConnector } from "./dispatch";
 import { createEmailConnector } from "./email";
 import { createQboConnector } from "./qbo-connector";
@@ -8,7 +8,8 @@ import { createWebhookConnector } from "./webhook";
  *  the route and the scheduler can both call it on every run. */
 export function registerConfiguredConnectors(): void {
   clearConnectors();
-  registerConnector(csvConnector);
+  const csvDir = process.env.INTEGRATION_CSV_DIR;
+  if (csvDir) registerConnector(createCsvConnector({ dir: csvDir }));
   registerConnector(createEmailConnector());
   if (process.env.QBO_CLIENT_ID && process.env.QBO_CLIENT_SECRET) {
     registerConnector(createQboConnector());

@@ -1,3 +1,5 @@
+import { appendFile, stat } from "node:fs/promises";
+import { join } from "node:path";
 import type { Connector, IntegrationEvent } from "./types";
 
 const COLUMNS = [
@@ -87,16 +89,29 @@ export function invoiceToCsv(event: IntegrationEvent): string {
   return toCsv(eventToCsvRows(event));
 }
 
-/** Universal CSV connector: renders events as ERP-importable flat files. */
-export const csvConnector: Connector = {
-  name: "csv",
-  handles: ["PO_CREATED", "INVOICE_APPROVED"],
-  async deliver(event) {
-    try {
-      const csv = toCsv(eventToCsvRows(event));
-      return { ok: true, response: { bytes: csv.length } };
-    } catch (error) {
-      return { ok: false, error: String(error), retryable: false };
-    }
-  },
-};
+export interface CsvConnectorOptions {
+  dir: string;
+  now?: () => Date;
+}
+
+/** CSV connector: appends rows to one file per UTC day and event type
+ *  (header written once) for ERP file import. Not idempotent: a retried
+ *  event appends its rows again. */
+export function createCsvConnector({ dir, now = () => new Date() }: CsvConnectorOptions): Connector {
+  return {
+    name: "csv",
+    handles: ["PO_CREATED", "INVOICE_APPROVED"],
+    async deliver(event) {
+      try {
+        const rows = eventToCsvRows(event);
+        const file = join(dir, `${event.type}-${now().toISOString().slice(0, 10)}.csv`);
+        const isNew = !(await stat(file).catch(() => null));
+        const csv = toCsv(rows);
+        await appendFile(file, isNew ? csv : csv.slice(csv.indexOf("\n") + 1));
+        return { ok: true, response: { file, bytes: csv.length } };
+      } catch (error) {
+        return { ok: false, error: String(error), retryable: true };
+      }
+    },
+  };
+}
