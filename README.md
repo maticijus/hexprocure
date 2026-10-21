@@ -203,7 +203,6 @@ Dependency rule: `app → lib → domain`; the domain layer is pure and fully un
 - QBO live sync is built (OAuth connect, encrypted rotating tokens, idempotent PO/Bill push, revoke/expiry notifications) and covered by stubbed tests; it still needs Intuit sandbox credentials for the live contract smoke (`npm run test:qbo-live`, see [docs/qbo-live-spec.md](docs/qbo-live-spec.md) §12) and a public HTTPS redirect URI for production OAuth
 - Integration dispatch is pull-based (`POST /api/v1/integrations/dispatch`); wire it to a scheduler in production
 - Single-currency display (EUR); money stored currency-aware but UI assumes EUR
-- Invoice line items are entered manually after extraction; automatic line-item extraction from OCR text is future work
 - Rate limiting is single-instance in-memory; multi-node deployments need the Redis adapter
 
 ## Editions
