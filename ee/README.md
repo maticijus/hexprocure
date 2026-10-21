@@ -1,9 +1,10 @@
 # ee/
 
-This directory holds the paid features of HexProcure: the AI lanes beyond
-bring-your-own-key extraction, the Team and Business connector packs, the
-write tools of the MCP server, SSO and similar. `features.ts` is the single map
-from feature id to the minimum tier that unlocks it. Everything outside `ee/`
+This directory holds the commercial licence, this README and `features.ts`, the
+single map from feature id to the minimum tier that unlocks it. The planned paid
+features are the AI lanes beyond bring-your-own-key extraction, the Team and
+Business connector packs, the write tools of the MCP server, SSO and similar.
+Nothing is gated yet. Everything outside `ee/`
 is MIT and stays free.
 
 The code here is source-available under the HexProcure Commercial Licence
