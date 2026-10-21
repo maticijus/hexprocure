@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auditEvents, requisitionLines, requisitions } from "@/lib/db/schema";
+import { SUPPORTED_CURRENCIES } from "@/lib/format";
 import { errorToResponse, getActor, readJson } from "@/lib/api/helpers";
 
 async function audit(
@@ -23,7 +24,7 @@ async function audit(
 interface CreateRequisitionBody {
   supplierId?: string;
   costCenterId?: string;
-  currency?: string;
+  currency?: unknown;
   lines?: { description?: string; quantity?: number; unitPriceMinor?: number; kind?: string }[];
 }
 
@@ -35,6 +36,9 @@ export async function POST(request: Request) {
     const errors: string[] = [];
     if (!body.supplierId) errors.push("supplierId is required");
     if (!body.costCenterId) errors.push("costCenterId is required");
+    const currency = body.currency ?? "EUR";
+    if (!(SUPPORTED_CURRENCIES as readonly unknown[]).includes(currency))
+      errors.push(`currency must be one of ${SUPPORTED_CURRENCIES.join(", ")}`);
     const lines = body.lines ?? [];
     if (lines.length === 0) errors.push("at least one line is required");
     for (const [i, line] of lines.entries()) {
@@ -58,7 +62,7 @@ export async function POST(request: Request) {
           requesterId: actor.id,
           supplierId: body.supplierId!,
           costCenterId: body.costCenterId!,
-          currency: body.currency ?? "EUR",
+          currency: currency as string,
         })
         .returning();
       await tx.insert(requisitionLines).values(
