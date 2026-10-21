@@ -15,6 +15,77 @@ import { Money } from "@/domain/money";
 import { guard as budgetGuard } from "@/domain/budget";
 import { audit, DomainError, pgError, pgErrorCode, type Tx } from "./shared";
 
+type RequisitionRow = typeof requisitions.$inferSelect;
+type RequisitionLineRow = typeof requisitionLines.$inferSelect;
+
+async function assertBudgetAvailable(tx: Tx, req: RequisitionRow, total: number, yearMonth: string) {
+  const [cc] = await tx.select().from(costCenters).where(eq(costCenters.id, req.costCenterId));
+  if (!cc) throw new DomainError("NOT_FOUND", "Cost center not found");
+
+  const budgetRow = await loadBudgetStateWithin(tx, req.costCenterId, yearMonth);
+  if (!budgetRow) throw new DomainError("INVALID_STATE", `No budget set for ${yearMonth}`);
+  const result = budgetGuard(budgetRow.state, req.costCenterId, yearMonth, Money.of(total, req.currency));
+  if (result.status === "exceeded") {
+    throw new DomainError(
+      "BUDGET_EXCEEDED",
+      `Budget exceeded: available ${result.availableMinor}`,
+      { availableMinor: result.availableMinor },
+    );
+  }
+  return budgetRow;
+}
+
+async function persistPurchaseOrder(
+  tx: Tx,
+  req: RequisitionRow,
+  lines: RequisitionLineRow[],
+  budgetId: string,
+  total: number,
+  actorUserId: string,
+) {
+  const po = await insertPurchaseOrder(tx, req.id, req);
+  await tx.insert(poLines).values(
+    lines.map((l) => ({
+      purchaseOrderId: po.id,
+      description: l.description,
+      quantityOrdered: l.quantity,
+      unitPriceMinor: l.unitPriceMinor,
+      kind: (l as { kind?: "GOODS" | "SERVICE" }).kind ?? "GOODS",
+    })),
+  );
+  await tx.insert(budgetReservations).values({ budgetId, purchaseOrderId: po.id, amountMinor: total });
+  await tx.update(requisitions).set({ status: "ORDERED" }).where(eq(requisitions.id, req.id));
+  await audit(tx, "purchase_order", po.id, "CREATED", actorUserId, { total });
+  return po;
+}
+
+async function emitPoCreated(
+  tx: Tx,
+  poId: string,
+  req: RequisitionRow,
+  lines: RequisitionLineRow[],
+  total: number,
+) {
+  const [supplierRow] = await tx.select().from(suppliers).where(eq(suppliers.id, req.supplierId));
+  const [ccName] = await tx.select({ name: costCenters.name }).from(costCenters).where(eq(costCenters.id, req.costCenterId));
+  await tx.insert(integrationEvents).values({
+    eventType: "PO_CREATED",
+    payload: {
+      purchaseOrderId: poId,
+      supplier: supplierRow?.name ?? "",
+      costCenter: ccName?.name ?? "",
+      currency: req.currency,
+      issuedOn: new Date().toISOString().slice(0, 10),
+      totalMinor: total,
+      lines: lines.map((l) => ({
+        description: l.description,
+        quantity: l.quantity,
+        unitPriceMinor: l.unitPriceMinor,
+      })),
+    },
+  });
+}
+
 export async function createPurchaseOrder(requisitionId: string, actorUserId: string) {
   return db.transaction(async (tx) => {
     const req = await lockApprovedRequisition(tx, requisitionId);
@@ -26,68 +97,13 @@ export async function createPurchaseOrder(requisitionId: string, actorUserId: st
     const total = lines.reduce((s, l) => s + l.quantity * l.unitPriceMinor, 0);
 
     const yearMonth = new Date().toISOString().slice(0, 7);
-    const [cc] = await tx.select().from(costCenters).where(eq(costCenters.id, req.costCenterId));
-    if (!cc) throw new DomainError("NOT_FOUND", "Cost center not found");
-
-    const budgetRow = await loadBudgetStateWithin(tx, req.costCenterId, yearMonth);
-    const amount = Money.of(total, req.currency);
-    if (budgetRow) {
-      const result = budgetGuard(budgetRow.state, req.costCenterId, yearMonth, amount);
-      if (result.status === "exceeded") {
-        throw new DomainError(
-          "BUDGET_EXCEEDED",
-          `Budget exceeded: available ${result.availableMinor}`,
-          { availableMinor: result.availableMinor },
-        );
-      }
-    } else {
-      throw new DomainError("INVALID_STATE", `No budget set for ${yearMonth}`);
-    }
-
-    const po = await insertPurchaseOrder(tx, requisitionId, req);
-
-    await tx.insert(poLines).values(
-      lines.map((l) => ({
-        purchaseOrderId: po.id,
-        description: l.description,
-        quantityOrdered: l.quantity,
-        unitPriceMinor: l.unitPriceMinor,
-        kind: (l as { kind?: "GOODS" | "SERVICE" }).kind ?? "GOODS",
-      })),
-    );
-
-    await tx.insert(budgetReservations).values({
-      budgetId: budgetRow.budget.id,
-      purchaseOrderId: po.id,
-      amountMinor: total,
-    });
-
-    await tx.update(requisitions).set({ status: "ORDERED" }).where(eq(requisitions.id, requisitionId));
-    await audit(tx, "purchase_order", po.id, "CREATED", actorUserId, { total });
-
-    const [supplierRow] = await tx.select().from(suppliers).where(eq(suppliers.id, req.supplierId));
-    const [ccName] = await tx.select({ name: costCenters.name }).from(costCenters).where(eq(costCenters.id, req.costCenterId));
-    await tx.insert(integrationEvents).values({
-      eventType: "PO_CREATED",
-      payload: {
-        purchaseOrderId: po.id,
-        supplier: supplierRow?.name ?? "",
-        costCenter: ccName?.name ?? "",
-        currency: req.currency,
-        issuedOn: new Date().toISOString().slice(0, 10),
-        totalMinor: total,
-        lines: lines.map((l) => ({
-          description: l.description,
-          quantity: l.quantity,
-          unitPriceMinor: l.unitPriceMinor,
-        })),
-      },
-    });
+    const budgetRow = await assertBudgetAvailable(tx, req, total, yearMonth);
+    const po = await persistPurchaseOrder(tx, req, lines, budgetRow.budget.id, total, actorUserId);
+    await emitPoCreated(tx, po.id, req, lines, total);
 
     return { purchaseOrderId: po.id, totalMinor: total };
   });
 }
-
 
 async function insertPurchaseOrder(
   tx: Tx,
