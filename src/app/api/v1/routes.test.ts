@@ -23,10 +23,14 @@ import {
 } from "@/lib/api/helpers";
 import { getAuthSecret } from "@/lib/auth-secret";
 import { hashPassword, createSessionToken } from "@/lib/auth";
+import { startSession } from "@/lib/services/sessions";
 
 const SECRET = getAuthSecret();
-const authCookie = (userId: string) =>
-  `hexprocure_session=${createSessionToken(userId, SECRET)}`;
+const sessionTokens = new Map<string, string>();
+const authCookie = (userId: string) => `hexprocure_session=${sessionTokens.get(userId)}`;
+const openSession = async (userId: string) => {
+  sessionTokens.set(userId, await startSession(userId));
+};
 
 const req = (url: string, init?: RequestInit) => new Request(url, init);
 
@@ -53,6 +57,8 @@ async function seed() {
     approverRole: "MANAGER",
     currency: "EUR",
   });
+  await openSession(requester.id);
+  await openSession(manager.id);
   return { requester, manager, supplier, cc };
 }
 

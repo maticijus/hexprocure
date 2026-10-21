@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
-import { getAuthSecret } from "@/lib/auth-secret";
-import { hashPassword, verifyPassword, createSessionToken } from "@/lib/auth";
+import { hashPassword, verifyPassword } from "@/lib/auth";
+import { startSession, purgeExpiredSessions } from "@/lib/services/sessions";
 import { DomainError } from "@/lib/services/p2p";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -41,7 +41,11 @@ export async function registerUser(input: {
   return user;
 }
 
-export async function login(email: string | undefined, password: string | undefined): Promise<string> {
+export async function login(
+  email: string | undefined,
+  password: string | undefined,
+  userAgent?: string | null,
+): Promise<string> {
   if (!email || !password) {
     throw new DomainError("FORBIDDEN", "Email and password are required");
   }
@@ -49,5 +53,6 @@ export async function login(email: string | undefined, password: string | undefi
   if (!user?.passwordHash || !verifyPassword(password, user.passwordHash)) {
     throw new DomainError("FORBIDDEN", "Invalid credentials");
   }
-  return createSessionToken(user.id, getAuthSecret());
+  await purgeExpiredSessions();
+  return startSession(user.id, userAgent);
 }

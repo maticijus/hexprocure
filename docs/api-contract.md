@@ -6,6 +6,12 @@ Errors: `{ "error": { "code": string, "message": string } }` with proper status 
 
 ## Resources
 
+### Sessions
+- `POST /auth/logout` — revokes the session behind the current cookie (`sessions.revoked_at`) and clears the cookie. Always 200, also without a session.
+- `POST /users/:id/sessions/revoke` — ADMIN only (403 otherwise; 400 on a malformed id, 404 for an unknown user). Revokes every live session of that user, writes an `audit_events` row with action `SESSIONS_REVOKED`. Response: `{ ok: true, revoked: <count> }`.
+
+A session cookie is accepted only while its `sessions` row exists, is not revoked and has not expired; otherwise the request fails with 403.
+
 ### Requisitions
 - `POST /requisitions` — create draft. Body: `{ supplierId, costCenterId, currency, lines: [{ description, quantity, unitPriceMinor }] }`
 - `POST /requisitions/:id/submit` — draft→submitted; resolves approval chain (domain)
@@ -64,3 +70,4 @@ Invoice:     PENDING → MATCHED | EXCEPTION → APPROVED
 | Receive goods | ✓ | ✓ | ✓ | ✓ |
 | Invoice match/approve | – | – | ✓ | ✓ |
 | Set budgets / rules | – | – | – | ✓ |
+| Revoke a user's sessions | – | – | – | ✓ |

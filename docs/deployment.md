@@ -76,8 +76,10 @@ npm run build
 ### 3.2 Database schema
 
 ```bash
-npx drizzle-kit migrate        # applies all migrations in drizzle/
+node scripts/migrate.mjs          # applies all migrations in drizzle/
 ```
+
+`npx drizzle-kit migrate` exits 1 silently with drizzle-kit 0.31.x, so use the script. Use `npx drizzle-kit generate` only to create new migrations after schema changes.
 
 Do NOT run `scripts/seed.ts` in production — it creates demo accounts with a
 public password.
@@ -243,7 +245,7 @@ when enabling QBO.
 cd /opt/hexprocure/app
 sudo -u hexprocure git pull
 sudo -u hexprocure npm ci
-sudo -u hexprocure npx drizzle-kit migrate
+sudo -u hexprocure node scripts/migrate.mjs
 sudo -u hexprocure npm run build
 systemctl restart hexprocure
 ```
