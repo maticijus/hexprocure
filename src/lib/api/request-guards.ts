@@ -47,7 +47,8 @@ export function checkCsrfOrigin(
   opts: { hasBearer?: boolean } = {},
 ): Response | null {
   const method = request.method.toUpperCase();
-  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS")
+    return null;
   if (opts.hasBearer) return null;
 
   const origin = request.headers.get("origin");
@@ -63,7 +64,9 @@ export function checkCsrfOrigin(
 
   if (!allowedOrigins(request).has(origin)) {
     return NextResponse.json(
-      { error: { code: "FORBIDDEN", message: "Cross-origin request rejected" } },
+      {
+        error: { code: "FORBIDDEN", message: "Cross-origin request rejected" },
+      },
       { status: 403 },
     );
   }
@@ -78,7 +81,8 @@ interface WindowState {
 /** One store per guard, so traffic that fills one guard cannot starve another.
  *  Live keys are grouped by client bucket: a client owns at most
  *  MAX_KEYS_PER_CLIENT of them, and its extra keys share one overflow bucket
- *  keyed by that client, so a flooding client only throttles itself. */
+ *  keyed by that client, so a flooding client only throttles itself. The email
+ *  guard has no overflow: it evicts the client's own oldest pair instead. */
 interface Store {
   clients: Map<string, Map<string, WindowState>>;
   keys: number;
@@ -98,7 +102,11 @@ const newStore = (): Store => ({
   lastSweep: 0,
 });
 
-const stores: Record<Guard, Store> = { api: newStore(), auth: newStore(), email: newStore() };
+const stores: Record<Guard, Store> = {
+  api: newStore(),
+  auth: newStore(),
+  email: newStore(),
+};
 const SWEEP_INTERVAL_MS = 1000;
 const MAX_TRACKED_KEYS = 10_000;
 const MAX_KEYS_PER_CLIENT = 64;
@@ -111,7 +119,11 @@ export function resetRateLimits(): void {
 
 /** Spec classes (auth 10 · mutations 60 · reads 300 per minute) with env
  *  overrides so load tests and E2E can raise them without code changes. */
-export function limitsPerMinute(): { auth: number; mutation: number; read: number } {
+export function limitsPerMinute(): {
+  auth: number;
+  mutation: number;
+  read: number;
+} {
   const positive = (raw: string | undefined, fallback: number) => {
     const n = Number(raw);
     return Number.isFinite(n) && n > 0 ? n : fallback;
@@ -130,14 +142,23 @@ export function rateLimitKeyCount(): number {
 const isExpired = (state: WindowState, now: number) =>
   state.hits.every((h) => now - h >= state.windowMs);
 
-function dropClientKey(store: Store, client: string, mine: Map<string, WindowState>, rest: string) {
+function dropClientKey(
+  store: Store,
+  client: string,
+  mine: Map<string, WindowState>,
+  rest: string,
+) {
   mine.delete(rest);
   store.keys--;
   if (mine.size === 0) store.clients.delete(client);
 }
 
 /** Drops one client's expired keys. Live counters are never evicted. */
-function evictExpiredForClient(store: Store, client: string, now: number): void {
+function evictExpiredForClient(
+  store: Store,
+  client: string,
+  now: number,
+): void {
   const mine = store.clients.get(client);
   if (!mine) return;
   for (const [rest, state] of [...mine]) {
@@ -150,17 +171,24 @@ function evictExpiredForClient(store: Store, client: string, now: number): void 
 function evictExpiredKeys(store: Store, now: number): void {
   if (now - store.lastSweep < SWEEP_INTERVAL_MS) return;
   store.lastSweep = now;
-  for (const client of [...store.clients.keys()]) evictExpiredForClient(store, client, now);
+  for (const client of [...store.clients.keys()])
+    evictExpiredForClient(store, client, now);
   for (const [client, state] of store.overflow) {
     if (isExpired(state, now)) store.overflow.delete(client);
   }
 }
 
-function overflowFor(store: Store, client: string, windowMs: number, now: number): WindowState {
+function overflowFor(
+  store: Store,
+  client: string,
+  windowMs: number,
+  now: number,
+): WindowState {
   const existing = store.overflow.get(client);
   if (existing) return existing;
   if (store.overflow.size >= MAX_TRACKED_KEYS) evictExpiredKeys(store, now);
-  if (store.overflow.size >= MAX_TRACKED_KEYS) return (store.lastResort ??= { hits: [], windowMs });
+  if (store.overflow.size >= MAX_TRACKED_KEYS)
+    return (store.lastResort ??= { hits: [], windowMs });
   const created: WindowState = { hits: [], windowMs };
   store.overflow.set(client, created);
   return created;
@@ -180,7 +208,10 @@ function stateFor(
   }
   if (store.keys >= MAX_TRACKED_KEYS) evictExpiredKeys(store, now);
   const mine = store.clients.get(client);
-  if ((mine?.size ?? 0) >= MAX_KEYS_PER_CLIENT || store.keys >= MAX_TRACKED_KEYS) {
+  if (
+    (mine?.size ?? 0) >= MAX_KEYS_PER_CLIENT ||
+    store.keys >= MAX_TRACKED_KEYS
+  ) {
     return overflowFor(store, client, windowMs, now);
   }
   const created: WindowState = { hits: [], windowMs };
@@ -190,18 +221,64 @@ function stateFor(
   return created;
 }
 
-/** Read-only lookup: the key's own counter, else the client's overflow bucket. */
-function peekState(store: Store, client: string, rest: string): WindowState | null {
-  return (
-    store.clients.get(client)?.get(rest) ?? store.overflow.get(client) ?? store.lastResort
-  );
+/** Email pairs never overflow, so clearLoginFailures can always find the exact
+ *  pair. A full client drops its own least recently used pair; when the whole
+ *  store is full the heaviest client does. A client never evicts a lighter one.
+ *  ponytail: the full-store scan is O(clients), only reached at 10,000 pairs. */
+function emailStateFor(
+  store: Store,
+  client: string,
+  rest: string,
+  windowMs: number,
+  now: number,
+): WindowState {
+  const existing = store.clients.get(client)?.get(rest);
+  if (existing) {
+    // Re-insert to mark most recently used (Map keeps insertion order).
+    store.clients.get(client)?.delete(rest);
+    store.clients.get(client)?.set(rest, existing);
+    return existing;
+  }
+  evictExpiredForClient(store, client, now);
+  if (store.keys >= MAX_TRACKED_KEYS) evictExpiredKeys(store, now);
+  const full = (store.clients.get(client)?.size ?? 0) >= MAX_KEYS_PER_CLIENT;
+  const victim = full
+    ? client
+    : store.keys >= MAX_TRACKED_KEYS
+      ? heaviestClient(store)
+      : null;
+  const theirs = victim ? store.clients.get(victim) : undefined;
+  if (victim && theirs)
+    dropClientKey(store, victim, theirs, theirs.keys().next().value as string);
+  const created: WindowState = { hits: [], windowMs };
+  const mine = store.clients.get(client);
+  if (mine) mine.set(rest, created);
+  else store.clients.set(client, new Map([[rest, created]]));
+  store.keys++;
+  return created;
 }
 
-function limitedResponse(state: WindowState, limit: number, now: number): Response | null {
+function heaviestClient(store: Store): string | null {
+  let best: string | null = null;
+  let size = 0;
+  for (const [client, keys] of store.clients) {
+    if (keys.size > size) [best, size] = [client, keys.size];
+  }
+  return best;
+}
+
+function limitedResponse(
+  state: WindowState,
+  limit: number,
+  now: number,
+): Response | null {
   state.hits = state.hits.filter((h) => now - h < state.windowMs);
   if (state.hits.length < limit) return null;
   const oldest = Math.min(...state.hits);
-  const retryAfterSec = Math.max(1, Math.ceil((oldest + state.windowMs - now) / 1000));
+  const retryAfterSec = Math.max(
+    1,
+    Math.ceil((oldest + state.windowMs - now) / 1000),
+  );
   return NextResponse.json(
     { error: { code: "RATE_LIMITED", message: "Too many requests" } },
     { status: 429, headers: { "retry-after": String(retryAfterSec) } },
@@ -216,7 +293,13 @@ export function checkRateLimit(
 ): Response | null {
   const path = new URL(request.url).pathname.split("/").slice(0, 4).join("/");
   const now = Date.now();
-  const state = stateFor(stores[guard], getClientIp(request), path, windowMs, now);
+  const state = stateFor(
+    stores[guard],
+    getClientIp(request),
+    path,
+    windowMs,
+    now,
+  );
   const limited = limitedResponse(state, limit, now);
   if (!limited) state.hits.push(now);
   return limited;
@@ -225,20 +308,33 @@ export function checkRateLimit(
 /** Per-account limit keyed on email plus client bucket, so one client cannot
  *  exhaust a victim's budget for everyone else. Only failed attempts count
  *  (recordLoginFailure) and a success clears the counter (clearLoginFailures). */
-const loginEmail = (email: string): string => email.trim().toLowerCase().slice(0, 254);
+const loginEmail = (email: string): string =>
+  email.trim().toLowerCase().slice(0, 254);
 
 export function checkLoginRateLimit(
   request: Request,
   email: string,
   limit: number,
 ): Response | null {
-  const state = peekState(stores.email, getClientIp(request), loginEmail(email));
+  const state = stores.email.clients
+    .get(getClientIp(request))
+    ?.get(loginEmail(email));
   return state ? limitedResponse(state, limit, Date.now()) : null;
 }
 
-export function recordLoginFailure(request: Request, email: string, windowMs: number): void {
+export function recordLoginFailure(
+  request: Request,
+  email: string,
+  windowMs: number,
+): void {
   const now = Date.now();
-  stateFor(stores.email, getClientIp(request), loginEmail(email), windowMs, now).hits.push(now);
+  emailStateFor(
+    stores.email,
+    getClientIp(request),
+    loginEmail(email),
+    windowMs,
+    now,
+  ).hits.push(now);
 }
 
 /** Clears only the exact email plus client pair. */
@@ -246,5 +342,6 @@ export function clearLoginFailures(request: Request, email: string): void {
   const store = stores.email;
   const client = getClientIp(request);
   const mine = store.clients.get(client);
-  if (mine?.has(loginEmail(email))) dropClientKey(store, client, mine, loginEmail(email));
+  if (mine?.has(loginEmail(email)))
+    dropClientKey(store, client, mine, loginEmail(email));
 }
