@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+import { sql } from "drizzle-orm";
+import { decryptSecret, loadKeySetFromEnv } from "@/lib/security/token-crypto";
 import { db } from "@/lib/db";
 import { integrationEvents, integrationsConnections, users } from "@/lib/db/schema";
 import { seedOrg, truncateAll } from "@/lib/testing/seed";
@@ -41,6 +43,15 @@ describe("upsertQboConnection", () => {
     expect(JSON.stringify(row)).not.toContain("PLAINTEXT-ACCESS-123");
     expect(row.accessTokenEnc.startsWith("v1:")).toBe(true);
 
+    const raw = await db.execute(
+      sql`select access_token_enc, refresh_token_enc from integrations_connections`,
+    );
+    expect(raw.rows).toHaveLength(1);
+    for (const value of Object.values(raw.rows[0] as Record<string, string>)) {
+      expect(value.startsWith("v1:")).toBe(true);
+      expect(value).not.toContain("PLAINTEXT");
+    }
+
     const back = await getValidAccessToken();
     expect(back.accessToken).toBe("PLAINTEXT-ACCESS-123");
     expect(back.realmId).toBe("realm-1");
@@ -70,17 +81,22 @@ describe("getValidAccessToken", () => {
       accessExpiresIn: 60, userId: s.requester.id,
     });
 
+    const [before] = await db.select().from(integrationsConnections);
+    await new Promise((r) => setTimeout(r, 5));
+
     const result = await getValidAccessToken(fetchMock as unknown as typeof fetch);
 
     expect(result.accessToken).toBe("access-v2");
     expect(fetchMock).toHaveBeenCalledOnce();
-    const [row] = await db.select().from(integrationsConnections);
+    const [after] = await db.select().from(integrationsConnections);
+    expect(after.refreshTokenEnc).not.toBe(before.refreshTokenEnc);
+    expect(after.accessTokenEnc).not.toBe(before.accessTokenEnc);
+    expect(decryptSecret(after.refreshTokenEnc, loadKeySetFromEnv()).plain).toBe("refresh-v2");
+    expect(after.updatedAt.getTime()).toBeGreaterThan(before.updatedAt.getTime());
+    expect(after.accessExpiresAt.getTime()).toBeGreaterThan(Date.now() + 50 * 60 * 1000);
     expect(await getValidAccessToken(vi.fn() as unknown as typeof fetch)).toMatchObject({
       accessToken: "access-v2",
     });
-    // rotation actually persisted
-    const raw = JSON.stringify(row);
-    expect(raw).not.toContain("old-refresh");
     delete process.env.QBO_CLIENT_ID;
     delete process.env.QBO_CLIENT_SECRET;
   });
