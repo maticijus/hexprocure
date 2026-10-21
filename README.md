@@ -60,7 +60,7 @@ The UI formats every amount in its own row's currency (`formatMoney` in `src/lib
 
 ### Integrations (ERP/AP connectivity)
 
-Domain events (`PO_CREATED`, `PO_CANCELLED`, `INVOICE_APPROVED`) are written to a **transactional outbox** in the same database transaction as the business change — events cannot be lost even if delivery fails. A dispatch loop drains pending events through the registered connectors. Connectors fan out per event type: every connector registered for a type receives the event, and the event is marked delivered only when all of them succeed. If any fails, the whole event is retried on the next run, so connectors must tolerate repeats:
+Domain events (`PO_CREATED`, `PO_CANCELLED`, `INVOICE_APPROVED`) are written to a **transactional outbox** in the same database transaction as the business change — events cannot be lost even if delivery fails. A dispatch loop drains pending events through the registered connectors. Connectors fan out per event type: every connector registered for a type receives the event, and the event is marked delivered only when all of them succeed. Delivery is tracked per connector (`delivered_connectors` on the outbox row) and retried per connector: if one fails, the next run calls only the failed ones, so a connector that already succeeded is not called again for that event:
 
 | Connector | Target | Delivery semantics |
 |---|---|---|
