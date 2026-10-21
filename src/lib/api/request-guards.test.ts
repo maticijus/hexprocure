@@ -3,6 +3,7 @@ import {
   checkCsrfOrigin,
   checkLoginRateLimit,
   checkRateLimit,
+  clearLoginFailures,
   getClientIp,
   limitsPerMinute,
   rateLimitKeyCount,
@@ -221,6 +222,41 @@ describe("per-client key cap", () => {
       });
     for (let i = 0; i < 10_100; i++) recordLoginFailure(post("20.0.0.5"), `e${i}@hex.test`, 60_000);
     expect(checkLoginRateLimit(post("20.0.0.6"), "victim@hex.test", 10)).toBeNull();
+  });
+});
+
+describe("per-email pairs under a flooding client", () => {
+  const post = (ip: string) =>
+    new Request("https://procure.example.com/api/v1/auth/login", {
+      method: "POST",
+      headers: { "x-real-ip": ip },
+    });
+  const email = (i: number) => `e${i}@hex.test`;
+  const limited = (ip: string, i: number) =>
+    checkLoginRateLimit(post(ip), email(i), 1)?.status === 429;
+
+  beforeEach(() => {
+    vi.stubEnv("TRUST_PROXY", "true");
+    recordLoginFailure(post("30.0.0.2"), "bystander@hex.test", 60_000);
+    for (let i = 0; i < 70; i++) recordLoginFailure(post("30.0.0.1"), email(i), 60_000);
+  });
+
+  it("keeps every current pair of the flooding client tracked", () => {
+    for (let i = 6; i < 70; i++) expect(limited("30.0.0.1", i)).toBe(true);
+  });
+
+  it("evicts the flooding client's oldest pair first", () => {
+    for (let i = 0; i < 6; i++) expect(limited("30.0.0.1", i)).toBe(false);
+  });
+
+  it("a success resets only its own pair, even after the client overflowed", () => {
+    clearLoginFailures(post("30.0.0.1"), email(69));
+    expect(limited("30.0.0.1", 69)).toBe(false);
+    expect(limited("30.0.0.1", 68)).toBe(true);
+  });
+
+  it("never touches another client's pairs", () => {
+    expect(checkLoginRateLimit(post("30.0.0.2"), "bystander@hex.test", 1)?.status).toBe(429);
   });
 });
 
