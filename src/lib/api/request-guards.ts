@@ -1,17 +1,28 @@
+import { isIP } from "node:net";
 import { NextResponse } from "next/server";
 
 /** Guards for mutating API requests. Non-browser machine clients authenticate
  *  with Bearer API tokens and are exempt from the origin check (tokens cannot
  *  be sent cross-origin by a victim's browser, so CSRF does not apply). */
 
+const MAX_IP_LENGTH = 45;
+
+/** Only a syntactically valid IPv4 or IPv6 literal may become a key component. */
+function ipLiteral(raw: string | null | undefined): string | null {
+  const value = raw?.trim() ?? "";
+  if (!value || value.length > MAX_IP_LENGTH || isIP(value) === 0) return null;
+  return value.toLowerCase();
+}
+
 /** Client-controlled headers (X-Forwarded-For, X-Real-IP) are only honoured
  *  behind a proxy the operator vouches for (TRUST_PROXY=true); that proxy
- *  appends the real peer last. Otherwise every client shares one bucket. */
+ *  appends the real peer last. Otherwise, or when the value is not a valid IP
+ *  literal, every client shares one bucket. */
 export function getClientIp(request: Request): string {
   if (process.env.TRUST_PROXY !== "true") return "direct";
   const hops = (request.headers.get("x-forwarded-for") ?? "").split(",");
   const last = hops[hops.length - 1].trim();
-  return last || request.headers.get("x-real-ip")?.trim() || "direct";
+  return ipLiteral(last || request.headers.get("x-real-ip")) ?? "direct";
 }
 
 function allowedOrigins(request: Request): Set<string> {

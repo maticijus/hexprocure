@@ -126,7 +126,22 @@ describe("rate limit client key", () => {
   });
 
   describe("bounded key map", () => {
-    const hit = (ip: string, limit = 10) => checkRateLimit(req({ ip }), limit, 60_000);
+    // Labels map to valid IPv4 literals: "<prefix>-<n>" -> <prefix octet>.x.x.x, others by name.
+    const NAMED: Record<string, string> = {
+      offender: "11.0.0.1",
+      newcomer: "11.0.0.2",
+      "another-newcomer": "11.0.0.3",
+      "late-a": "11.0.0.4",
+      "late-b": "11.0.0.5",
+    };
+    const ipFor = (label: string) => {
+      const m = /^(fill|flood)-(\d+)$/.exec(label);
+      if (!m) return NAMED[label];
+      const n = Number(m[2]);
+      return `${m[1] === "fill" ? 10 : 12}.${(n >> 16) & 255}.${(n >> 8) & 255}.${n & 255}`;
+    };
+    const hit = (label: string, limit = 10) =>
+      checkRateLimit(req({ ip: ipFor(label) }), limit, 60_000);
     const fill = (n: number) => {
       for (let i = 0; i < n; i++) hit(`fill-${i}`);
     };
