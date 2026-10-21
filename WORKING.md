@@ -6,13 +6,6 @@ Protocol: ~/.claude/rules/common/parallel-sessions.md
 ## Active claims
 <!-- newest first; empty when the repo is free -->
 
-- **owner:** claude-fable (ee-license worktree session)
-  **machine:** local-mac
-  **scope:** branch `maticijus/ee-license` — ee/LICENSE, ee/README.md, README.md, SECURITY.md, CONTRIBUTING.md (licence finalisation, Czech-law pass)
-  **started:** 2026-10-21T12:15:00Z
-  **heartbeat:** 2026-10-21T12:15:00Z
-  **next:** rewrite ee/LICENSE for HEXENKRAFT s.r.o., fix placeholder emails, release lock
-
 - **owner:** claude-fable (Orca coordinator session, review + AI roadmap + first build lane)
   **machine:** local-mac
   **scope:** branch `feat/ai-roadmap` — docs/ (review, functional spec, AI roadmap, implementation spec) + first AI lane under src/lib/integrations and src/domain
@@ -22,3 +15,4 @@ Protocol: ~/.claude/rules/common/parallel-sessions.md
 
 ## History
 <!-- released claims, trimmed periodically -->
+- 2026-10-21 claude-fable released `maticijus/ee-license` licence finalisation (78f35e2). Open: Czech advokát review of ee/LICENSE, chain-of-title check.
