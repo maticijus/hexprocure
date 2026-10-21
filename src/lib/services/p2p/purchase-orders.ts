@@ -5,8 +5,11 @@ import {
   budgets,
   costCenters,
   integrationEvents,
+  invoices,
   poLines,
   purchaseOrders,
+  receiptLines,
+  receipts,
   requisitionLines,
   requisitions,
   suppliers,
@@ -174,6 +177,23 @@ async function loadBudgetStateWithin(tx: Tx, costCenterId: string, yearMonth: st
   return { budget, state };
 }
 
+async function assertNoDownstreamDocuments(tx: Tx, purchaseOrderId: string) {
+  const [receipt] = await tx
+    .select({ id: receiptLines.id })
+    .from(receiptLines)
+    .innerJoin(receipts, eq(receipts.id, receiptLines.receiptId))
+    .where(eq(receipts.purchaseOrderId, purchaseOrderId))
+    .limit(1);
+  const [invoice] = await tx
+    .select({ id: invoices.id })
+    .from(invoices)
+    .where(eq(invoices.purchaseOrderId, purchaseOrderId))
+    .limit(1);
+  if (receipt || invoice) {
+    throw new DomainError("INVALID_STATE", "Cannot cancel a PO that has receipts or invoices");
+  }
+}
+
 export async function cancelPurchaseOrder(purchaseOrderId: string, actorUserId: string) {
   return db.transaction(async (tx) => {
     const [po] = await tx
@@ -185,6 +205,7 @@ export async function cancelPurchaseOrder(purchaseOrderId: string, actorUserId: 
     if (po.status !== "OPEN") {
       throw new DomainError("INVALID_STATE", `Cannot cancel from ${po.status}`);
     }
+    await assertNoDownstreamDocuments(tx, purchaseOrderId);
     await tx
       .update(purchaseOrders)
       .set({ status: "CANCELLED" })
