@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatMoney } from "./format";
+import { currencySymbol, formatMoney } from "./format";
 
 const plain = (s: string) => s.replace(/ /g, " ");
 
@@ -30,5 +30,12 @@ describe("formatMoney", () => {
 
   it("rejects malformed currency codes", () => {
     expect(() => formatMoney(100, "eu")).toThrow();
+  });
+});
+
+describe("currencySymbol", () => {
+  it("returns the symbol for the currency", () => {
+    expect(currencySymbol("EUR")).toBe("€");
+    expect(currencySymbol("USD")).toBe("$");
   });
 });
