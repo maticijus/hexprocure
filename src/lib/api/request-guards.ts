@@ -61,13 +61,20 @@ export function checkCsrfOrigin(
 
 interface WindowState {
   hits: number[];
+  windowMs: number;
 }
 
 const windows = new Map<string, WindowState>();
+/** Shared by every key that arrives while the map is full of live counters. */
+let overflow: WindowState | null = null;
+let lastSweep = 0;
+const SWEEP_INTERVAL_MS = 1000;
 const MAX_TRACKED_KEYS = 10_000;
 
 export function resetRateLimits(): void {
   windows.clear();
+  overflow = null;
+  lastSweep = 0;
 }
 
 /** Spec classes (auth 10 · mutations 60 · reads 300 per minute) with env
@@ -88,31 +95,40 @@ export function rateLimitKeyCount(): number {
   return windows.size;
 }
 
-function evictOldestKeys(): void {
-  // Map iterates in insertion order, so the first keys are the oldest.
-  for (const k of windows.keys()) {
-    if (windows.size < MAX_TRACKED_KEYS) break;
-    windows.delete(k);
+/** Drops entries whose window has fully elapsed. Live counters are never
+ *  evicted, so flooding fresh keys cannot reset a real offender. */
+function evictExpiredKeys(now: number): void {
+  // Throttled: a full-map flood must not trigger an O(n) scan per request.
+  if (now - lastSweep < SWEEP_INTERVAL_MS) return;
+  lastSweep = now;
+  for (const [k, state] of windows) {
+    if (state.hits.every((h) => now - h >= state.windowMs)) windows.delete(k);
   }
+}
+
+function stateFor(key: string, windowMs: number, now: number): WindowState {
+  const existing = windows.get(key);
+  if (existing) return existing;
+  if (windows.size >= MAX_TRACKED_KEYS) evictExpiredKeys(now);
+  if (windows.size >= MAX_TRACKED_KEYS) return (overflow ??= { hits: [], windowMs });
+  const created: WindowState = { hits: [], windowMs };
+  windows.set(key, created);
+  return created;
 }
 
 function consume(key: string, limit: number, windowMs: number): Response | null {
   const now = Date.now();
-  if (!windows.has(key) && windows.size >= MAX_TRACKED_KEYS) evictOldestKeys();
-
-  const state = windows.get(key) ?? { hits: [] };
+  const state = stateFor(key, windowMs, now);
   state.hits = state.hits.filter((h) => now - h < windowMs);
   if (state.hits.length >= limit) {
     const oldest = Math.min(...state.hits);
     const retryAfterSec = Math.max(1, Math.ceil((oldest + windowMs - now) / 1000));
-    windows.set(key, state);
     return NextResponse.json(
       { error: { code: "RATE_LIMITED", message: "Too many requests" } },
       { status: 429, headers: { "retry-after": String(retryAfterSec) } },
     );
   }
   state.hits.push(now);
-  windows.set(key, state);
   return null;
 }
 
