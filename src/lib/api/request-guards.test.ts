@@ -108,9 +108,15 @@ describe("rate limit client key", () => {
     expect(checkRateLimit(req({ xff: "1.2.3.4, 203.0.113.10" }), 10, 60_000)).toBeNull();
   });
 
-  it("falls back to X-Real-IP, then a constant, without a trusted proxy", () => {
-    for (let i = 0; i < 10; i++) checkRateLimit(req({ ip: "5.5.5.5", xff: `9.9.9.${i}` }), 10, 60_000);
-    expect(checkRateLimit(req({ ip: "5.5.5.5", xff: "9.9.9.99" }), 10, 60_000)?.status).toBe(429);
+  it("ignores X-Real-IP and shares one bucket when TRUST_PROXY is unset", () => {
+    for (let i = 0; i < 10; i++) checkRateLimit(req({ ip: `5.5.5.${i}` }), 10, 60_000);
+    expect(checkRateLimit(req({ ip: "5.5.5.99" }), 10, 60_000)?.status).toBe(429);
+  });
+
+  it("falls back to X-Real-IP when TRUST_PROXY=true and no forwarded hop", () => {
+    vi.stubEnv("TRUST_PROXY", "true");
+    for (let i = 0; i < 10; i++) checkRateLimit(req({ ip: "5.5.5.5" }), 10, 60_000);
+    expect(checkRateLimit(req({ ip: "5.5.5.5" }), 10, 60_000)?.status).toBe(429);
     expect(checkRateLimit(req({ ip: "5.5.5.6" }), 10, 60_000)).toBeNull();
   });
 
