@@ -1,4 +1,4 @@
-# HexProcure — Product Brief
+# HexProcure: Product Brief
 
 ## Problem
 SMBs (10–50 employees) manage purchasing over email/spreadsheets: no approval control,
