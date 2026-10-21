@@ -6,6 +6,13 @@ Protocol: ~/.claude/rules/common/parallel-sessions.md
 ## Active claims
 <!-- newest first; empty when the repo is free -->
 
+- **owner:** claude-fable (Orca coordinator session 3: merge chore/audit-fix, MEDIUM fix lane, refactor lane)
+  **machine:** local-mac
+  **scope:** main in ~/dev/hexprocure (merges, pushes); worker lanes in new Orca worktrees off main
+  **started:** 2026-10-21T05:20:00Z
+  **heartbeat:** 2026-10-21T05:20:00Z
+  **next:** merge origin/chore/audit-fix into main, full suite, push; then MEDIUM lane (five lane-B reviewer items); then refactor lane
+
 
 ## History
 <!-- released claims, trimmed periodically -->
