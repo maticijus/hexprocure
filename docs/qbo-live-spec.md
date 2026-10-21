@@ -203,7 +203,10 @@ the sandbox company). It runs against the `hexprocure_test` database from `.env.
 and refuses to run with `QBO_SANDBOX=false`. A missing variable fails the run; it is
 never skipped.
 
-Known risk for the first live run: the PO mapper emits `VendorRef` as a plain string,
-while the QBO API expects `{ "value": "<vendor id>" }`. The stubbed tests cannot
-see this; the first live run is expected to confirm or correct it.
+Known risk for the first live run: the PO mapper emits `VendorRef` as
+`{ "value": <supplier>, "name": <supplier> }` (`src/lib/integrations/qbo.ts`), where
+`<supplier>` is the HexProcure supplier name from the event payload
+(`src/lib/services/p2p/purchase-orders.ts`), while the QBO API expects the vendor id
+in `value`. The stubbed tests cannot see this; the first live run is expected to
+confirm or correct it.
 
