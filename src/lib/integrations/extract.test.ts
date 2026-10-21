@@ -103,6 +103,25 @@ describe("POST /api/v1/invoices/extract", () => {
     expect(extractMock).toHaveBeenCalledTimes(1);
   });
 
+  it("rejects an oversize file with 400 before OCR", async () => {
+    process.env.INTEGRATION_OCR_URL = "http://fake:8100";
+    const form = new FormData();
+    form.append("file", new File([new Uint8Array(10 * 1024 * 1024 + 1)], "big.pdf", { type: "application/pdf" }));
+    const res = await POST(new Request("http://x", { method: "POST", body: form }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.code).toBe("VALIDATION");
+    expect(extractMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unsupported file type with 400 before OCR", async () => {
+    process.env.INTEGRATION_OCR_URL = "http://fake:8100";
+    const form = new FormData();
+    form.append("file", new File(["hello"], "notes.txt", { type: "text/plain" }));
+    const res = await POST(new Request("http://x", { method: "POST", body: form }));
+    expect(res.status).toBe(400);
+    expect(extractMock).not.toHaveBeenCalled();
+  });
+
   it("rejects requests without a file field", async () => {
     process.env.INTEGRATION_OCR_URL = "http://fake:8100";
     const form = new FormData();
