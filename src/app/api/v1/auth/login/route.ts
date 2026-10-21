@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     const body = await readJson<{ email?: string; password?: string }>(request);
     const email = typeof body.email === "string" ? body.email : null;
     if (email) {
-      const limited = checkLoginRateLimit(request, email, limitsPerMinute().auth, LOGIN_WINDOW_MS);
+      const limited = checkLoginRateLimit(request, email, limitsPerMinute().auth);
       if (limited) return limited;
     }
     const token = await loginCountingFailures(request, email, body.password);

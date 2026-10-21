@@ -155,7 +155,6 @@ export function checkLoginRateLimit(
   request: Request,
   email: string,
   limit: number,
-  windowMs: number,
 ): Response | null {
   const key = loginKey(request, email);
   const state = windows.get(key) ?? (windows.size >= MAX_TRACKED_KEYS ? overflow : null);
