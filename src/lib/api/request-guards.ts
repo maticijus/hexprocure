@@ -4,15 +4,14 @@ import { NextResponse } from "next/server";
  *  with Bearer API tokens and are exempt from the origin check (tokens cannot
  *  be sent cross-origin by a victim's browser, so CSRF does not apply). */
 
-/** Client-controlled headers are only honoured behind a proxy the operator
- *  vouches for (TRUST_PROXY=true); that proxy appends the real peer last. */
+/** Client-controlled headers (X-Forwarded-For, X-Real-IP) are only honoured
+ *  behind a proxy the operator vouches for (TRUST_PROXY=true); that proxy
+ *  appends the real peer last. Otherwise every client shares one bucket. */
 export function getClientIp(request: Request): string {
-  if (process.env.TRUST_PROXY === "true") {
-    const hops = (request.headers.get("x-forwarded-for") ?? "").split(",");
-    const last = hops[hops.length - 1].trim();
-    if (last) return last;
-  }
-  return request.headers.get("x-real-ip")?.trim() || "direct";
+  if (process.env.TRUST_PROXY !== "true") return "direct";
+  const hops = (request.headers.get("x-forwarded-for") ?? "").split(",");
+  const last = hops[hops.length - 1].trim();
+  return last || request.headers.get("x-real-ip")?.trim() || "direct";
 }
 
 function allowedOrigins(request: Request): Set<string> {

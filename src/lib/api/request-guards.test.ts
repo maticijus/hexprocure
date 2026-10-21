@@ -63,6 +63,8 @@ describe("CSRF origin check (mutations only)", () => {
 });
 
 describe("rate limiting", () => {
+  beforeEach(() => vi.stubEnv("TRUST_PROXY", "true"));
+
   it("passes under the limit and returns 429 after burst", () => {
     let last = null;
     for (let i = 0; i < 10; i++) last = checkRateLimit(req({ ip: "9.9.9.9" }), 10, 60_000);
@@ -121,6 +123,7 @@ describe("rate limit client key", () => {
   });
 
   it("caps tracked keys and evicts the oldest", () => {
+    vi.stubEnv("TRUST_PROXY", "true");
     for (let i = 0; i < 10_050; i++) checkRateLimit(req({ ip: `ip-${i}` }), 10, 60_000);
     expect(rateLimitKeyCount()).toBeLessThanOrEqual(10_000);
     // oldest key was evicted, so it starts a fresh window
