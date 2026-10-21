@@ -17,7 +17,8 @@ the validity period and the fee, and carries this acceptance line, which Czech
 law needs in writing for the defects waiver and the venue clause to bind:
 
 > We accept the HexProcure Commercial Licence v1.0, including sections 9, 10
-> and 11, for the licence key issued under this order.
+> and 11, and waive rights from defective performance as section 9 states, for
+> the licence key issued under this order.
 
 After payment you receive a signed token. Set it as `HEXPROCURE_LICENSE`, together with `HEXPROCURE_LICENSE_PUBLIC_KEY`,
 and restart. The key is checked offline. Without a valid key the app runs as
