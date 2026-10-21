@@ -21,19 +21,20 @@ Tier and a validity period and is verified by the check in src/lib/license.ts.
 "Tier" means a feature tier named in the feature map in ee/features.ts.
 "Production Use" means any use of the Software other than evaluation,
 development, testing or contribution, including use for your own business
-operations or for your customers. "You" means the business that accepts this
+operations or for your customers. "You" means the person who accepts this
 licence.
 
 2. Who may accept this licence, and how
 
-The Software is offered only to persons acting in the course of their trade,
-business, craft or profession (entrepreneurs within the meaning of Sections
-420(1) and 421 of Act No. 89/2012 Coll., the Czech Civil Code). It is not
-offered to consumers. By copying, modifying or using the Software You accept
-this licence on behalf of the business You act for and confirm that You are
-authorised to bind it. This is an offer to an indeterminate circle of persons
-that is accepted by that conduct, without notice to the Licensor (Section 2373
-of the Civil Code).
+The free grant in section 3 and the contribution licence in section 7 are open
+to any person. Production Use under section 4 is offered only to persons
+acting in the course of their trade, business, craft or profession
+(entrepreneurs within the meaning of Sections 420(1) and 421 of Act No.
+89/2012 Coll., the Czech Civil Code) and is not offered to consumers. By
+copying, modifying or using the Software You accept this licence; where You
+act for a business, You confirm that You are authorised to bind it. This is an
+offer to an indeterminate circle of persons that is accepted by that conduct,
+without notice to the Licensor (Section 2373 of the Civil Code).
 
 3. Free grant: view, modify, test and contribute
 
@@ -73,8 +74,7 @@ service that substantially consists of it, as a standalone offering. You may
 not offer the Software, or a service whose substantial function the Software
 provides, to third parties as a hosted or managed service. You may distribute
 copies that keep this licence and all notices intact, such as a fork made for
-contribution or an internal copy for Your own deployment. No sublicence right
-is granted except as stated in this section.
+contribution or an internal copy for Your own deployment.
 
 7. Contributions
 
@@ -138,12 +138,12 @@ English text governs.
 This licence is the whole agreement about the Software and replaces every
 earlier understanding. If a part is unenforceable, the rest stays in force and
 the unenforceable part is replaced by the valid rule that comes closest to its
-purpose. The parties, being entrepreneurs, agree that Sections 1799 and 1800
-of the Civil Code (adhesion contracts) do not apply, as Section 1801 permits
-between entrepreneurs. You consent in advance to the Licensor assigning this
-licence to a legal successor or to an entity that acquires the HexProcure
-business (Sections 1895 and 1897(1) of the Civil Code). The Licensor may
-publish new versions of this licence; a new version applies only to versions
-of the Software released after it.
+purpose. Where You are an entrepreneur, the parties agree that Sections 1799
+and 1800 of the Civil Code (adhesion contracts) do not apply, as Section 1801
+permits between entrepreneurs, and You consent in advance to the Licensor
+assigning this licence to a legal successor or to an entity that acquires the
+HexProcure business (Sections 1895 and 1897(1) of the Civil Code). The
+Licensor may publish new versions of this licence; a new version applies only
+to versions of the Software released after it.
 
 Licence Keys and licensing questions: matic@hexenkraft.cz
