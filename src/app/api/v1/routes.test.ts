@@ -253,6 +253,32 @@ describe("full HTTP flow: create → submit → decide → order", () => {
     expect(err.error.code).toBe("BUDGET_EXCEEDED");
   });
 
+describe("POST /api/v1/purchase-orders/[id]/cancel", () => {
+  const cancelAs = (userId: string, id: string) =>
+    cancelPoRoute(
+      req("http://localhost/x", { method: "POST", headers: { cookie: authCookie(userId) } }),
+      { params: Promise.resolve({ id }) } as never,
+    );
+
+  it("lets a manager cancel an OPEN PO", async () => {
+    const { s, purchaseOrderId } = await orderToOpenPo();
+    const res = await cancelAs(s.manager.id, purchaseOrderId);
+    expect(res.status).toBe(200);
+    expect((await res.json()).status).toBe("CANCELLED");
+  });
+
+  it("rejects a plain requester with 403", async () => {
+    const { s, purchaseOrderId } = await orderToOpenPo();
+    expect((await cancelAs(s.requester.id, purchaseOrderId)).status).toBe(403);
+  });
+
+  it("returns 409 when the PO is already cancelled", async () => {
+    const { s, purchaseOrderId } = await orderToOpenPo();
+    await cancelAs(s.manager.id, purchaseOrderId);
+    expect((await cancelAs(s.manager.id, purchaseOrderId)).status).toBe(409);
+  });
+});
+
 describe("POST /api/v1/purchase-orders/[id]/receipts", () => {
   it("records a receipt against an OPEN PO and closes it when fully received", async () => {
     const { s, purchaseOrderId, poLineId } = await orderToOpenPo();
@@ -382,30 +408,4 @@ describe("POST /api/v1/purchase-orders/[id]/receipts", () => {
 
 afterAll(async () => {
   await pool.end();
-});
-
-describe("POST /api/v1/purchase-orders/[id]/cancel", () => {
-  const cancelAs = (userId: string, id: string) =>
-    cancelPoRoute(
-      req("http://localhost/x", { method: "POST", headers: { cookie: authCookie(userId) } }),
-      { params: Promise.resolve({ id }) } as never,
-    );
-
-  it("lets a manager cancel an OPEN PO", async () => {
-    const { s, purchaseOrderId } = await orderToOpenPo();
-    const res = await cancelAs(s.manager.id, purchaseOrderId);
-    expect(res.status).toBe(200);
-    expect((await res.json()).status).toBe("CANCELLED");
-  });
-
-  it("rejects a plain requester with 403", async () => {
-    const { s, purchaseOrderId } = await orderToOpenPo();
-    expect((await cancelAs(s.requester.id, purchaseOrderId)).status).toBe(403);
-  });
-
-  it("returns 409 when the PO is already cancelled", async () => {
-    const { s, purchaseOrderId } = await orderToOpenPo();
-    await cancelAs(s.manager.id, purchaseOrderId);
-    expect((await cancelAs(s.manager.id, purchaseOrderId)).status).toBe(409);
-  });
 });

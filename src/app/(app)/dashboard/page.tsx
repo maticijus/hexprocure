@@ -142,7 +142,9 @@ export default async function DashboardPage() {
           <tbody>
             {recentReqs.map((r) => (
               <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50/60">
-                <td className="px-5 py-3 font-medium">{r.supplier_name ?? "-"}</td>
+                <td className="px-5 py-3 font-medium">
+                  <Link href={`/requisitions/${r.id}`} className="text-[var(--brand)] hover:underline">{r.supplier_name ?? "-"}</Link>
+                </td>
                 <td className="px-5 py-3">{formatMoney(Number(r.total_minor), r.currency)}</td>
                 <td className="px-5 py-3"><StatusPill status={r.status} /></td>
                 <td className="px-5 py-3 text-gray-500">

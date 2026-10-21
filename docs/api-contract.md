@@ -17,7 +17,7 @@ Errors: `{ "error": { "code": string, "message": string } }` with proper status 
 - `GET /purchase-orders/:id`
 - `GET /purchase-orders/:id/pdf?variant=supplier|internal` — deterministic PDF; supplier variant omits cost center & requester
 - `POST /purchase-orders/:id/send` — `{ "to": "optional@override" }`; emails the supplier-variant PDF, records `PO_SENT` audit. Re-sending an OPEN PO is allowed and audited; 409 when not OPEN.
-- `POST /purchase-orders/:id/cancel` — releases reservation
+- `POST /purchase-orders/:id/cancel` - MANAGER/FINANCE/ADMIN, OPEN only; releases reservation
 
 ### Receipts
 - `POST /purchase-orders/:id/receipts` — body: `{ lines: [{ poLineId, quantityReceived }] }` (cumulative ≤ ordered)
