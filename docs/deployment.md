@@ -64,8 +64,8 @@ npm run build
 | `SMTP_URL` | ⚠️ rec. | e.g. `smtp://user:pass@smtp.provider.com:587`. Without it notifications are logged, not sent. |
 | `SMTP_FROM` | w/ SMTP | Sender address, e.g. `procurement@yourcompany.com` |
 | `ALLOW_SELF_REGISTRATION` | first admin | In production, `POST /api/v1/auth/register` is refused unless this is exactly `true`. Set it for §3.3, then remove it. |
-| `TRUST_PROXY` | behind nginx | Set to `true` only behind a proxy that appends the real client IP as the last `X-Forwarded-For` hop (see §6). Otherwise rate limits key on `X-Real-IP` or one shared bucket. |
-| `INTEGRATION_DISPATCH_INTERVAL_MS` | optional | Run the outbox drain inside the app every N ms (see §5.1; it needs the dispatch cron call too). Unset = off. |
+| `TRUST_PROXY` | behind nginx | Set to `true` only behind a proxy that appends the real client IP as the last `X-Forwarded-For` hop (see §6). The proxy headers (`X-Forwarded-For`, then `X-Real-IP`) are read only when this is `true`. Otherwise every client shares one rate-limit bucket. |
+| `INTEGRATION_DISPATCH_INTERVAL_MS` | optional | Run the outbox drain inside the app every N ms (see §5.1; the dispatch cron call is then optional). Unset = off. |
 | `INTEGRATION_OCR_URL` | optional | OCR sidecar, e.g. `http://localhost:8100`. Unset = invoice intake disabled (501). |
 | `DATA_DIR` | optional | Attachment storage root (default `.data/uploads`). Put it OUTSIDE the repo dir if you deploy by re-cloning. |
 | `INTEGRATION_CSV_DIR` | optional | Directory the CSV connector appends to: one file per UTC day and event type (`PO_CREATED-2026-10-21.csv`), header written once. Unset = CSV connector off. Compose sets it to the `csvexports` volume. Columns, in order: `event_id`, `record_type`, `reference`, `line_number`, `description`, `quantity`, `unit_price_minor`, `supplier`, `cost_center`, `currency`, `total_minor`, `issued_on`, `invoice_number`, `purchase_order`. Every row carries the outbox `event_id`, so an importer can dedupe a replayed file. Delivery is tracked per connector, so a retry after another connector failed does not append the rows again. |
@@ -108,8 +108,9 @@ sudo -u postgres psql hexprocure \
 
    With Docker Compose use `docker compose exec db psql -U hexprocure hexprocure -c "..."` instead. Then log in at `/login`.
 
-3. As ADMIN: configure suppliers, cost centers, budgets and approval rules
-   (there is no UI or API for suppliers, cost centers, budgets or approval rules yet: insert them with SQL).
+3. As ADMIN: configure suppliers, cost centers, budgets and approval rules.
+   There is no create or edit UI or API for any of them yet (the suppliers pages are
+   read-only), so insert them with SQL.
    Example ruleset:
 
 ```sql
@@ -184,13 +185,17 @@ curl -X POST https://procure.yourcompany.com/api/v1/auth/tokens   -H "content-ty
 ```
 
 ```cron
-# drain integration outbox (email, QBO, webhook; the CSV connector writes no file) every 5 minutes
+# drain integration outbox through every configured connector every 5 minutes
 */5 * * * * curl -s -X POST http://localhost:3000/api/v1/integrations/dispatch -H "Authorization: Bearer hxp_…" >/dev/null
 # generate recurring requisitions daily at 06:00
 0 6 * * * curl -s -X POST http://localhost:3000/api/v1/order-templates/run -H "Authorization: Bearer hxp_…" >/dev/null
 ```
 
-Optionally, also set `INTEGRATION_DISPATCH_INTERVAL_MS` (for example `60000`) in `.env` and the app drains the integration outbox itself on that interval. Connectors are registered only when `POST /api/v1/integrations/dispatch` runs, so the scheduler delivers nothing until that route has been called at least once in the same app process: keep the cron call above (it can then run less often). The scheduler runs inside the app process, skips a tick while the previous one is still running, and logs counts only. It is off when the variable is unset. Run it on a single app instance: multiple instances would each drain the outbox and may deliver an event twice. Each event type has one connector (order: csv, email, QBO if `QBO_CLIENT_ID` and `QBO_CLIENT_SECRET` are set, webhook if `INTEGRATION_WEBHOOK_URL` is set; the last registered wins).
+Optionally, also set `INTEGRATION_DISPATCH_INTERVAL_MS` (for example `60000`) in `.env` and the app drains the integration outbox itself on that interval. The scheduler builds the connector registry from the environment on every run, so it delivers in a fresh process without any prior call to `POST /api/v1/integrations/dispatch`. The cron call above is then optional; keep it as a fallback or run it less often.
+
+The scheduler runs inside the app process, skips a tick while the previous one is still running, and logs counts only. It is off when the variable is unset. Run it on a single app instance: multiple instances would each drain the outbox and may deliver an event twice.
+
+Each event type can have several connectors, and every connector that handles that event type receives the event. The registry holds the CSV connector if `INTEGRATION_CSV_DIR` is set, the email connector, the QuickBooks connector if `QBO_CLIENT_ID` and `QBO_CLIENT_SECRET` are set, and the webhook connector if `INTEGRATION_WEBHOOK_URL` is set. Delivery is tracked per connector in `integration_events.delivered_connectors`, so a retry calls only the connectors that have not succeeded yet.
 
 The token carries the role of the admin who created it; revoke and rotate from
 `GET /api/v1/auth/tokens` and `DELETE /api/v1/auth/tokens/:id` (ADMIN only) without touching cron schedules.
@@ -237,7 +242,7 @@ certbot --nginx -d procure.yourcompany.com
 ```
 
 Cookies are `SameSite=Lax` and work over the proxied HTTPS domain unchanged.
-Set `TRUST_PROXY=true` in `.env` so rate limits apply per client IP. Limits per
+Set `TRUST_PROXY=true` in `.env` so rate limits apply per client IP. Without it every client shares one bucket. With it the client is the right-most `X-Forwarded-For` hop, else `X-Real-IP`, if the value is a valid IP address. Limits per
 minute and per client: 10 for login and register (`RATE_LIMIT_AUTH_PER_MIN`),
 60 for API writes (`RATE_LIMIT_MUTATION_PER_MIN`), 300 for API reads, GET and
 HEAD (`RATE_LIMIT_READ_PER_MIN`). The Playwright suite raises the auth limit
@@ -250,7 +255,7 @@ when enabling QBO.
 
 1. `curl -I https://procure.yourcompany.com/login` → 200
 2. Register your account and promote it to ADMIN (§3.3); log in.
-3. Insert approval rules; create supplier + cost center + current-month budget as ADMIN (or SQL).
+3. Insert approval rules; create supplier + cost center + current-month budget with SQL (no UI or API yet).
 4. As a second (REQUESTER) account: create + submit a requisition → approver receives email (check SMTP).
 5. Approve → order → verify budget reservation appears; download `/pdf`.
 6. Upload an attachment to the requisition; download it back.
@@ -319,9 +324,9 @@ curl -s localhost:3000/api/health   # {"status":"ok","database":true}
 Migrations run automatically before the app starts (`_migrations` table tracks
 applied files). Register your first admin as in §3.3 (set `ALLOW_SELF_REGISTRATION=true`
 in `.env` first and recreate the app with `docker compose up -d`). Compose sets
-`INTEGRATION_DISPATCH_INTERVAL_MS=60000` for the app, but connectors are only
-registered once `POST /api/v1/integrations/dispatch` has run in the app process,
-so keep both cron lines from §5.1 and run them on the host against
+`INTEGRATION_DISPATCH_INTERVAL_MS=60000` for the app, so the in-process
+scheduler delivers events without any cron call. The dispatch cron line from
+§5.1 is optional. Keep the recurring-order line and run it on the host against
 `localhost:3000` (or your `APP_PORT`).
 
 ### 9.4 Data & lifecycle
