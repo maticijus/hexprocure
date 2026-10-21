@@ -1,4 +1,4 @@
-# §6 Spec — QuickBooks Online Live Integration (OAuth + Sync)
+# §6 Spec: QuickBooks Online Live Integration (OAuth + Sync)
 
 Status: READY TO BUILD · Prerequisite listed in §10 · Part of MVP2 roadmap
 
@@ -116,7 +116,7 @@ connection exists):
 3. `POST https://{sandbox-?}.api.intuit.com/v3/company/{realmId}/purchaseorder|bill`
    with `Authorization: Bearer <access>` and `Content-Type: application/json`.
 4. On success: insert `qbo_sync_map` row (idempotency), event → DELIVERED.
-5. On 4xx: FAILED, non-retryable, lastError preserved (payload problem — human fix).
+5. On 4xx: FAILED, non-retryable, lastError preserved (payload problem: human fix).
    On 5xx/network: retryable (existing semantics).
 6. Connection missing/unhealthy → events stay PENDING (current behavior).
 
@@ -153,11 +153,11 @@ INTEGRATION_ENC_KEY=                  # openssl rand -base64 32
 5. No test, log line, or audit row ever contains a plaintext token (grep-enforced test).
 6. Disconnect wipes ciphertext in the same request.
 
-## 10. Prerequisites — what is actually blocked
+## 10. Prerequisites: what is actually blocked
 
 | Need | Blocked on |
 |---|---|
-| Sandbox development (unit + stubbed integration) | **Nothing — buildable now** |
+| Sandbox development (unit + stubbed integration) | **Nothing: buildable now** |
 | Live contract test | Intuit developer account → app → `CLIENT_ID/SECRET` (free) |
 | Production OAuth | Public HTTPS redirect URI (deployed host) |
 
