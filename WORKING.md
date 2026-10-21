@@ -8,10 +8,10 @@ Protocol: ~/.claude/rules/common/parallel-sessions.md
 
 - **owner:** claude-fable (Orca coordinator session 4: /guys gap lanes + product demo)
   **machine:** local-mac
-  **scope:** main in ~/dev/hexprocure (merges, pushes, .env for demo); six worker lanes in new Orca worktrees off main (PO lock, rate-limit hardening, session store, multi-currency UI, dispatch scheduler, QBO acceptance audit)
+  **scope:** main in ~/dev/hexprocure (merges, pushes, .env for demo); worker lanes in Orca worktrees off main: rate-limit hardening (gap-rate-limit), UI review fixes (ui-review-fixes), docs screenshots and diagrams (docs-screens-diagrams, owns README UI and Architecture), docs fact check (docs-fact-check, owns the rest of README and docs/); demo video lane in ~/Developer/hexmotion-capture against a detached build at ~/orca/workspaces/hexprocure/demo-build
   **started:** 2026-10-21T06:15:00Z
-  **heartbeat:** 2026-10-21T07:00:00Z
-  **next:** merged L1 PO lock, L6 QBO audit, L4 currency; L3 sessions awaiting Cursor review; L2, L5, L8 running; L7 UI happy path dispatching off main; demo on :3000
+  **heartbeat:** 2026-10-21T07:20:00Z
+  **next:** gate L2c, L9, D1, F1 and the video lane; merge reviewed work; full suite on main; release
 
 
 
