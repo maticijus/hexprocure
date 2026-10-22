@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { generateKeyPairSync, sign, type KeyObject } from "node:crypto";
+import { createPublicKey } from "node:crypto";
 import {
   getLicense,
+  getLicenseStatus,
   hasTier,
+  LICENSOR_PUBLIC_KEY,
   parseLicense,
   requireTier,
   resetLicenseCache,
@@ -24,8 +27,6 @@ function mint(privateKey: KeyObject, claims: Record<string, unknown> = {}) {
       tier: "team",
       licensee: "Acme GmbH",
       exp: Math.floor(Date.now() / 1000) + 3600,
-      aiDocsPerMonth: 500,
-      connectors: ["qbo", "xero"],
       ...claims,
     }),
   );
@@ -33,21 +34,35 @@ function mint(privateKey: KeyObject, claims: Record<string, unknown> = {}) {
   return `${header}.${payload}.${sig}`;
 }
 
-const COMMUNITY = { tier: "community", licensee: "community", expiresAt: "", aiDocsPerMonth: 0, connectors: [] };
+const COMMUNITY = { tier: "community", licensee: "community", expiresAt: "" };
 
 afterEach(() => {
   delete process.env.HEXPROCURE_LICENSE;
   delete process.env.HEXPROCURE_LICENSE_PUBLIC_KEY;
   resetLicenseCache();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe("parseLicense", () => {
   it("accepts a valid token", () => {
     const k = newKeys();
     const lic = parseLicense(mint(k.privateKey), k.publicPem);
-    expect(lic).toMatchObject({ tier: "team", licensee: "Acme GmbH", aiDocsPerMonth: 500, connectors: ["qbo", "xero"] });
+    expect(lic).toEqual({ tier: "team", licensee: "Acme GmbH", expiresAt: expect.any(String) });
     expect(new Date(lic!.expiresAt).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("ignores unknown claims such as the old limit fields", () => {
+    const k = newKeys();
+    const lic = parseLicense(mint(k.privateKey, { aiDocsPerMonth: 500, connectors: ["qbo"] }), k.publicPem);
+    expect(lic).toEqual({ tier: "team", licensee: "Acme GmbH", expiresAt: expect.any(String) });
+  });
+
+  it("rejects a signature of the wrong length", () => {
+    const k = newKeys();
+    const [h, p, s] = mint(k.privateKey).split(".");
+    expect(parseLicense(`${h}.${p}.${s}AAAA`, k.publicPem)).toBeNull();
+    expect(parseLicense(`${h}.${p}.${s.slice(0, 40)}`, k.publicPem)).toBeNull();
   });
 
   it("rejects an expired token", () => {
@@ -65,7 +80,7 @@ describe("parseLicense", () => {
   it("rejects a tampered payload", () => {
     const k = newKeys();
     const [h, , s] = mint(k.privateKey).split(".");
-    const forged = b64(JSON.stringify({ tier: "business", licensee: "x", exp: 9_999_999_999, aiDocsPerMonth: 1, connectors: [] }));
+    const forged = b64(JSON.stringify({ tier: "business", licensee: "x", exp: 9_999_999_999 }));
     expect(parseLicense(`${h}.${forged}.${s}`, k.publicPem)).toBeNull();
   });
 
@@ -87,8 +102,6 @@ describe("parseLicense", () => {
     expect(parseLicense(mint(k.privateKey, { tier: "gold" }), k.publicPem)).toBeNull();
     expect(parseLicense(mint(k.privateKey, { licensee: undefined }), k.publicPem)).toBeNull();
     expect(parseLicense(mint(k.privateKey, { exp: undefined }), k.publicPem)).toBeNull();
-    expect(parseLicense(mint(k.privateKey, { connectors: "qbo" }), k.publicPem)).toBeNull();
-    expect(parseLicense(mint(k.privateKey, { aiDocsPerMonth: -1 }), k.publicPem)).toBeNull();
   });
 
   it.each(["", "abc", "a.b", "a.b.c.d", "...", "!!!.@@@.###"])("returns null for malformed token %j", (t) => {
@@ -118,6 +131,21 @@ describe("parseLicense", () => {
 describe("getLicense", () => {
   it("defaults to community when env is missing", () => {
     expect(getLicense()).toEqual(COMMUNITY);
+    expect(getLicenseStatus()).toBe("none");
+  });
+
+  it("ships a pinned Ed25519 Licensor public key", () => {
+    expect(createPublicKey(LICENSOR_PUBLIC_KEY).asymmetricKeyType).toBe("ed25519");
+  });
+
+  it("ignores HEXPROCURE_LICENSE_PUBLIC_KEY outside the test environment", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const k = newKeys();
+    process.env.HEXPROCURE_LICENSE = mint(k.privateKey);
+    process.env.HEXPROCURE_LICENSE_PUBLIC_KEY = k.publicPem;
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(getLicense()).toEqual(COMMUNITY);
+    expect(getLicenseStatus()).toBe("invalid");
   });
 
   it("defaults to community when only the token is set", () => {
@@ -132,6 +160,7 @@ describe("getLicense", () => {
     process.env.HEXPROCURE_LICENSE_PUBLIC_KEY = k.publicPem;
     const first = getLicense();
     expect(first.tier).toBe("team");
+    expect(getLicenseStatus()).toBe("active");
     delete process.env.HEXPROCURE_LICENSE;
     expect(getLicense()).toBe(first);
   });
@@ -146,6 +175,7 @@ describe("getLicense", () => {
       expect(getLicense().tier).toBe("team");
       vi.setSystemTime(Date.now() + 2 * 3600_000);
       expect(getLicense()).toEqual(COMMUNITY);
+      expect(getLicenseStatus()).toBe("expired");
       getLicense();
       expect(warn).toHaveBeenCalledTimes(1);
     } finally {
@@ -167,6 +197,7 @@ describe("getLicense", () => {
     process.env.HEXPROCURE_LICENSE_PUBLIC_KEY = k.publicPem;
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(getLicense()).toEqual(COMMUNITY);
+    expect(getLicenseStatus()).toBe("invalid");
     getLicense();
     expect(warn).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(warn.mock.calls)).not.toContain(token);

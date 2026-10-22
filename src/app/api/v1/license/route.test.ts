@@ -42,9 +42,7 @@ describe("GET /api/v1/license", () => {
       tier: "community",
       licensee: "community",
       expiresAt: "",
-      aiDocsPerMonth: 0,
-      connectors: [],
-      valid: false,
+      status: "none",
     });
   });
 
@@ -52,7 +50,7 @@ describe("GET /api/v1/license", () => {
     const { publicKey, privateKey } = generateKeyPairSync("ed25519");
     const h = Buffer.from(JSON.stringify({ alg: "EdDSA", typ: "JWT" })).toString("base64url");
     const p = Buffer.from(
-      JSON.stringify({ tier: "business", licensee: "Acme", exp: Math.floor(Date.now() / 1000) + 3600, aiDocsPerMonth: 2500, connectors: ["qbo"] }),
+      JSON.stringify({ tier: "business", licensee: "Acme", exp: Math.floor(Date.now() / 1000) + 3600 }),
     ).toString("base64url");
     const token = `${h}.${p}.${sign(null, Buffer.from(`${h}.${p}`), privateKey).toString("base64url")}`;
     process.env.HEXPROCURE_LICENSE = token;
@@ -62,6 +60,6 @@ describe("GET /api/v1/license", () => {
     const text = await res.text();
     expect(res.status).toBe(200);
     expect(text).not.toContain(token);
-    expect(JSON.parse(text)).toMatchObject({ tier: "business", licensee: "Acme", aiDocsPerMonth: 2500, connectors: ["qbo"], valid: true });
+    expect(JSON.parse(text)).toEqual({ tier: "business", licensee: "Acme", expiresAt: expect.any(String), status: "active" });
   });
 });
