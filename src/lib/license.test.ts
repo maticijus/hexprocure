@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { generateKeyPairSync, sign, type KeyObject } from "node:crypto";
-import { createPublicKey } from "node:crypto";
+import { createPublicKey, generateKeyPairSync, sign, type KeyObject } from "node:crypto";
 import {
   getLicense,
   getLicenseState,

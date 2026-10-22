@@ -14,7 +14,8 @@ export type LicenseStatus = "none" | "invalid" | "expired" | "active";
 // Ed25519 public key of HEXENKRAFT s.r.o., the Licensor named in ee/LICENSE.
 // Keys are signed with scripts/license-sign.ts. Swapping this key defeats the
 // Licence Check (ee/LICENSE section 5). Tests may override it through
-// HEXPROCURE_LICENSE_PUBLIC_KEY; production ignores that variable.
+// HEXPROCURE_LICENSE_PUBLIC_KEY; production ignores that variable (the
+// Next.js build also inlines NODE_ENV, so the override is dead code there).
 export const LICENSOR_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEA8FYCLiNhAINGTQhgvb+QYaZNQf6REoH5lbO9ahSQrOg=
 -----END PUBLIC KEY-----
