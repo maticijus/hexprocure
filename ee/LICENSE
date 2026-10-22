@@ -84,37 +84,38 @@ Order You accept this licence, including sections 8, 9, 10 and 11, expressly
 and in writing. The remuneration for Production Use is the fee stated in the
 Order. A numeric or named limit in the Licence Key binds You only if the Order
 states what is counted, the period and the fee if You go over; going over such
-a limit is a contract matter under section 10 and not copyright infringement.
-A trial on live data is Production Use unless the Order calls it an evaluation
+a limit is a contract matter under section 10 and not copyright infringement. A
+trial on live data is Production Use unless the Order calls it an evaluation
 and sets an end date no later than 30 days after it starts. A Licence Key is
 issued to the licensee named in it and may not be shared, lent, resold or
-offered to third parties other than named Affiliates and contractors as
-section 1 describes. It passes to a legal successor, or with a transfer of
-Your business or part of it, only with the Licensor's written consent
-(Sections 2365 and 2383 of the Civil Code), which the Licensor will not refuse
-unless the successor would offer the Software as a hosted service or fees are
-unpaid. Production Use with no Licence Key where You have never held one, or
-with a forged Licence Key, is not licensed and infringes the Licensor's
-copyright; section 10 does not limit the Licensor's claims for such use. Use
-during a stop period under section 8, and between expiry or revocation of a
-Licence Key and the Licensor's notice, only to stop and to export Your data,
-is allowed and is not infringement.
+offered to third parties other than named Affiliates and contractors as section
+1 describes. It passes to a legal successor, or with a transfer of Your
+business or part of it, only with the Licensor's written consent (Sections 2365
+and 2383 of the Civil Code), which the Licensor will not refuse unless the
+successor would offer the Software as a hosted service or fees are unpaid.
+Production Use with no Licence Key where You have never held one, or with a
+forged Licence Key, is not licensed and infringes the Licensor's copyright;
+section 10 does not limit the Licensor's claims for such use. Use during a stop
+period under section 8, and between expiry of a Licence Key and the Licensor's
+notice, only to stop and to export Your data, is allowed and is not
+infringement.
 
 5. No circumvention
 
-You may not make Production Use of the Software together with a Licence Check
-that has been moved, changed, disabled, weakened or worked around, or that
-verifies a Licence Key against a key other than the one the Licensor publishes
-in the HexProcure repository (a "defeated Licence Check"), and in Production
-Use You may not remove or obscure any functionality in the Software that the
-Licence Key protects. You may not generate, forge, modify or extend a Licence
-Key. You may test the Licence Check, including in a security assessment, on a
-system that is not in Production Use. You may not remove or obscure a notice
-that identifies the Software as licensed. Nothing in this licence restricts a
-right that the law grants a lawful user of a computer program and that cannot
-be narrowed by agreement, such as error correction, a backup copy, study of the
-program's principles and decompilation for interoperability under Section 66(1)
-and (6) of Act No. 121/2000 Coll., the Czech Copyright Act.
+A "defeated Licence Check" is a Licence Check that has been moved, changed,
+disabled, weakened or worked around, or that verifies a Licence Key against a
+public key that the Licensor has not published in the HexProcure repository.
+You may not make Production Use of the Software together with a defeated
+Licence Check, and in Production Use You may not remove or obscure any
+functionality in the Software that the Licence Key protects. You may not
+generate, forge, modify or extend a Licence Key. You may test the Licence
+Check, including in a security assessment, on a system that is not in
+Production Use. You may not remove or obscure a notice that identifies the
+Software as licensed. Nothing in this licence restricts a right that the law
+grants a lawful user of a computer program and that cannot be narrowed by
+agreement, such as error correction, a backup copy, study of the program's
+principles and decompilation for interoperability under Section 66(1) and (6)
+of Act No. 121/2000 Coll., the Czech Copyright Act.
 
 6. Redistribution, notices and trademarks
 
@@ -159,26 +160,27 @@ contribution.
 This licence runs until terminated. It ends automatically if You generate,
 forge, modify or extend a Licence Key. If You make Production Use and have
 never held a Licence Key, or make Production Use together with a defeated
-Licence Check, You must stop within 14 days after the Licensor's written
-notice; if You do not, the Licensor may withdraw from this licence by notice.
-If Your Licence Key expires or is revoked, or You use a Feature outside the
-Tier that covers it, You must stop that use within 14 days after the Licensor's
-written notice; if You do not, the Licensor may withdraw from section 4 and the
-Order by notice, and the free grant in section 3 continues. The 14 days after
-notice under this section are the stop period. For any other breach, the
-Licensor may withdraw from this licence and revoke the Licence Key by notice if
-You do not cure the breach within 30 days after the Licensor's written notice.
-The Licensor may also withdraw by notice if You fail to pay an undisputed fee
-in the Order within 30 days after a written reminder. Withdrawal has effect
-only for the future. On termination of Production Use You stop Production Use
-and keep Your data. You may keep one copy of the Software for 90 days to export
-Your data, and for longer where the law requires You to keep records, and You
-may use that copy only to read those records. Fees for the period before
-termination are not refunded where termination follows Your breach; fees
-prepaid for the period after termination are refunded. Sections 1, 5, 7, 9, 10,
-11 and 12, the last sentence of section 2, the prohibitions, notice duties and
-trademark sentence in section 6, and the rights and duties in this section
-survive termination.
+Licence Check, You must stop that Production Use within 14 days after the
+Licensor's written notice; if You do not, the Licensor may withdraw from this
+licence by notice. If Your Licence Key expires, or You use a Feature outside
+the Tier that covers it, You must stop that use within 14 days after the
+Licensor's written notice; if You do not, the Licensor may withdraw from
+section 4 and the Order by notice, and the free grant in section 3 continues.
+The 14 days after notice under this section are the stop period. For any other
+breach, the Licensor may, if You do not cure the breach within 30 days after
+the Licensor's written notice, withdraw from this licence by notice, which also
+revokes the Licence Key, and You must stop Production Use within 14 days after
+that notice. The Licensor may also withdraw by notice if You fail to pay an
+undisputed fee in the Order within 30 days after a written reminder. Withdrawal
+has effect only for the future. On termination of Production Use You stop
+Production Use and keep Your data. You may keep one copy of the Software for 90
+days to export Your data, and for longer where the law requires You to keep
+records, and You may use that copy only to read those records. Fees for the
+period before termination are not refunded where termination follows Your
+breach; fees prepaid for the period after termination are refunded. Sections 1,
+5, 7, 9, 10, 11 and 12, the last sentence of section 2, the prohibitions,
+notice duties and trademark sentence in section 6, and the rights and duties in
+this section survive termination.
 
 9. Warranty and defects
 
