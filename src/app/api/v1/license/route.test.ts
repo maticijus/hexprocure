@@ -20,7 +20,6 @@ const call = () => GET(new Request("http://localhost/api/v1/license"));
 afterEach(() => {
   actor.role = "ADMIN";
   delete process.env.HEXPROCURE_LICENSE;
-  delete process.env.HEXPROCURE_LICENSE_PUBLIC_KEY;
   resetLicenseCache();
 });
 
@@ -54,7 +53,7 @@ describe("GET /api/v1/license", () => {
     ).toString("base64url");
     const token = `${h}.${p}.${sign(null, Buffer.from(`${h}.${p}`), privateKey).toString("base64url")}`;
     process.env.HEXPROCURE_LICENSE = token;
-    process.env.HEXPROCURE_LICENSE_PUBLIC_KEY = publicKey.export({ type: "spki", format: "pem" }).toString();
+    resetLicenseCache(publicKey.export({ type: "spki", format: "pem" }).toString());
 
     const res = await call();
     const text = await res.text();

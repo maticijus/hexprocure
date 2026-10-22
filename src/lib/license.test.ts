@@ -41,7 +41,6 @@ afterEach(() => {
   delete process.env.HEXPROCURE_LICENSE_PUBLIC_KEY;
   resetLicenseCache();
   vi.restoreAllMocks();
-  vi.unstubAllEnvs();
 });
 
 describe("parseLicense", () => {
@@ -155,7 +154,7 @@ describe("getLicense", () => {
   it("reports a key that had already expired at startup as expired, not invalid", () => {
     const k = newKeys();
     process.env.HEXPROCURE_LICENSE = mint(k.privateKey, { exp: Math.floor(Date.now() / 1000) - 10 });
-    process.env.HEXPROCURE_LICENSE_PUBLIC_KEY = k.publicPem;
+    resetLicenseCache(k.publicPem);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(getLicense()).toEqual(COMMUNITY);
     expect(getLicenseStatus()).toBe("expired");
@@ -164,14 +163,23 @@ describe("getLicense", () => {
     expect(String(warn.mock.calls[0][0])).toContain("expired");
   });
 
-  it("ignores HEXPROCURE_LICENSE_PUBLIC_KEY outside the test environment", () => {
-    vi.stubEnv("NODE_ENV", "production");
+  it("never takes the verifying key from the environment", () => {
     const k = newKeys();
     process.env.HEXPROCURE_LICENSE = mint(k.privateKey);
     process.env.HEXPROCURE_LICENSE_PUBLIC_KEY = k.publicPem;
     vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(getLicense()).toEqual(COMMUNITY);
     expect(getLicenseStatus()).toBe("invalid");
+  });
+
+  it("goes back to the pinned key after a plain reset", () => {
+    const k = newKeys();
+    process.env.HEXPROCURE_LICENSE = mint(k.privateKey);
+    resetLicenseCache(k.publicPem);
+    expect(getLicense().tier).toBe("team");
+    resetLicenseCache();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(getLicense()).toEqual(COMMUNITY);
   });
 
   it("defaults to community when only the token is set", () => {
@@ -183,7 +191,7 @@ describe("getLicense", () => {
   it("returns the licence for a valid token and memoises it", () => {
     const k = newKeys();
     process.env.HEXPROCURE_LICENSE = mint(k.privateKey);
-    process.env.HEXPROCURE_LICENSE_PUBLIC_KEY = k.publicPem;
+    resetLicenseCache(k.publicPem);
     const first = getLicense();
     expect(first.tier).toBe("team");
     expect(getLicenseStatus()).toBe("active");
@@ -196,7 +204,7 @@ describe("getLicense", () => {
     try {
       const k = newKeys();
       process.env.HEXPROCURE_LICENSE = mint(k.privateKey);
-      process.env.HEXPROCURE_LICENSE_PUBLIC_KEY = k.publicPem;
+      resetLicenseCache(k.publicPem);
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
       expect(getLicense().tier).toBe("team");
       vi.setSystemTime(Date.now() + 2 * 3600_000);
@@ -209,18 +217,11 @@ describe("getLicense", () => {
     }
   });
 
-  it("accepts a PEM with escaped newlines", () => {
-    const k = newKeys();
-    process.env.HEXPROCURE_LICENSE = mint(k.privateKey);
-    process.env.HEXPROCURE_LICENSE_PUBLIC_KEY = k.publicPem.replace(/\n/g, "\\n");
-    expect(getLicense().tier).toBe("team");
-  });
-
   it("warns once without leaking the token when the token is invalid", () => {
     const k = newKeys();
     const token = mint(k.privateKey, { tier: "gold" });
     process.env.HEXPROCURE_LICENSE = token;
-    process.env.HEXPROCURE_LICENSE_PUBLIC_KEY = k.publicPem;
+    resetLicenseCache(k.publicPem);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(getLicense()).toEqual(COMMUNITY);
     expect(getLicenseStatus()).toBe("invalid");
@@ -263,7 +264,7 @@ describe("requireTier", () => {
   it("passes when the licence is high enough", () => {
     const k = newKeys();
     process.env.HEXPROCURE_LICENSE = mint(k.privateKey, { tier: "business" });
-    process.env.HEXPROCURE_LICENSE_PUBLIC_KEY = k.publicPem;
+    resetLicenseCache(k.publicPem);
     expect(() => requireTier("team")).not.toThrow();
     expect(() => requireTier("business")).not.toThrow();
   });
