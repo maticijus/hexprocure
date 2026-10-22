@@ -195,7 +195,8 @@ describe("createQboConnector", () => {
     const fetchMock = qboRouter({ queryVendors: [{ Id: "V-x" }] });
     const { event, supplier } = await seedConnectionAndEvent("PO_CREATED");
     delete (event.payload as Record<string, unknown>).supplierId;
-    await db.insert(suppliers).values({ name: supplier.name });
+    // Active names are unique since migration 0013; an archived twin still makes the legacy name lookup ambiguous.
+    await db.insert(suppliers).values({ name: supplier.name, archivedAt: new Date() });
 
     const result = await createQboConnector({ fetchImpl: fetchMock }).deliver(event);
     expect(result).toMatchObject({ ok: false, retryable: false });
