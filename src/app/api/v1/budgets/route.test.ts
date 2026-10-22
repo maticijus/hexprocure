@@ -57,4 +57,18 @@ describe("/api/v1/budgets", () => {
     );
     expect(unknownCc.status).toBe(400);
   });
+
+  it("rejects an amount beyond the Postgres integer range with 400", async () => {
+    const admin = await sessionCookie("ADMIN");
+    const res = await create(
+      apiRequest(admin, "POST", {
+        costCenterId: await costCenterId(),
+        yearMonth: "2026-11",
+        budgetedMinor: 2_147_483_648,
+        currency: "EUR",
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.message).toMatch(/budgetedMinor/);
+  });
 });
