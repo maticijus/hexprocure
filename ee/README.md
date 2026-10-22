@@ -1,16 +1,16 @@
 # ee/
 
 This directory will hold the paid features of HexProcure: the AI lanes beyond
-bring-your-own-key extraction, the Team and Business connector packs, the
-write tools of the MCP server, SSO and similar. Today it holds `features.ts`,
-the single map from feature id to the minimum tier that unlocks it. Everything outside `ee/`
-is MIT and stays free.
+bring-your-own-key extraction, the Team and Business connector packs, the write
+tools of the MCP server, SSO and similar. Today it holds `features.ts`, the
+single map from feature id to the minimum tier that unlocks it. Everything
+outside `ee/` is MIT and stays free.
 
-The code here is source-available under the HexProcure Commercial Licence
-(see `LICENSE`), licensor HEXENKRAFT s.r.o., Czech law. You can read it,
-modify it and send contributions without a key. Using it in production needs a valid
-licence key, and in production the licence check in `src/lib/license.ts`
-must stay in place.
+The code here is source-available under the HexProcure Commercial Licence (see
+`LICENSE`), licensor HEXENKRAFT s.r.o., Czech law. You can read it, modify it
+and send contributions without a key. Using it in production needs a valid
+licence key, and in production the licence check in `src/lib/license.ts` must
+stay in place.
 
 To get a key, pick a tier from `features.ts` and write to matic@hexenkraft.cz.
 You receive a quote. The order you confirm names your legal entity, the tier,

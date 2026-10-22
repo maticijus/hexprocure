@@ -22,25 +22,25 @@ in source or object form, and any copy, modification or derivative work of
 them. "Feature" means a feature id listed in the feature map in ee/features.ts
 in the release named in Your Order or, if none is named, in the latest release
 at the Order date. "Tier" means the team or business tier named in that map;
-the business Tier covers every team Feature. "Licence Key" means a signed
-token issued by the Licensor that names a Tier, You as licensee and a validity
-period; it is valid while the licence check in the HexProcure code accepts it.
-"Licence Check" means the code in the HexProcure repository that verifies a
-Licence Key. "Order" means the order that You sign or confirm in writing,
-including by electronic means, against the Licensor's quote, that identifies
-You and under which the Licensor issues a Licence Key. "Production Use" means
-any use of the Software other than evaluation, development, testing or
-contribution, including use for Your own operations or for Your customers.
+the business Tier covers every team Feature. "Licence Key" means a signed token
+issued by the Licensor that names a Tier, You as licensee and a validity
+period; it is valid while a Licence Check that is not a defeated Licence Check
+accepts it. "Licence Check" means the code in the HexProcure repository that
+verifies a Licence Key. "Order" means the order that You sign or confirm in
+writing, including by electronic means, against the Licensor's quote, that
+identifies You and under which the Licensor issues a Licence Key. "Production
+Use" means any use of the Software other than evaluation, development, testing
+or contribution, including use for Your own operations or for Your customers.
 Running HexProcure with every paid Feature off is not Production Use of the
 Software and needs no Licence Key. "You" means the person who accepts this
 licence; for Production Use, "You" means the legal entity, public body,
 non-profit organisation or entrepreneur named in the Order, and the individual
 who signs the Order confirms that they can bind it and is not the licensee.
 "Affiliate" means an entity that controls You, that You control, or that is
-under common control with You, where control means more than half of the
-voting rights; Affiliates named in the Order may use the Licence Key as You.
-Use of the Software by a contractor only to operate it for You or a named
-Affiliate is Your use.
+under common control with You, where control means more than half of the voting
+rights; Affiliates named in the Order may use the Licence Key as You. Use of
+the Software by a contractor only to operate it for You or a named Affiliate is
+Your use.
 
 2. Who may accept this licence, and how
 
@@ -178,9 +178,9 @@ days to export Your data, and for longer where the law requires You to keep
 records, and You may use that copy only to read those records. Fees for the
 period before termination are not refunded where termination follows Your
 breach; fees prepaid for the period after termination are refunded. Sections 1,
-5, 7, 9, 10, 11 and 12, the last sentence of section 2, the prohibitions,
-notice duties and trademark sentence in section 6, and the rights and duties in
-this section survive termination.
+5, 7, 9, 10, 11 and 12, the sentence of section 2 about consumers, the
+prohibitions, notice duties and trademark sentence in section 6, and the rights
+and duties in this section survive termination.
 
 9. Warranty and defects
 
@@ -221,8 +221,9 @@ gross negligence, harm to a person's natural rights, or harm to a weaker party
 This licence and any dispute arising out of it are governed by the laws of the
 Czech Republic, excluding its conflict of law rules. The United Nations
 Convention on Contracts for the International Sale of Goods does not apply. For
-Production Use, the court competent for the Licensor's registered seat has
-jurisdiction, as agreed in Your Order. The Order may instead name an arbitral
+Production Use, the courts of the Czech Republic have exclusive jurisdiction,
+and the court with local jurisdiction for the Licensor's registered seat
+decides, as agreed in Your Order. The Order may instead name an arbitral
 institution seated in the Czech Republic. If You are a consumer, the courts
 that the law of Your habitual residence makes competent decide. This licence is
 written in English and the English text governs.
