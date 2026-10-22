@@ -93,3 +93,26 @@ export function archiveRoute<Row, Input>(r: MasterDataResource<Row, Input>) {
     }
   };
 }
+
+/** POST text/csv for a bulk upsert. ADMIN only; size and row caps are
+ *  enforced by the import service, the header check here avoids buffering
+ *  an obviously oversized body. */
+export function csvImportRoute(
+  importCsv: (text: string, actorUserId: string) => Promise<unknown>,
+  maxBytes: number,
+) {
+  return async function POST(request: Request) {
+    try {
+      const actor = await requireRole(request, ["ADMIN"]);
+      if (!(request.headers.get("content-type") ?? "").startsWith("text/csv")) {
+        throw new DomainError("VALIDATION", "Send the file as text/csv");
+      }
+      if (Number(request.headers.get("content-length") ?? 0) > maxBytes) {
+        throw new DomainError("VALIDATION", "CSV must be at most 1 MB");
+      }
+      return NextResponse.json(await importCsv(await request.text(), actor.id));
+    } catch (error) {
+      return errorToResponse(error);
+    }
+  };
+}
