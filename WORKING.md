@@ -6,6 +6,13 @@ Protocol: ~/.claude/rules/common/parallel-sessions.md
 ## Active claims
 <!-- newest first; empty when the repo is free -->
 
+- **owner:** claude-fable (Orca coordinator session 4, pricing follow-up)
+  **machine:** local-mac
+  **scope:** main in ~/dev/hexprocure: docs/pricing-tiers.md, docs/brief.md only
+  **started:** 2026-10-22T06:40:00Z
+  **heartbeat:** 2026-10-22T06:40:00Z
+  **next:** align pricing with vendor-page prices fetched 2026-10-22, mark connectors built vs planned, release
+
 ## History
 - 2026-10-21 claude-fable (Orca coordinator session 4): gap lanes L2 to L12 merged and pushed, main at the IPv6 hextet fix; demo video at ~/Desktop/hexprocure-demo-en.mp4 awaiting founder review; next: founder decisions on GitHub About text, video voice and music, pricing doc items.
 <!-- released claims, trimmed periodically -->
