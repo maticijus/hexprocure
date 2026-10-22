@@ -83,3 +83,17 @@ jobs:
         run: |
           cp .env.example .env
           docker compose config >/dev/null && echo "compose.yaml valid"
+
+  mcp:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/mcp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: npm run build
