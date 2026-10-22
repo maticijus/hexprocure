@@ -11,7 +11,8 @@
     "test:e2e": "next build && playwright test",
     "test:e2e:only": "playwright test",
     "license:keygen": "tsx scripts/license-keygen.ts",
-    "license:sign": "tsx scripts/license-sign.ts"
+    "license:sign": "tsx scripts/license-sign.ts",
+    "license:encrypt": "tsx scripts/license-key-encrypt.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.135.0",

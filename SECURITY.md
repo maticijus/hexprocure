@@ -11,8 +11,7 @@ Only the latest release and the current `main` branch receive security fixes.
 
 ## Reporting a vulnerability
 
-Do not open a public issue. Email security@hexprocure.dev (placeholder,
-founder confirms) with a description, affected version and steps to reproduce.
+Do not open a public issue. Email matic@hexenkraft.cz with a description, affected version and steps to reproduce.
 We acknowledge within 3 business days.
 
 ## Disclosure

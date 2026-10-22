@@ -27,9 +27,9 @@ hexprocure/                      public
     connectors/                  planned: Team and Business connector packs, McpConnector
     mcp-write/                   planned: write tools for the HexProcure MCP server
     sso/, audit-export/          planned
-  src/lib/license.ts             verifies a signed licence (Ed25519; the public key is
-                                 read from HEXPROCURE_LICENSE_PUBLIC_KEY); returns the
-                                 tier and limits
+  src/lib/license.ts             verifies a signed licence (Ed25519; the Licensor's
+                                 public key is pinned in the file); returns the
+                                 tier, licensee and expiry
 
 hexprocure-cloud/                private
   licence issuer (private key), billing (Stripe), tenant provisioning,
@@ -70,9 +70,10 @@ security reviewers like.
 ## 4. Licence mechanics
 
 - `src/lib/license.ts` verifies a signed JWT (Ed25519) offline, reads
-  `tier`, `expiresAt`, `aiDocsPerMonth`, `connectors[]`. Public key in the
-  `HEXPROCURE_LICENSE_PUBLIC_KEY` env var (not committed), private key only in
-  `hexprocure-cloud`. `scripts/license-sign.ts` signs test tokens.
+  `tier`, `licensee`, `exp`. The Licensor's public key is pinned in that file;
+  the private key stays on the founder's machine, encrypted at rest.
+  `scripts/license-sign.ts` signs tokens, `scripts/license-keygen.ts` and
+  `scripts/license-key-encrypt.ts` manage the key.
 - `HEXPROCURE_LICENSE` env var carries the token. Absent or invalid means
   Community: the app runs and nothing crashes. Planned, not built: `ee/` features
   rendering as locked with an upgrade link (no feature is gated yet;
@@ -82,7 +83,7 @@ security reviewers like.
   include `ee/` locked.
 - Planned: usage counters (AI documents) in the existing `llm_usage` table (it
   exists and logs every LLM call), so the cap is enforced where the cost is
-  incurred. `aiDocsPerMonth` is parsed from the licence but not enforced.
+  incurred. The token carries no usage limit today; one is added with the meter.
 
 ## 5. Before the repo earns traffic: hygiene
 

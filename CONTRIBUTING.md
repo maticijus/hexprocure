@@ -21,5 +21,10 @@ Fix a missed sign-off with `git commit --amend -s` or `git rebase --signoff`.
 ## Licensing of contributions
 
 Code outside `ee/` is contributed under the MIT licence in `LICENSE`.
-Contributions to `ee/` are accepted under the HexProcure Commercial Licence in
-`ee/LICENSE`, and the DCO sign-off also confirms you may grant that licence.
+A contribution to `ee/` is made under section 7 of the HexProcure Commercial
+Licence in `ee/LICENSE`: a non-exclusive, sublicensable licence to
+HEXENKRAFT s.r.o., which may also make the contribution available under
+other terms. For a file in `ee/`, the "licence indicated in the file" in
+the DCO text is that licence, which is not an open source licence. The DCO
+sign-off certifies origin; by sending the contribution you also confirm you
+hold the rights needed to grant the section 7 licence.

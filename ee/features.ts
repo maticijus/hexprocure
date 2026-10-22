@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-HexProcure-Commercial
+// Copyright (c) 2026 HEXENKRAFT s.r.o. See ee/LICENSE.
 import { hasTier, type License, type Tier } from "@/lib/license";
 
 export const FEATURES = {

@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { generateKeyPairSync, sign, type KeyObject } from "node:crypto";
+import { createPublicKey, generateKeyPairSync, sign, type KeyObject } from "node:crypto";
 import {
   getLicense,
+  getLicenseState,
+  getLicenseStatus,
   hasTier,
+  LICENSOR_PUBLIC_KEY,
   parseLicense,
   requireTier,
   resetLicenseCache,
@@ -24,8 +27,6 @@ function mint(privateKey: KeyObject, claims: Record<string, unknown> = {}) {
       tier: "team",
       licensee: "Acme GmbH",
       exp: Math.floor(Date.now() / 1000) + 3600,
-      aiDocsPerMonth: 500,
-      connectors: ["qbo", "xero"],
       ...claims,
     }),
   );
@@ -33,7 +34,7 @@ function mint(privateKey: KeyObject, claims: Record<string, unknown> = {}) {
   return `${header}.${payload}.${sig}`;
 }
 
-const COMMUNITY = { tier: "community", licensee: "community", expiresAt: "", aiDocsPerMonth: 0, connectors: [] };
+const COMMUNITY = { tier: "community", licensee: "community", expiresAt: "" };
 
 afterEach(() => {
   delete process.env.HEXPROCURE_LICENSE;
@@ -46,8 +47,35 @@ describe("parseLicense", () => {
   it("accepts a valid token", () => {
     const k = newKeys();
     const lic = parseLicense(mint(k.privateKey), k.publicPem);
-    expect(lic).toMatchObject({ tier: "team", licensee: "Acme GmbH", aiDocsPerMonth: 500, connectors: ["qbo", "xero"] });
+    expect(lic).toEqual({ tier: "team", licensee: "Acme GmbH", expiresAt: expect.any(String) });
     expect(new Date(lic!.expiresAt).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("ignores unknown claims such as the old limit fields", () => {
+    const k = newKeys();
+    const lic = parseLicense(mint(k.privateKey, { aiDocsPerMonth: 500, connectors: ["qbo"] }), k.publicPem);
+    expect(lic).toEqual({ tier: "team", licensee: "Acme GmbH", expiresAt: expect.any(String) });
+  });
+
+  it("rejects a signature of the wrong length", () => {
+    const k = newKeys();
+    const [h, p, s] = mint(k.privateKey).split(".");
+    expect(parseLicense(`${h}.${p}.${s}AAAA`, k.publicPem)).toBeNull();
+    expect(parseLicense(`${h}.${p}.${s.slice(0, 40)}`, k.publicPem)).toBeNull();
+  });
+
+  it("rejects a non-canonical signature encoding that decodes to the same bytes", () => {
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const k = newKeys();
+    const [h, p, s] = mint(k.privateKey).split(".");
+    // 86 chars carry 516 bits for 512 bits of signature; the last 4 bits are ignored by the decoder.
+    const last = alphabet[alphabet.indexOf(s[85]) ^ 1];
+    const malleable = `${s.slice(0, 85)}${last}`;
+    expect(Buffer.from(malleable, "base64url")).toEqual(Buffer.from(s, "base64url"));
+    expect(parseLicense(`${h}.${p}.${malleable}`, k.publicPem)).toBeNull();
+    expect(parseLicense(`${h}.${p}.${s}==`, k.publicPem)).toBeNull();
+    const standard = Buffer.from(s, "base64url").toString("base64").replace(/=+$/, "");
+    if (standard !== s) expect(parseLicense(`${h}.${p}.${standard}`, k.publicPem)).toBeNull();
   });
 
   it("rejects an expired token", () => {
@@ -65,7 +93,7 @@ describe("parseLicense", () => {
   it("rejects a tampered payload", () => {
     const k = newKeys();
     const [h, , s] = mint(k.privateKey).split(".");
-    const forged = b64(JSON.stringify({ tier: "business", licensee: "x", exp: 9_999_999_999, aiDocsPerMonth: 1, connectors: [] }));
+    const forged = b64(JSON.stringify({ tier: "business", licensee: "x", exp: 9_999_999_999 }));
     expect(parseLicense(`${h}.${forged}.${s}`, k.publicPem)).toBeNull();
   });
 
@@ -87,8 +115,6 @@ describe("parseLicense", () => {
     expect(parseLicense(mint(k.privateKey, { tier: "gold" }), k.publicPem)).toBeNull();
     expect(parseLicense(mint(k.privateKey, { licensee: undefined }), k.publicPem)).toBeNull();
     expect(parseLicense(mint(k.privateKey, { exp: undefined }), k.publicPem)).toBeNull();
-    expect(parseLicense(mint(k.privateKey, { connectors: "qbo" }), k.publicPem)).toBeNull();
-    expect(parseLicense(mint(k.privateKey, { aiDocsPerMonth: -1 }), k.publicPem)).toBeNull();
   });
 
   it.each(["", "abc", "a.b", "a.b.c.d", "...", "!!!.@@@.###"])("returns null for malformed token %j", (t) => {
@@ -118,6 +144,42 @@ describe("parseLicense", () => {
 describe("getLicense", () => {
   it("defaults to community when env is missing", () => {
     expect(getLicense()).toEqual(COMMUNITY);
+    expect(getLicenseStatus()).toBe("none");
+  });
+
+  it("ships a pinned Ed25519 Licensor public key", () => {
+    expect(createPublicKey(LICENSOR_PUBLIC_KEY).asymmetricKeyType).toBe("ed25519");
+  });
+
+  it("reports a key that had already expired at startup as expired, not invalid", () => {
+    const k = newKeys();
+    process.env.HEXPROCURE_LICENSE = mint(k.privateKey, { exp: Math.floor(Date.now() / 1000) - 10 });
+    resetLicenseCache(k.publicPem);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(getLicense()).toEqual(COMMUNITY);
+    expect(getLicenseStatus()).toBe("expired");
+    expect(getLicenseState()).toEqual({ license: COMMUNITY, status: "expired" });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain("expired");
+  });
+
+  it("never takes the verifying key from the environment", () => {
+    const k = newKeys();
+    process.env.HEXPROCURE_LICENSE = mint(k.privateKey);
+    process.env.HEXPROCURE_LICENSE_PUBLIC_KEY = k.publicPem;
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(getLicense()).toEqual(COMMUNITY);
+    expect(getLicenseStatus()).toBe("invalid");
+  });
+
+  it("goes back to the pinned key after a plain reset", () => {
+    const k = newKeys();
+    process.env.HEXPROCURE_LICENSE = mint(k.privateKey);
+    resetLicenseCache(k.publicPem);
+    expect(getLicense().tier).toBe("team");
+    resetLicenseCache();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(getLicense()).toEqual(COMMUNITY);
   });
 
   it("defaults to community when only the token is set", () => {
@@ -129,9 +191,10 @@ describe("getLicense", () => {
   it("returns the licence for a valid token and memoises it", () => {
     const k = newKeys();
     process.env.HEXPROCURE_LICENSE = mint(k.privateKey);
-    process.env.HEXPROCURE_LICENSE_PUBLIC_KEY = k.publicPem;
+    resetLicenseCache(k.publicPem);
     const first = getLicense();
     expect(first.tier).toBe("team");
+    expect(getLicenseStatus()).toBe("active");
     delete process.env.HEXPROCURE_LICENSE;
     expect(getLicense()).toBe(first);
   });
@@ -141,11 +204,12 @@ describe("getLicense", () => {
     try {
       const k = newKeys();
       process.env.HEXPROCURE_LICENSE = mint(k.privateKey);
-      process.env.HEXPROCURE_LICENSE_PUBLIC_KEY = k.publicPem;
+      resetLicenseCache(k.publicPem);
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
       expect(getLicense().tier).toBe("team");
       vi.setSystemTime(Date.now() + 2 * 3600_000);
       expect(getLicense()).toEqual(COMMUNITY);
+      expect(getLicenseStatus()).toBe("expired");
       getLicense();
       expect(warn).toHaveBeenCalledTimes(1);
     } finally {
@@ -153,20 +217,14 @@ describe("getLicense", () => {
     }
   });
 
-  it("accepts a PEM with escaped newlines", () => {
-    const k = newKeys();
-    process.env.HEXPROCURE_LICENSE = mint(k.privateKey);
-    process.env.HEXPROCURE_LICENSE_PUBLIC_KEY = k.publicPem.replace(/\n/g, "\\n");
-    expect(getLicense().tier).toBe("team");
-  });
-
   it("warns once without leaking the token when the token is invalid", () => {
     const k = newKeys();
     const token = mint(k.privateKey, { tier: "gold" });
     process.env.HEXPROCURE_LICENSE = token;
-    process.env.HEXPROCURE_LICENSE_PUBLIC_KEY = k.publicPem;
+    resetLicenseCache(k.publicPem);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(getLicense()).toEqual(COMMUNITY);
+    expect(getLicenseStatus()).toBe("invalid");
     getLicense();
     expect(warn).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(warn.mock.calls)).not.toContain(token);
@@ -206,7 +264,7 @@ describe("requireTier", () => {
   it("passes when the licence is high enough", () => {
     const k = newKeys();
     process.env.HEXPROCURE_LICENSE = mint(k.privateKey, { tier: "business" });
-    process.env.HEXPROCURE_LICENSE_PUBLIC_KEY = k.publicPem;
+    resetLicenseCache(k.publicPem);
     expect(() => requireTier("team")).not.toThrow();
     expect(() => requireTier("business")).not.toThrow();
   });

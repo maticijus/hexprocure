@@ -274,10 +274,10 @@ The core in this repository is MIT and free to self-host with no seat cap.
 [`ee/`](ee/) carries the source-available [HexProcure Commercial Licence](ee/LICENSE)
 (a draft) and `ee/features.ts`, the map from planned paid features (AI lanes,
 connector packs, SSO and more) to the tier that will unlock them. No feature is
-gated yet: everything in v0.1.0 works without a key. A license key in
-`HEXPROCURE_LICENSE`, verified offline against `HEXPROCURE_LICENSE_PUBLIC_KEY`,
-sets the tier shown by `GET /api/v1/license`; without a valid key the app runs
-as Community. Tiers and prices:
+gated yet: everything in v0.1.0 works without a key. A licence key in
+`HEXPROCURE_LICENSE`, verified offline against the Licensor's public key pinned
+in `src/lib/license.ts`, sets the tier shown by `GET /api/v1/license`; without a
+valid key the app runs as Community. Tiers and prices:
 [docs/pricing-tiers.md](docs/pricing-tiers.md).
 
 ## License
