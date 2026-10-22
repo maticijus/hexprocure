@@ -20,6 +20,13 @@ export function toMinorUnits(major: number, currency: string): number {
   return Math.round(major * 10 ** (digits ?? 2));
 }
 
+/** Minor units as a plain decimal string for a form input, e.g. 12345 EUR to "123.45". */
+export function toMajorUnitsInput(minor: number, currency: string): string {
+  const digits = new Intl.NumberFormat("en-US", { style: "currency", currency }).resolvedOptions()
+    .maximumFractionDigits ?? 2;
+  return (minor / 10 ** digits).toFixed(digits);
+}
+
 export function currencySymbol(currency: string, locale = "en-US"): string {
   if (!isIsoCurrency(currency)) throw new RangeError(`invalid ISO 4217 currency: ${currency}`);
   const parts = new Intl.NumberFormat(locale, { style: "currency", currency }).formatToParts(0);

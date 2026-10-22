@@ -15,6 +15,17 @@ const NAV = [
   { href: "/suppliers", label: "Suppliers", icon: "☰" },
 ];
 
+const ADMIN_NAV = [
+  { href: "/admin/suppliers", label: "Manage suppliers", roles: ["ADMIN", "FINANCE"] },
+  { href: "/admin/cost-centers", label: "Cost centers", roles: ["ADMIN"] },
+  { href: "/admin/budgets", label: "Budgets", roles: ["ADMIN", "FINANCE"] },
+  { href: "/admin/approval-rules", label: "Approval rules", roles: ["ADMIN"] },
+];
+
+const LINK = "flex items-center gap-3 px-6 py-2.5 text-sm transition-colors";
+const ACTIVE_LINK = "bg-[var(--brand-light)] text-[var(--brand)] font-semibold border-r-3 border-[var(--brand)]";
+const IDLE_LINK = "text-gray-600 hover:bg-gray-50 hover:text-gray-900";
+
 export default function AppShell({
   user,
   children,
@@ -24,6 +35,7 @@ export default function AppShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const adminLinks = ADMIN_NAV.filter((item) => item.roles.includes(user.role));
 
   async function logout() {
     await fetch("/api/v1/auth/logout", { method: "POST" });
@@ -41,20 +53,27 @@ export default function AppShell({
           {NAV.map((item) => {
             const active = pathname.startsWith(item.href);
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-6 py-2.5 text-sm transition-colors ${
-                  active
-                    ? "bg-[var(--brand-light)] text-[var(--brand)] font-semibold border-r-3 border-[var(--brand)]"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }`}
-              >
+              <Link key={item.href} href={item.href} className={`${LINK} ${active ? ACTIVE_LINK : IDLE_LINK}`}>
                 <span className="w-5 text-center">{item.icon}</span>
                 {item.label}
               </Link>
             );
           })}
+          {adminLinks.length > 0 && (
+            <>
+              <div className="px-6 pt-5 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Admin</div>
+              {adminLinks.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`${LINK} ${pathname.startsWith(item.href) ? ACTIVE_LINK : IDLE_LINK}`}
+                >
+                  <span className="w-5" />
+                  {item.label}
+                </Link>
+              ))}
+            </>
+          )}
         </nav>
         <div className="border-t border-gray-100 p-4">
           <div className="text-sm font-medium text-gray-800">{user.name}</div>
