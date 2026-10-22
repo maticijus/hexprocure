@@ -128,7 +128,7 @@ Email and password login at `/login`. Registration is API-only (`POST /api/v1/au
 
 A sidebar groups the work areas: dashboard, requisitions, approvals, purchase orders, invoices, analytics, recurring orders, attachments and suppliers. The dashboard shows KPI cards (open requisitions, monthly budget, reserved spend, invoice exceptions) and a budget utilization bar. The approval inbox lets an approver approve or reject inline. List views use color-coded status pills, and detail pages cover requisitions, purchase orders, invoices and suppliers. The requisition form takes multiple lines and a currency. Invoice capture prefills the form from OCR.
 
-The suppliers pages are read-only: a list, and a detail page with that supplier's purchase orders and invoices. There is no UI or API to create or edit suppliers, cost centers, budgets or approval rules. Insert them with SQL (see [docs/deployment.md](docs/deployment.md) §3.3).
+An Admin group in the sidebar holds the master data pages: Manage suppliers, Cost centers, Budgets and Approval rules (`/admin/...`). Each page lists the records, has a create form and an edit form, and archives a record instead of deleting it. Suppliers and cost centers also take a CSV upload. ADMIN sees all four pages; FINANCE sees suppliers and budgets and can create and edit there, but not archive or import. Archived suppliers and cost centers cannot be picked on new requisitions. The suppliers list links to the admin form, and each supplier has a detail page with its purchase orders and invoices.
 
 <table>
   <tr>
@@ -265,7 +265,6 @@ flowchart LR
 
 - QBO live sync is built: OAuth connect, encrypted rotating tokens, idempotent PO/Bill push, and revoke/expiry notifications. It is covered by stubbed tests.
 - The live contract smoke (`npm run test:qbo-live`, see [docs/qbo-live-spec.md](docs/qbo-live-spec.md) §12) still needs Intuit sandbox credentials. Production OAuth needs a public HTTPS redirect URI.
-- Suppliers, cost centers, budgets and approval rules have no create or edit UI or API (the suppliers pages are read-only); insert them with SQL, see [docs/deployment.md](docs/deployment.md) §3.3
 - Rate limiting is single-instance in-memory; multi-node deployments need a Redis adapter, which does not exist yet
 
 ## Editions
