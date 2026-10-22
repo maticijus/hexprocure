@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { asc } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { orderTemplates } from "@/lib/db/schema";
+import { assertPickable } from "@/lib/services/master-data/pickable";
 import { createOrderTemplate } from "@/lib/services/recurring";
 import { errorToResponse, getActor, readJson } from "@/lib/api/helpers";
 
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+    await assertPickable(body.supplierId, body.costCenterId);
     const lines = (body.lines ?? []).filter((l) => l.description?.trim());
     const template = await createOrderTemplate({
       name: body.name ?? body.lines?.[0]?.description ?? "Recurring order",
