@@ -13,9 +13,8 @@ export type LicenseStatus = "none" | "invalid" | "expired" | "active";
 
 // Ed25519 public key of HEXENKRAFT s.r.o., the Licensor named in ee/LICENSE.
 // Keys are signed with scripts/license-sign.ts. Swapping this key defeats the
-// Licence Check (ee/LICENSE section 5). Tests may override it through
-// HEXPROCURE_LICENSE_PUBLIC_KEY; production ignores that variable (the
-// Next.js build also inlines NODE_ENV, so the override is dead code there).
+// Licence Check (ee/LICENSE section 5). The verifying key is never read from
+// the environment; tests inject one through resetLicenseCache(pem).
 export const LICENSOR_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEA8FYCLiNhAINGTQhgvb+QYaZNQf6REoH5lbO9ahSQrOg=
 -----END PUBLIC KEY-----
@@ -63,16 +62,14 @@ export function parseLicense(token: string, publicKeyPem: string, now: Date = ne
   return license && !isExpired(license, now) ? license : null;
 }
 
-function verifyingKey(): string {
-  const override = process.env.NODE_ENV === "test" ? process.env.HEXPROCURE_LICENSE_PUBLIC_KEY : undefined;
-  return override ? override.replace(/\\n/g, "\n") : LICENSOR_PUBLIC_KEY;
-}
-
+let verifyingPem = LICENSOR_PUBLIC_KEY;
 let cached: License | null = null;
 let cachedStatus: LicenseStatus = "none";
 let expiredWarned = false;
 
-export function resetLicenseCache(): void {
+/** Clears the cached licence. Tests pass their own public key; production always uses the pinned one. */
+export function resetLicenseCache(publicKeyPem: string = LICENSOR_PUBLIC_KEY): void {
+  verifyingPem = publicKeyPem;
   cached = null;
   cachedStatus = "none";
   expiredWarned = false;
@@ -81,7 +78,7 @@ export function resetLicenseCache(): void {
 export function getLicenseState(): { license: License; status: LicenseStatus } {
   if (!cached) {
     const token = process.env.HEXPROCURE_LICENSE?.trim();
-    const verified = token ? verifyToken(token, verifyingKey()) : null;
+    const verified = token ? verifyToken(token, verifyingPem) : null;
     if (token && !verified) {
       console.warn("HEXPROCURE_LICENSE is set but invalid; running as Community");
     }
