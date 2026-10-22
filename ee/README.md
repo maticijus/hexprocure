@@ -13,7 +13,8 @@ licence key, and in production the licence check in `src/lib/license.ts` must
 stay in place.
 
 To get a key, pick a tier from `features.ts` and write to matic@hexenkraft.cz.
-You receive a quote. The order you confirm names your legal entity, the tier,
+A free 30-day trial key is available once per organisation on request, no
+order needed. For a paid key you receive a quote. The order you confirm names your legal entity, the tier,
 the validity period and the fee, and carries this acceptance line, which Czech
 law needs in writing for the defects waiver and the venue clause to bind:
 
