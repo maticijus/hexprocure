@@ -74,7 +74,7 @@ Domain events are `PO_CREATED`, `PO_CANCELLED`, `INVOICE_APPROVED`, plus the not
 
 Each event type can have several connectors, and every connector that handles that event type receives the event. The registry is built from the environment: CSV when `INTEGRATION_CSV_DIR` is set, email always, QuickBooks when configured, webhook when configured. Delivery is tracked per connector in `integration_events.delivered_connectors`. An event is `DELIVERED` once all of its connectors succeed, and a failed connector is retried alone on the next run while the others are not called again.
 
-Failed retryable deliveries stay `PENDING` with attempt counts and last error. They are retried on the next dispatch. Trigger dispatch with `POST /api/v1/integrations/dispatch` (FINANCE/ADMIN), for example from cron.
+Failed retryable deliveries stay `PENDING` with attempt counts and last error. They are retried on the next dispatch. A non-retryable failure (for example a 4xx from QuickBooks) marks the event `FAILED` and it is not retried. Trigger dispatch with `POST /api/v1/integrations/dispatch` (FINANCE/ADMIN), for example from cron.
 
 You can also set `INTEGRATION_DISPATCH_INTERVAL_MS` (e.g. `60000`) to run dispatch from an in-process scheduler. The scheduler rebuilds the connector registry on every run, so it delivers in a fresh process and the cron call is optional. It is single-instance, so only one app container should run it.
 
