@@ -6,6 +6,13 @@ Protocol: ~/.claude/rules/common/parallel-sessions.md
 ## Active claims
 <!-- newest first; empty when the repo is free -->
 
+- **owner:** claude-fable (Orca coordinator session 5: QBO vendor mapping, master-data API and UI, MCP server)
+  **machine:** local-mac
+  **scope:** main in ~/dev/hexprocure (merges, pushes); lanes in Orca worktrees off main: qbo-vendor-map (src/lib/integrations/qbo*, README QBO bullet), master-data (src/app/api/v1/{suppliers,cost-centers,budgets,approval-rules}, src/lib/services/master-data, src/app/(app)/admin and suppliers pages, docs/api-contract.md, README UI and Known gaps, docs/deployment.md 3.3), mcp-server (services/mcp, README new MCP section, docs/erp-integration-route.md status)
+  **started:** 2026-10-22T07:10:00Z
+  **heartbeat:** 2026-10-22T07:10:00Z
+  **next:** gate each worker_done, merge green lanes, release
+
 ## History
 - 2026-10-22 claude-fable: pricing docs aligned to vendor-page prices (Team 79 EUR, Business 249 EUR), connectors marked built vs planned; next lanes proposed: QBO vendor mapping, master-data API.
 - 2026-10-21 claude-fable (Orca coordinator session 4): gap lanes L2 to L12 merged and pushed, main at the IPv6 hextet fix; demo video at ~/Desktop/hexprocure-demo-en.mp4 awaiting founder review; next: founder decisions on GitHub About text, video voice and music, pricing doc items.
