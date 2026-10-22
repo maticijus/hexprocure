@@ -3,6 +3,7 @@ import { generateKeyPairSync, sign, type KeyObject } from "node:crypto";
 import { createPublicKey } from "node:crypto";
 import {
   getLicense,
+  getLicenseState,
   getLicenseStatus,
   hasTier,
   LICENSOR_PUBLIC_KEY,
@@ -63,6 +64,20 @@ describe("parseLicense", () => {
     const [h, p, s] = mint(k.privateKey).split(".");
     expect(parseLicense(`${h}.${p}.${s}AAAA`, k.publicPem)).toBeNull();
     expect(parseLicense(`${h}.${p}.${s.slice(0, 40)}`, k.publicPem)).toBeNull();
+  });
+
+  it("rejects a non-canonical signature encoding that decodes to the same bytes", () => {
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const k = newKeys();
+    const [h, p, s] = mint(k.privateKey).split(".");
+    // 86 chars carry 516 bits for 512 bits of signature; the last 4 bits are ignored by the decoder.
+    const last = alphabet[alphabet.indexOf(s[85]) ^ 1];
+    const malleable = `${s.slice(0, 85)}${last}`;
+    expect(Buffer.from(malleable, "base64url")).toEqual(Buffer.from(s, "base64url"));
+    expect(parseLicense(`${h}.${p}.${malleable}`, k.publicPem)).toBeNull();
+    expect(parseLicense(`${h}.${p}.${s}==`, k.publicPem)).toBeNull();
+    const standard = Buffer.from(s, "base64url").toString("base64").replace(/=+$/, "");
+    if (standard !== s) expect(parseLicense(`${h}.${p}.${standard}`, k.publicPem)).toBeNull();
   });
 
   it("rejects an expired token", () => {
@@ -136,6 +151,18 @@ describe("getLicense", () => {
 
   it("ships a pinned Ed25519 Licensor public key", () => {
     expect(createPublicKey(LICENSOR_PUBLIC_KEY).asymmetricKeyType).toBe("ed25519");
+  });
+
+  it("reports a key that had already expired at startup as expired, not invalid", () => {
+    const k = newKeys();
+    process.env.HEXPROCURE_LICENSE = mint(k.privateKey, { exp: Math.floor(Date.now() / 1000) - 10 });
+    process.env.HEXPROCURE_LICENSE_PUBLIC_KEY = k.publicPem;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(getLicense()).toEqual(COMMUNITY);
+    expect(getLicenseStatus()).toBe("expired");
+    expect(getLicenseState()).toEqual({ license: COMMUNITY, status: "expired" });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain("expired");
   });
 
   it("ignores HEXPROCURE_LICENSE_PUBLIC_KEY outside the test environment", () => {
