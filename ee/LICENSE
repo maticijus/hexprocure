@@ -103,17 +103,18 @@ is allowed and is not infringement.
 5. No circumvention
 
 You may not make Production Use of the Software together with a Licence Check
-that has been moved, changed, disabled, weakened or worked around, and in
-Production Use You may not remove or obscure any functionality in the Software
-that the Licence Key protects. You may not generate, forge, modify or extend a
-Licence Key. You may test the Licence Check, including in a security
-assessment, on a system that is not in Production Use. You may not remove or
-obscure a notice that identifies the Software as licensed. Nothing in this
-licence restricts a right that the law grants a lawful user of a computer
-program and that cannot be narrowed by agreement, such as error correction, a
-backup copy, study of the program's principles and decompilation for
-interoperability under Section 66(1) and (6) of Act No. 121/2000 Coll., the
-Czech Copyright Act.
+that has been moved, changed, disabled, weakened or worked around, or that
+verifies a Licence Key against a key other than the one the Licensor publishes
+in the HexProcure repository (a "defeated Licence Check"), and in Production
+Use You may not remove or obscure any functionality in the Software that the
+Licence Key protects. You may not generate, forge, modify or extend a Licence
+Key. You may test the Licence Check, including in a security assessment, on a
+system that is not in Production Use. You may not remove or obscure a notice
+that identifies the Software as licensed. Nothing in this licence restricts a
+right that the law grants a lawful user of a computer program and that cannot
+be narrowed by agreement, such as error correction, a backup copy, study of the
+program's principles and decompilation for interoperability under Section 66(1)
+and (6) of Act No. 121/2000 Coll., the Czech Copyright Act.
 
 6. Redistribution, notices and trademarks
 
@@ -123,14 +124,14 @@ offering. You may not let a third party, other than a named Affiliate, use the
 Software as a customer of a hosted or managed service that You sell, and You
 may not offer a service whose main function the Software provides to third
 parties in that way. You may run the Software on systems a contractor operates
-for You, and You may use it to carry out procurement for Your own business and
-for named Affiliates. You may distribute copies that keep this licence and all
-notices intact, such as a fork made for contribution or an internal copy for
-Your own deployment. You must ensure that anyone who gets a copy from You also
-gets a copy of these terms. If You modify the Software, You must state in
-modified copies that You have modified it. This licence gives You no right to
-use the names HexProcure or HEXENKRAFT, or their logos, except to state where
-the Software comes from.
+for You, and You may use it to carry out procurement for Your own business, for
+named Affiliates and for Your customers. You may distribute copies that keep
+this licence and all notices intact, such as a fork made for contribution or an
+internal copy for Your own deployment. You must ensure that anyone who gets a
+copy from You also gets a copy of these terms. If You modify the Software, You
+must state in modified copies that You have modified it. This licence gives You
+no right to use the names HexProcure or HEXENKRAFT, or their logos, except to
+state where the Software comes from.
 
 7. Contributions
 
@@ -157,24 +158,26 @@ contribution.
 
 This licence runs until terminated. It ends automatically if You generate,
 forge, modify or extend a Licence Key. If You make Production Use and have
-never held a Licence Key, or make Production Use together with a Licence Check
-that has been moved, changed, disabled, weakened or worked around, or Your
-Licence Key expires or is revoked, or You use a Feature outside the Tier that
-covers it, You must stop that use within 14 days after the Licensor's written
-notice; if You do not, the Licensor may withdraw from section 4 and the Order
-by notice, and the free grant in section 3 continues. For any other breach,
-the Licensor may withdraw from this licence and revoke the Licence Key by
-notice if You do not cure the breach within 30 days after the Licensor's
-written notice. The Licensor may also withdraw by notice if You fail to pay an
-undisputed fee in the Order within 30 days after a written reminder.
-Withdrawal has effect only for the future. On termination of Production Use
-You stop Production Use and keep Your data. You may keep one copy of the
-Software for 90 days to export Your data, and for longer where the law
-requires You to keep records, and You may use that copy only to read those
-records. Fees for the period before termination are not refunded where
-termination follows Your breach; fees prepaid for the period after termination
-are refunded. Sections 1, 5, 7, 9, 10, 11 and 12, the prohibitions, notice
-duties and trademark sentence in section 6, and the duties in this section
+never held a Licence Key, or make Production Use together with a defeated
+Licence Check, You must stop within 14 days after the Licensor's written
+notice; if You do not, the Licensor may withdraw from this licence by notice.
+If Your Licence Key expires or is revoked, or You use a Feature outside the
+Tier that covers it, You must stop that use within 14 days after the Licensor's
+written notice; if You do not, the Licensor may withdraw from section 4 and the
+Order by notice, and the free grant in section 3 continues. The 14 days after
+notice under this section are the stop period. For any other breach, the
+Licensor may withdraw from this licence and revoke the Licence Key by notice if
+You do not cure the breach within 30 days after the Licensor's written notice.
+The Licensor may also withdraw by notice if You fail to pay an undisputed fee
+in the Order within 30 days after a written reminder. Withdrawal has effect
+only for the future. On termination of Production Use You stop Production Use
+and keep Your data. You may keep one copy of the Software for 90 days to export
+Your data, and for longer where the law requires You to keep records, and You
+may use that copy only to read those records. Fees for the period before
+termination are not refunded where termination follows Your breach; fees
+prepaid for the period after termination are refunded. Sections 1, 5, 7, 9, 10,
+11 and 12, the last sentence of section 2, the prohibitions, notice duties and
+trademark sentence in section 6, and the rights and duties in this section
 survive termination.
 
 9. Warranty and defects
@@ -215,45 +218,42 @@ gross negligence, harm to a person's natural rights, or harm to a weaker party
 
 This licence and any dispute arising out of it are governed by the laws of the
 Czech Republic, excluding its conflict of law rules. The United Nations
-Convention on Contracts for the International Sale of Goods does not apply.
-For Production Use, the court competent for the Licensor's registered seat has
-jurisdiction, as agreed in Your Order; You may also sue the Licensor in the
-courts of Your seat, and the Licensor may sue You in the courts of Your seat.
-The Order may instead name an arbitral institution seated in the Czech
-Republic. If You are a consumer, the courts that the law of Your habitual
-residence makes competent decide. This licence is written in English and the
-English text governs.
+Convention on Contracts for the International Sale of Goods does not apply. For
+Production Use, the court competent for the Licensor's registered seat has
+jurisdiction, as agreed in Your Order. The Order may instead name an arbitral
+institution seated in the Czech Republic. If You are a consumer, the courts
+that the law of Your habitual residence makes competent decide. This licence is
+written in English and the English text governs.
 
 12. General
 
 This licence, together with the Order under which a Licence Key was issued, is
 the whole agreement about the Software. The Order may add support terms, named
 Affiliates, limits, a data-processing arrangement, an intellectual-property
-indemnity and, where You are a public body, the clauses that public
-procurement law requires; if the Order and this licence conflict, the Order
-prevails, and Czech law under section 11 still governs. If a part is
-unenforceable, the rest stays in force and the unenforceable part is replaced
-by the valid rule that comes closest to its purpose. Where You are an
-entrepreneur, the parties agree that Sections 1799 and 1800 of the Civil Code
-(adhesion contracts) do not apply, as Section 1801 permits between
-entrepreneurs. Unless You are a consumer, You consent in advance to the
-Licensor assigning this licence to a legal successor or to an entity that
-acquires the HexProcure business (Sections 1895 and 1897(1) of the Civil
-Code); the assignment takes effect towards You when the Licensor emails it to
-the address in Your Order or, for the free grant, publishes it in the
-HexProcure repository. If the assignee offers the Software as a hosted
-service, You may end Production Use on 30 days' written notice and fees
-prepaid for the unused period are refunded. Notices under this licence are in
-writing; email is writing. A notice to You goes to the email address in Your
-Order; a notice to a person without an Order may be given by publication in
-the HexProcure repository. A notice to the Licensor goes to the address stated
-in the Order or, if none is stated, to the address at the end of this licence;
-the Licensor may publish a replacement address in the HexProcure repository,
-and notices then go there. A notice takes effect on the next business day
-after it is sent. The Licensor may publish a new version of this licence; it
-applies to releases of the Software published after it. A Licence Key stays on
-the version accepted in the Order until the key expires, including if You
-install a later release; You move to a new version for Production Use only by
-a new Order.
+indemnity and, where You are a public body, the clauses that public procurement
+law requires; if the Order and this licence conflict, the Order prevails, and
+Czech law under section 11 still governs. If a part is unenforceable, the rest
+stays in force and the unenforceable part is replaced by the valid rule that
+comes closest to its purpose. Where You are an entrepreneur, the parties agree
+that Sections 1799 and 1800 of the Civil Code (adhesion contracts) do not
+apply, as Section 1801 permits between entrepreneurs. Unless You are a
+consumer, You consent in advance to the Licensor assigning this licence to a
+legal successor or to an entity that acquires the HexProcure business (Sections
+1895 and 1897(1) of the Civil Code); the assignment takes effect towards You
+when the Licensor emails it to the address in Your Order or, for the free
+grant, publishes it in the HexProcure repository. If the assignee offers the
+Software as a hosted service, You may end Production Use on 30 days' written
+notice and fees prepaid for the unused period are refunded. Notices under this
+licence are in writing; email is writing. A notice to You goes to the email
+address in Your Order; a notice to a person without an Order may be given by
+publication in the HexProcure repository. A notice to the Licensor goes to the
+address stated in the Order or, if none is stated, to the address at the end of
+this licence; the Licensor may publish a replacement address in the HexProcure
+repository, and notices then go there. A notice takes effect on the next
+business day in the Czech Republic after it is sent. The Licensor may publish a
+new version of this licence; it applies to releases of the Software published
+after it. A Licence Key stays on the version accepted in the Order until the
+key expires, including if You install a later release; You move to a new
+version for Production Use only by a new Order.
 
 Licence Keys, notices and licensing questions: matic@hexenkraft.cz
