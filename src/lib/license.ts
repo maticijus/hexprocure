@@ -16,7 +16,7 @@ export type LicenseStatus = "none" | "invalid" | "expired" | "active";
 // Licence Check (ee/LICENSE section 5). The verifying key is never read from
 // the environment; tests inject one through resetLicenseCache(pem).
 export const LICENSOR_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEA8FYCLiNhAINGTQhgvb+QYaZNQf6REoH5lbO9ahSQrOg=
+MCowBQYDK2VwAyEAcPHUzqq3BFEjQRM3l8DpMZYIBkm7Gj9udFmV606QVlw=
 -----END PUBLIC KEY-----
 `;
 
