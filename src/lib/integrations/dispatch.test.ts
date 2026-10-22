@@ -79,6 +79,20 @@ describe("dispatch loop", () => {
     expect(after.lastError).toBe("ERP down");
   });
 
+  it("marks the event FAILED and stops retrying on a non-retryable connector error", async () => {
+    await db.insert(integrationEvents).values({ eventType: "PO_CREATED", payload: {} });
+    registerConnector({
+      name: "rejecting",
+      handles: ["PO_CREATED"],
+      deliver: async () => ({ ok: false, error: "bad payload", retryable: false }),
+    });
+
+    expect((await dispatchPendingEvents()).failed).toBe(1);
+    const [after] = await db.select().from(integrationEvents).where(eq(integrationEvents.eventType, "PO_CREATED"));
+    expect(after).toMatchObject({ status: "FAILED", lastError: "bad payload", attempts: 1 });
+    expect(await dispatchPendingEvents()).toMatchObject({ delivered: 0, failed: 0 });
+  });
+
   it("skips events no registered connector handles", async () => {
     clearConnectors();
     await db.insert(integrationEvents).values({ eventType: "PO_CANCELLED", payload: {} });

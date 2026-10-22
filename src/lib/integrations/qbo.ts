@@ -25,7 +25,10 @@ export interface QboPurchaseOrder {
   TotalAmt: number;
 }
 
-export function poEventToQboPurchaseOrder(event: IntegrationEvent): QboPurchaseOrder {
+export function poEventToQboPurchaseOrder(
+  event: IntegrationEvent,
+  vendorId: string,
+): QboPurchaseOrder {
   if (event.type !== "PO_CREATED") {
     throw new Error(`Expected PO_CREATED event, got ${event.type}`);
   }
@@ -33,7 +36,7 @@ export function poEventToQboPurchaseOrder(event: IntegrationEvent): QboPurchaseO
   const supplier = requireField(p.supplier, "supplier");
   const lines = (p.lines as Record<string, unknown>[]) ?? [];
   return {
-    VendorRef: { value: supplier, name: supplier },
+    VendorRef: { value: vendorId, name: supplier },
     CurrencyRef: { value: (p.currency as string) ?? "EUR" },
     ...(p.costCenter ? { ClassRef: { value: p.costCenter as string } } : {}),
     TxnDate: (p.issuedOn as string) ?? new Date().toISOString().slice(0, 10),
@@ -60,14 +63,14 @@ export interface QboBill {
   Links?: { HexProcureInvoiceId: string; PurchaseOrderId?: string }[];
 }
 
-export function invoiceEventToQboBill(event: IntegrationEvent): QboBill {
+export function invoiceEventToQboBill(event: IntegrationEvent, vendorId: string): QboBill {
   if (event.type !== "INVOICE_APPROVED") {
     throw new Error(`Expected INVOICE_APPROVED event, got ${event.type}`);
   }
   const p = event.payload;
   const supplier = requireField(p.supplier, "supplier");
   return {
-    VendorRef: { value: supplier, name: supplier },
+    VendorRef: { value: vendorId, name: supplier },
     DocNumber: String(p.invoiceNumber ?? ""),
     CurrencyRef: { value: (p.currency as string) ?? "EUR" },
     TotalAmt: toDecimal(p.totalMinor),

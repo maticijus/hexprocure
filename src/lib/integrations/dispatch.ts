@@ -50,7 +50,10 @@ async function deliverToPending(
         return outcome;
       }),
   );
-  return { outcome: outcomes.find((o) => !o.ok) ?? { ok: true }, delivered: [...delivered] };
+  // A retryable failure wins: a non-retryable one must not end retries for a connector that can still succeed.
+  const failures = outcomes.filter((o) => !o.ok);
+  const outcome = failures.find((o) => o.retryable) ?? failures[0] ?? { ok: true };
+  return { outcome, delivered: [...delivered] };
 }
 
 export async function dispatchPendingEvents(limit = 100): Promise<DispatchResult> {
@@ -86,7 +89,11 @@ export async function dispatchPendingEvents(limit = 100): Promise<DispatchResult
     } else {
       await db
         .update(integrationEvents)
-        .set({ status: "PENDING", attempts, lastError: outcome.ok ? null : outcome.error })
+        .set({
+          status: !outcome.ok && !outcome.retryable ? "FAILED" : "PENDING",
+          attempts,
+          lastError: outcome.ok ? null : outcome.error,
+        })
         .where(eq(integrationEvents.id, event.id));
       result.failed++;
     }

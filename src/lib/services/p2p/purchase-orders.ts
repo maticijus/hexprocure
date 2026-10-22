@@ -77,6 +77,7 @@ async function emitPoCreated(
     payload: {
       purchaseOrderId: poId,
       supplier: supplierRow?.name ?? "",
+      supplierId: req.supplierId,
       costCenter: ccName?.name ?? "",
       currency: req.currency,
       issuedOn: new Date().toISOString().slice(0, 10),

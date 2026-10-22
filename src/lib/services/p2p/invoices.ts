@@ -328,6 +328,7 @@ export async function approveInvoice(invoiceId: string, actorUserId: string) {
         invoiceId,
         invoiceNumber: invoice.number,
         supplier: invSupplier?.name ?? "",
+        supplierId: invoice.supplierId,
         currency: po.currency,
         totalMinor: await invoiceTotalMinor(tx, invoiceId),
         purchaseOrderId: invoice.purchaseOrderId,

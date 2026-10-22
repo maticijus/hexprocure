@@ -20,8 +20,8 @@ describe("QBO mappers", () => {
   };
 
   it("maps a PO event to QBO PurchaseOrder shape", () => {
-    const q = poEventToQboPurchaseOrder(poEvent);
-    expect(q.VendorRef).toEqual({ value: "Acme GmbH", name: "Acme GmbH" });
+    const q = poEventToQboPurchaseOrder(poEvent, "V42");
+    expect(q.VendorRef).toEqual({ value: "V42", name: "Acme GmbH" });
     expect(q.CurrencyRef).toEqual({ value: "EUR" });
     expect(q.ClassRef).toEqual({ value: "IT" });
     expect(q.Line[0].AccountBasedExpenseLineDetail).toEqual({ ClassRef: { value: "IT" } });
@@ -35,7 +35,7 @@ describe("QBO mappers", () => {
   });
 
   it("converts minor units to decimal amounts without float drift", () => {
-    const q = poEventToQboPurchaseOrder(poEvent);
+    const q = poEventToQboPurchaseOrder(poEvent, "V42");
     expect(q.Line[0].Amount).toBeCloseTo(199.9, 10);
     expect(q.TotalAmt).toBeCloseTo(199.9, 10);
   });
@@ -53,9 +53,9 @@ describe("QBO mappers", () => {
         purchaseOrderId: "po-1",
       },
     };
-    const b = invoiceEventToQboBill(event);
+    const b = invoiceEventToQboBill(event, "V42");
     expect(b).toMatchObject({
-      VendorRef: { value: "Acme GmbH", name: "Acme GmbH" },
+      VendorRef: { value: "V42", name: "Acme GmbH" },
       DocNumber: "INV-001",
       CurrencyRef: { value: "EUR" },
       TotalAmt: 50,
@@ -65,12 +65,12 @@ describe("QBO mappers", () => {
 
   it("rejects events with missing supplier", () => {
     const bad = { ...poEvent, payload: { ...poEvent.payload, supplier: undefined } };
-    expect(() => poEventToQboPurchaseOrder(bad)).toThrow(/supplier/i);
+    expect(() => poEventToQboPurchaseOrder(bad, "V42")).toThrow(/supplier/i);
   });
 
   it("rejects non-PO event types", () => {
     expect(() =>
-      poEventToQboPurchaseOrder({ id: "x", type: "INVOICE_APPROVED", payload: {} }),
+      poEventToQboPurchaseOrder({ id: "x", type: "INVOICE_APPROVED", payload: {} }, "V42"),
     ).toThrow(/PO_CREATED/);
   });
 });

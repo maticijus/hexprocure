@@ -290,16 +290,23 @@ export const integrationsConnections = pgTable("integrations_connections", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const qboSyncMap = pgTable("qbo_sync_map", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  eventId: uuid("event_id")
-    .notNull()
-    .references(() => integrationEvents.id),
-  entityType: text("entity_type").notNull(),
-  localEntityId: uuid("local_entity_id").notNull(),
-  qboEntityId: text("qbo_entity_id").notNull(),
-  syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const qboSyncMap = pgTable(
+  "qbo_sync_map",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // null for VENDOR rows: a vendor is cached per supplier, not per event
+    eventId: uuid("event_id").references(() => integrationEvents.id),
+    entityType: text("entity_type").notNull(),
+    localEntityId: uuid("local_entity_id").notNull(),
+    qboEntityId: text("qbo_entity_id").notNull(),
+    syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("qbo_sync_map_vendor_uq")
+      .on(t.localEntityId)
+      .where(sql`${t.entityType} = 'VENDOR'`),
+  ],
+);
 
 export const attachmentEntityType = pgEnum("attachment_entity_type", [
   "requisition",

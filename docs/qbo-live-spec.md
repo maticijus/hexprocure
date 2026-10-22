@@ -110,8 +110,10 @@ The existing dispatch loop gains a `QboConnector` (registered only when a health
 connection exists):
 
 1. Consume event → skip if `qbo_sync_map` already has its event.
-2. Map payload via the existing mappers (`poEventToQboPurchaseOrder`,
-   `invoiceEventToQboBill`).
+2. Resolve the QBO Vendor Id for the event's `supplierId`: vendors are matched by
+   DisplayName or created, and cached in `qbo_sync_map` (entity_type `VENDOR`, null
+   `event_id`). Then map the payload via the existing mappers
+   (`poEventToQboPurchaseOrder`, `invoiceEventToQboBill`), passing the vendor id.
 3. `POST https://{sandbox-?}.api.intuit.com/v3/company/{realmId}/purchaseorder|bill`
    with `Authorization: Bearer <access>` and `Content-Type: application/json`.
 4. On success: insert `qbo_sync_map` row (idempotency), event → DELIVERED.
