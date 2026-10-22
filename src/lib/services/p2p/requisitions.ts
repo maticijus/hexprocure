@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   approvalRules,
@@ -39,7 +39,7 @@ async function buildApprovalChain(tx: Tx, req: Requisition, total: number) {
   const rules: ApprovalRule[] = await tx
     .select()
     .from(approvalRules)
-    .where(eq(approvalRules.currency, req.currency))
+    .where(and(eq(approvalRules.currency, req.currency), isNull(approvalRules.archivedAt)))
     .orderBy(asc(approvalRules.sequence));
   if (rules.length === 0) {
     throw new DomainError("INVALID_STATE", "No approval rules configured");

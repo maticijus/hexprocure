@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   budgetReservations,
@@ -161,7 +161,7 @@ async function loadBudgetStateWithin(tx: Tx, costCenterId: string, yearMonth: st
   const [budget] = await tx
     .select()
     .from(budgets)
-    .where(and(eq(budgets.costCenterId, costCenterId), eq(budgets.yearMonth, yearMonth)));
+    .where(and(eq(budgets.costCenterId, costCenterId), eq(budgets.yearMonth, yearMonth), isNull(budgets.archivedAt)));
   if (!budget) return null;
   // Serialize concurrent PO creation against the same budget (TOCTOU guard).
   await tx.execute(sql`SELECT id FROM budgets WHERE id = ${budget.id} FOR UPDATE`);

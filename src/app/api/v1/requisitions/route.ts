@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { auditEvents, requisitionLines, requisitions } from "@/lib/db/schema";
 import { SUPPORTED_CURRENCIES } from "@/lib/format";
 import { errorToResponse, getActor, readJson } from "@/lib/api/helpers";
+import { isUuid } from "@/lib/ids";
+import { assertPickable } from "@/lib/services/master-data/pickable";
 
 async function audit(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
@@ -34,8 +36,8 @@ export async function POST(request: Request) {
     const body = await readJson<CreateRequisitionBody>(request);
 
     const errors: string[] = [];
-    if (!body.supplierId) errors.push("supplierId is required");
-    if (!body.costCenterId) errors.push("costCenterId is required");
+    if (!body.supplierId || !isUuid(body.supplierId)) errors.push("supplierId is required");
+    if (!body.costCenterId || !isUuid(body.costCenterId)) errors.push("costCenterId is required");
     const currency = body.currency ?? "EUR";
     if (!(SUPPORTED_CURRENCIES as readonly unknown[]).includes(currency))
       errors.push(`currency must be one of ${SUPPORTED_CURRENCIES.join(", ")}`);
@@ -54,6 +56,8 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+
+    await assertPickable(body.supplierId!, body.costCenterId!);
 
     const result = await db.transaction(async (tx) => {
       const [req] = await tx
