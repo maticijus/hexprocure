@@ -60,4 +60,9 @@ describe("POST /api/v1/suppliers/import", () => {
     expect((await big.json()).error.message).toBe("CSV must be at most 1 MB");
     expect(await db.select().from(suppliers)).toEqual([]);
   });
+
+  it("imports a file saved with a byte order mark", async () => {
+    const res = await upload(await sessionCookie("ADMIN"), "\uFEFFname,email\nBom Co,bom@co.test");
+    expect(await res.json()).toMatchObject({ created: 1, errors: [] });
+  });
 });

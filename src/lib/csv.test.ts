@@ -11,4 +11,8 @@ describe("parseCsv", () => {
       ["Plain", "multi\nline"],
     ]);
   });
+
+  it("drops one leading byte order mark so the first header matches", () => {
+    expect(parseCsv("\uFEFFname,email\nA,a@x.test")[0]).toEqual(["name", "email"]);
+  });
 });
