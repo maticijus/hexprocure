@@ -4,7 +4,7 @@ Base: `/api/v1`. JSON in/out. Auth: session cookie (single-tenant, email + passw
 Errors: `{ "error": { "code": string, "message": string, "details"?: object } }` with these statuses:
 400 `VALIDATION`, 402 `LICENSE_REQUIRED`, 403 `FORBIDDEN` (also unauthenticated), 404 `NOT_FOUND`, 409 `INVALID_STATE` (state conflicts, also an unparseable JSON body), 422 `BUDGET_EXCEEDED`, 429 `RATE_LIMITED`, 501 `NOT_CONFIGURED`, 503 `LLM_UNAVAILABLE`, 500 `INTERNAL`.
 
-There is no list or detail route for requisitions, purchase orders or invoices. The UI reads them server-side.
+List routes take `limit` (1 to 100, default 50) and `offset` (default 0) and answer `{ <resource>: [...], limit, offset }`, newest first. A bad filter value gives 400 `VALIDATION`, a malformed or unknown `:id` gives 400 or 404. Reads are open to any authenticated role or bearer token, like the matching UI pages.
 
 ## Resources
 
@@ -20,11 +20,15 @@ There is no list or detail route for requisitions, purchase orders or invoices. 
 A session cookie is accepted only while its `sessions` row exists, is not revoked and has not expired; otherwise the request fails with 403.
 
 ### Requisitions
+- `GET /requisitions?status&costCenterId&limit&offset` - `{ requisitions: [{ id, status, currency, createdAt, supplierId, supplier, costCenterId, costCenter, requesterId, totalMinor }], limit, offset }`.
+- `GET /requisitions/:id` - header plus `lines: [{ id, description, kind, quantity, unitPriceMinor }]`, `approvals: [{ id, sequence, approverRole, decision, comment, decidedAt, decidedBy }]`, `totalMinor` and `purchaseOrderId` (null until ordered).
 - `POST /requisitions` - create draft. Body: `{ supplierId, costCenterId, currency?, lines: [{ description, quantity, unitPriceMinor, kind?: "GOODS"|"SERVICE" }] }`. `currency` defaults to EUR; supported: EUR, USD, GBP, CZK, PLN, CHF. Returns 201 `{ id, status }`.
 - `POST /requisitions/:id/submit` - DRAFT to SUBMITTED; resolves the approval chain (domain). 409 if not DRAFT, has no lines, or no approval rules are configured; if no rule matches the amount the call fails with 500 `INTERNAL` ("No approval rule matches this amount").
 - `POST /approvals/:id/decide` - body: `{ decision: "approve"|"reject", comment? }`. Allowed for the role named on the approval step, or ADMIN (403 otherwise). 409 if already decided.
 
 ### Purchase Orders
+- `GET /purchase-orders?status&supplierId&limit&offset` - `{ purchaseOrders: [{ id, status, currency, createdAt, supplierId, supplier, costCenterId, costCenter, requisitionId, totalMinor }], limit, offset }`.
+- `GET /purchase-orders/:id` - header plus `lines: [{ id, description, kind, quantityOrdered, unitPriceMinor, quantityReceived, acceptanceCount, quantityInvoiced, amountInvoicedMinor }]` and `totalMinor`.
 - `POST /requisitions/:id/order` - APPROVED requisition to PO (requisition becomes ORDERED). Any authenticated user. **Budget guard runs here**: 409 `INVALID_STATE` when the cost center has no budget for the month, 422 `BUDGET_EXCEEDED` when exceeded. Reserves budget. Returns 201.
 - `GET /purchase-orders/:id/lines` - PO lines: `{ id, description, kind, quantityOrdered, unitPriceMinor }`.
 - `GET /purchase-orders/:id/pdf?variant=supplier|internal` - deterministic PDF; supplier variant omits cost center & requester. Any other `variant` value gives the internal PDF.
@@ -37,6 +41,8 @@ A session cookie is accepted only while its `sessions` row exists, is not revoke
   - PO auto-closes when all GOODS lines are fully received AND all SERVICE lines have >=1 acceptance
 
 ### Invoices & Matching
+- `GET /invoices?status&limit&offset` - `{ invoices: [{ id, number, status, currency, createdAt, supplierId, supplier, purchaseOrderId, totalMinor }], limit, offset }`. `currency` is the PO currency.
+- `GET /invoices/:id` - header plus `exceptions` (the stored match exceptions), `lines: [{ id, poLineId, description, kind, quantity, unitPriceMinor, amountMinor, lineTotalMinor }]` and `totalMinor`.
 - `POST /invoices` - body: `{ supplierId, purchaseOrderId, number, lines: [{ poLineId?, quantity, unitPriceMinor, amountMinor? }] }`. Returns 201 `{ id, status, number }`.
   - lines referencing SERVICE PO lines use `amountMinor` as the authoritative billed amount (quantity/price ignored for matching)
 - `POST /invoices/:id/match` - runs matching engine. Returns 200 `{ status: "MATCHED"|"EXCEPTION", exceptions: [...] }`; an invoice with exceptions stays `EXCEPTION`.
@@ -88,6 +94,7 @@ Invoice:     PENDING → MATCHED | EXCEPTION → APPROVED (from MATCHED only; EX
 
 | Action | Requester | Manager | Finance | Admin |
 |---|---|---|---|---|
+| Read requisitions, POs, invoices (list and detail) | ✓ | ✓ | ✓ | ✓ |
 | Create requisition / submit | ✓ | ✓ | ✓ | ✓ |
 | Approve/reject a step | – | ✓ (steps routed to MANAGER) | ✓ (steps routed to FINANCE) | ✓ (any step) |
 | Order an approved requisition | ✓ | ✓ | ✓ | ✓ |

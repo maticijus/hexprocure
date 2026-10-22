@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createInvoice } from "@/lib/services/p2p";
 import { errorToResponse, getActor, readJson } from "@/lib/api/helpers";
+import { listInvoices, parseListQuery } from "@/lib/services/reads";
 
 interface CreateInvoiceBody {
   supplierId?: string;
@@ -43,6 +44,17 @@ export async function POST(request: Request) {
       { id: invoice.id, status: invoice.status, number: invoice.number },
       { status: 201 },
     );
+  } catch (error) {
+    return errorToResponse(error);
+  }
+}
+
+export async function GET(request: Request) {
+  try {
+    await getActor(request);
+    const query = parseListQuery(request.url, "invoice");
+    const items = await listInvoices(query);
+    return NextResponse.json({ invoices: items, limit: query.limit, offset: query.offset });
   } catch (error) {
     return errorToResponse(error);
   }

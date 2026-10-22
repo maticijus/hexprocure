@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { auditEvents, requisitionLines, requisitions } from "@/lib/db/schema";
 import { SUPPORTED_CURRENCIES } from "@/lib/format";
 import { errorToResponse, getActor, readJson } from "@/lib/api/helpers";
+import { listRequisitions, parseListQuery } from "@/lib/services/reads";
 
 async function audit(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
@@ -81,6 +82,17 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ id: result.id, status: result.status }, { status: 201 });
+  } catch (error) {
+    return errorToResponse(error);
+  }
+}
+
+export async function GET(request: Request) {
+  try {
+    await getActor(request);
+    const query = parseListQuery(request.url, "requisition");
+    const items = await listRequisitions(query);
+    return NextResponse.json({ requisitions: items, limit: query.limit, offset: query.offset });
   } catch (error) {
     return errorToResponse(error);
   }
