@@ -24,4 +24,12 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ ...base, HEXPROCURE_URL: "https://h.test", HEXPROCURE_TIMEOUT_MS: "0" })).toThrow(/TIMEOUT/);
     expect(() => loadConfig({ ...base, HEXPROCURE_URL: "https://h.test", HEXPROCURE_TIMEOUT_MS: "abc" })).toThrow(/TIMEOUT/);
   });
+
+  it("rejects a query string, a fragment and an oversized timeout", () => {
+    const base = { HEXPROCURE_TOKEN: "hxp_x" };
+    expect(() => loadConfig({ ...base, HEXPROCURE_URL: "https://erp.example/app?tenant=acme" })).toThrow(/query string/);
+    expect(() => loadConfig({ ...base, HEXPROCURE_URL: "https://erp.example/app#x" })).toThrow(/fragment/);
+    expect(() => loadConfig({ ...base, HEXPROCURE_URL: "https://erp.example", HEXPROCURE_TIMEOUT_MS: "3000000000" })).toThrow(/1 to 60000/);
+    expect(loadConfig({ ...base, HEXPROCURE_URL: "https://erp.example/app/" }).baseUrl).toBe("https://erp.example/app");
+  });
 });

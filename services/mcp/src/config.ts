@@ -4,6 +4,8 @@ export interface Config {
   timeoutMs: number;
 }
 
+const MAX_TIMEOUT_MS = 60_000;
+
 export function loadConfig(env: Record<string, string | undefined>): Config {
   const url = env.HEXPROCURE_URL?.trim();
   const token = env.HEXPROCURE_TOKEN?.trim();
@@ -23,10 +25,13 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new Error("HEXPROCURE_URL must start with http:// or https://");
   }
+  if (parsed.search || parsed.hash) {
+    throw new Error("HEXPROCURE_URL must not contain a query string or fragment");
+  }
   const rawTimeout = env.HEXPROCURE_TIMEOUT_MS?.trim();
   const timeoutMs = rawTimeout ? Number(rawTimeout) : 10_000;
-  if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
-    throw new Error("HEXPROCURE_TIMEOUT_MS must be a positive integer");
+  if (!Number.isInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > MAX_TIMEOUT_MS) {
+    throw new Error(`HEXPROCURE_TIMEOUT_MS must be an integer from 1 to ${MAX_TIMEOUT_MS}`);
   }
-  return { baseUrl: url!.replace(/\/+$/, ""), token: token!, timeoutMs };
+  return { baseUrl: parsed.origin + parsed.pathname.replace(/\/+$/, ""), token: token!, timeoutMs };
 }
