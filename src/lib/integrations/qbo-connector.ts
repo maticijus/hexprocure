@@ -52,28 +52,41 @@ async function resolveVendorId(
   if (typeof name !== "string" || !name) {
     throw new QboVendorError("Event payload is missing required field: supplier", false);
   }
-  const [supplier] = await db
+  // Legacy events carry only the name, which is not unique: refuse to guess.
+  // Errors name the supplier id or a count, never the name (stored in last_error).
+  const matches = await db
     .select()
     .from(suppliers)
     .where(typeof p.supplierId === "string" ? eq(suppliers.id, p.supplierId) : eq(suppliers.name, name))
-    .limit(1);
-  if (!supplier) throw new QboVendorError(`Supplier not found for QBO vendor sync: ${name}`, false);
+    .limit(2);
+  if (matches.length > 1) {
+    throw new QboVendorError("Supplier name matches more than one supplier; event needs a supplierId", false);
+  }
+  const [supplier] = matches;
+  if (!supplier) {
+    throw new QboVendorError(
+      `Supplier not found for QBO vendor sync${typeof p.supplierId === "string" ? ` (id ${p.supplierId})` : ""}`,
+      false,
+    );
+  }
 
   const isVendor = (supplierId: string) =>
     and(eq(qboSyncMap.entityType, "VENDOR"), eq(qboSyncMap.localEntityId, supplierId));
   const [cached] = await db.select().from(qboSyncMap).where(isVendor(supplier.id));
   if (cached) return cached.qboEntityId;
 
-  const query = `select * from Vendor where DisplayName = '${escapeQuery(supplier.name)}'`;
-  const found = await call(`query?query=${encodeURIComponent(query)}`);
-  if (!found.ok) {
-    await revokeOnAuthFailure(found);
-    throw new QboVendorError(`QBO vendor lookup returned HTTP ${found.status}`, true);
-  }
-  const match = ((await found.json()) as { QueryResponse?: { Vendor?: { Id: string }[] } })
-    .QueryResponse?.Vendor?.[0];
+  const findByName = async (): Promise<string | undefined> => {
+    const query = `select * from Vendor where DisplayName = '${escapeQuery(supplier.name)}'`;
+    const found = await call(`query?query=${encodeURIComponent(query)}`);
+    if (!found.ok) {
+      await revokeOnAuthFailure(found);
+      throw new QboVendorError(`QBO vendor lookup returned HTTP ${found.status}`, true);
+    }
+    return ((await found.json()) as { QueryResponse?: { Vendor?: { Id: string }[] } }).QueryResponse
+      ?.Vendor?.[0]?.Id;
+  };
 
-  let vendorId = match?.Id;
+  let vendorId = await findByName();
   if (!vendorId) {
     const created = await call("vendor", {
       method: "POST",
@@ -82,21 +95,25 @@ async function resolveVendorId(
         ...(supplier.email ? { PrimaryEmailAddr: { Address: supplier.email } } : {}),
       }),
     });
-    if (!created.ok) {
+    if (created.ok) {
+      vendorId = ((await created.json()) as { Vendor?: { Id?: string } }).Vendor?.Id;
+      if (!vendorId) throw new QboVendorError("QBO vendor create returned no Id", true);
+    } else {
       await revokeOnAuthFailure(created);
-      throw new QboVendorError(
-        `QBO vendor create returned HTTP ${created.status}`,
-        created.status >= 500 || created.status === 429,
-      );
+      const retryable = created.status >= 500 || created.status === 429;
+      // 4xx: Intuit rejects a DisplayName already used by a Vendor or Customer (Fault 6240);
+      // a vendor that appeared since our lookup (concurrent dispatch) is usable.
+      if (!retryable && created.status !== 401 && created.status !== 403) vendorId = await findByName();
+      if (!vendorId) throw new QboVendorError(`QBO vendor create returned HTTP ${created.status}`, retryable);
     }
-    vendorId = ((await created.json()) as { Vendor?: { Id?: string } }).Vendor?.Id;
-    if (!vendorId) throw new QboVendorError("QBO vendor create returned no Id", true);
   }
   await db
     .insert(qboSyncMap)
     .values({ entityType: "VENDOR", localEntityId: supplier.id, qboEntityId: vendorId })
     .onConflictDoNothing();
-  return vendorId;
+  // A concurrent dispatcher may have mapped this supplier first: the stored row wins.
+  const [mapped] = await db.select().from(qboSyncMap).where(isVendor(supplier.id));
+  return mapped?.qboEntityId ?? vendorId;
 }
 
 /** QBO connector: consumes PO/invoice events and creates the corresponding
