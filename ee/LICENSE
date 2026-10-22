@@ -25,22 +25,22 @@ at the Order date. "Tier" means the team or business tier named in that map;
 the business Tier covers every team Feature. "Licence Key" means a signed token
 issued by the Licensor that names a Tier, You as licensee and a validity
 period; it is valid while a Licence Check that is not a defeated Licence Check
-accepts it. "Licence Check" means the code in the HexProcure repository that
-verifies a Licence Key. "Order" means the order that You sign or confirm in
-writing, including by electronic means, against the Licensor's quote, that
-identifies You and under which the Licensor issues a Licence Key. "Production
-Use" means any use of the Software other than evaluation, development, testing
-or contribution, including use for Your own operations or for Your customers.
-Running HexProcure with every paid Feature off is not Production Use of the
-Software and needs no Licence Key. "You" means the person who accepts this
-licence; for Production Use, "You" means the legal entity, public body,
-non-profit organisation or entrepreneur named in the Order, and the individual
-who signs the Order confirms that they can bind it and is not the licensee.
-"Affiliate" means an entity that controls You, that You control, or that is
-under common control with You, where control means more than half of the voting
-rights; Affiliates named in the Order may use the Licence Key as You. Use of
-the Software by a contractor only to operate it for You or a named Affiliate is
-Your use.
+accepts it and the Licensor has not revoked it under section 8. "Licence Check"
+means the code in the HexProcure repository that verifies a Licence Key.
+"Order" means the order that You sign or confirm in writing, including by
+electronic means, against the Licensor's quote, that identifies You and under
+which the Licensor issues a Licence Key. "Production Use" means any use of the
+Software other than evaluation, development, testing or contribution, including
+use for Your own operations or for Your customers. Running HexProcure with
+every paid Feature off is not Production Use of the Software and needs no
+Licence Key. "You" means the person who accepts this licence; for Production
+Use, "You" means the legal entity, public body, non-profit organisation or
+entrepreneur named in the Order, and the individual who signs the Order
+confirms that they can bind it and is not the licensee. "Affiliate" means an
+entity that controls You, that You control, or that is under common control
+with You, where control means more than half of the voting rights; Affiliates
+named in the Order may use the Licence Key as You. Use of the Software by a
+contractor only to operate it for You or a named Affiliate is Your use.
 
 2. Who may accept this licence, and how
 
