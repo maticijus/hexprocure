@@ -6,6 +6,13 @@ Protocol: ~/.claude/rules/common/parallel-sessions.md
 ## Active claims
 <!-- newest first; empty when the repo is free -->
 
+- **owner:** claude-fable (ee-license worktree session, nonpayment sentence)
+  **machine:** local-mac
+  **scope:** branch `maticijus/ee-license` — ee/LICENSE section 8 only
+  **started:** 2026-10-22T07:25:00Z
+  **heartbeat:** 2026-10-22T07:25:00Z
+  **next:** one docs commit, release
+
 
 - **owner:** claude-fable (Orca coordinator session, review + AI roadmap + first build lane)
   **machine:** local-mac
