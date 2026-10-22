@@ -6,6 +6,9 @@ import { DomainError } from "@/lib/services/p2p/shared";
  *  pushes a readable message into `errors` and returns the cleaned value, so a
  *  route reports every problem at once. In partial mode (PATCH) absent keys are
  *  skipped. */
+/** Largest value of a Postgres integer column. */
+export const MAX_PG_INT = 2_147_483_647;
+
 export class BodyReader {
   readonly errors: string[] = [];
   private readonly body: Record<string, unknown>;
@@ -71,6 +74,10 @@ export class BodyReader {
     const value = this.body[field];
     if (!Number.isSafeInteger(value) || (value as number) < 0) {
       this.errors.push(`${field} must be a whole number of at least 0`);
+      return undefined;
+    }
+    if ((value as number) > MAX_PG_INT) {
+      this.errors.push(`${field} must be at most ${MAX_PG_INT}`);
       return undefined;
     }
     return value as number;

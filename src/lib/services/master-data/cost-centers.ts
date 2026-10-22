@@ -2,7 +2,7 @@ import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { costCenters } from "@/lib/db/schema";
 import { BodyReader, definedOnly } from "@/lib/api/validate";
-import { audit, DomainError } from "@/lib/services/p2p/shared";
+import { audit, DomainError, pgErrorCode } from "@/lib/services/p2p/shared";
 
 export type CostCenter = typeof costCenters.$inferSelect;
 export interface CostCenterInput {
@@ -52,11 +52,22 @@ async function assertNameFree(name: string, exceptId?: string) {
 
 export async function createCostCenter(input: CostCenterInput, actorUserId: string): Promise<CostCenter> {
   await assertNameFree(input.name);
-  return db.transaction(async (tx) => {
-    const [row] = await tx.insert(costCenters).values(input).returning();
-    await audit(tx, "cost_center", row.id, "CREATED", actorUserId);
-    return row;
-  });
+  try {
+    return await db.transaction(async (tx) => {
+      const [row] = await tx.insert(costCenters).values(input).returning();
+      await audit(tx, "cost_center", row.id, "CREATED", actorUserId);
+      return row;
+    });
+  } catch (error) {
+    throw nameConflict(error, input.name);
+  }
+}
+
+/** The partial unique index backs assertNameFree when two writers race. */
+export function nameConflict(error: unknown, name: string): unknown {
+  return pgErrorCode(error) === "23505"
+    ? new DomainError("INVALID_STATE", `A cost center named "${name}" already exists`)
+    : error;
 }
 
 export async function updateCostCenter(
@@ -68,11 +79,15 @@ export async function updateCostCenter(
   if (current.archivedAt) throw new DomainError("INVALID_STATE", "Archived cost centers cannot be edited");
   if (Object.keys(patch).length === 0) return current;
   if (patch.name) await assertNameFree(patch.name, id);
-  return db.transaction(async (tx) => {
-    const [row] = await tx.update(costCenters).set(patch).where(eq(costCenters.id, id)).returning();
-    await audit(tx, "cost_center", id, "UPDATED", actorUserId, { fields: Object.keys(patch) });
-    return row;
-  });
+  try {
+    return await db.transaction(async (tx) => {
+      const [row] = await tx.update(costCenters).set(patch).where(eq(costCenters.id, id)).returning();
+      await audit(tx, "cost_center", id, "UPDATED", actorUserId, { fields: Object.keys(patch) });
+      return row;
+    });
+  } catch (error) {
+    throw nameConflict(error, patch.name ?? current.name);
+  }
 }
 
 export async function archiveCostCenter(id: string, actorUserId: string): Promise<CostCenter> {

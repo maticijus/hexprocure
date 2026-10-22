@@ -6,6 +6,8 @@ import {
   orderTemplates,
   requisitionLines,
   requisitions,
+  suppliers,
+  costCenters,
 } from "@/lib/db/schema";
 import { seedOrg, truncateAll } from "@/lib/testing/seed";
 import { createOrderTemplate, generateDueRequisitions } from "./recurring";
@@ -77,6 +79,23 @@ describe("generateDueRequisitions", () => {
     const reqs = await db.select().from(requisitions);
     expect(reqs).toHaveLength(0);
   });
+
+  it.each(["supplier", "cost center"] as const)(
+    "skips a template whose %s was archived and reports the skip",
+    async (which) => {
+      const { s, templateId } = await template();
+      const target = which === "supplier" ? suppliers : costCenters;
+      const id = which === "supplier" ? s.supplier.id : s.cc.id;
+      await db.update(target).set({ archivedAt: new Date() }).where(eq(target.id, id));
+
+      const result = await generateDueRequisitions(TODAY, s.manager.id);
+
+      expect(result).toMatchObject({ created: 0, skipped: [{ templateId, reason: expect.stringContaining("archived") }] });
+      expect(await db.select().from(requisitions)).toHaveLength(0);
+      const [t] = await db.select().from(orderTemplates).where(eq(orderTemplates.id, templateId));
+      expect(t.nextRunDate).toBe(TODAY);
+    },
+  );
 
   it("respects quarterly and yearly steps", async () => {
     const q = await template({ cadence: "QUARTERLY" });

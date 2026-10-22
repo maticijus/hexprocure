@@ -94,9 +94,31 @@ export function archiveRoute<Row, Input>(r: MasterDataResource<Row, Input>) {
   };
 }
 
-/** POST text/csv for a bulk upsert. ADMIN only; size and row caps are
- *  enforced by the import service, the header check here avoids buffering
- *  an obviously oversized body. */
+const TOO_LARGE = "CSV must be at most 1 MB";
+
+/** Reads the body chunk by chunk and gives up as soon as it passes `maxBytes`,
+ *  so neither a lying nor a missing Content-Length can force a big buffer.
+ *  Returns null when the cap is exceeded. */
+async function readCapped(request: Request, maxBytes: number): Promise<string | null> {
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+/** POST text/csv for a bulk upsert. ADMIN only; the byte cap is enforced while
+ *  the body is read (413), row cap and parsing live in the import service. */
 export function csvImportRoute(
   importCsv: (text: string, actorUserId: string) => Promise<unknown>,
   maxBytes: number,
@@ -107,10 +129,11 @@ export function csvImportRoute(
       if (!(request.headers.get("content-type") ?? "").startsWith("text/csv")) {
         throw new DomainError("VALIDATION", "Send the file as text/csv");
       }
-      if (Number(request.headers.get("content-length") ?? 0) > maxBytes) {
-        throw new DomainError("VALIDATION", "CSV must be at most 1 MB");
+      const text = await readCapped(request, maxBytes);
+      if (text === null) {
+        return NextResponse.json({ error: { code: "VALIDATION", message: TOO_LARGE } }, { status: 413 });
       }
-      return NextResponse.json(await importCsv(await request.text(), actor.id));
+      return NextResponse.json(await importCsv(text, actor.id));
     } catch (error) {
       return errorToResponse(error);
     }

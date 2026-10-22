@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db, pool } from "@/lib/db";
 import {
   users,
@@ -17,7 +17,7 @@ import {
 } from "@/lib/db/schema";
 import { truncateAll } from "@/lib/testing/seed";
 import { errorToResponse } from "@/lib/api/helpers";
-import { spendByGroup, analyticsSummary } from "./analytics";
+import { spendByGroup, analyticsSummary, monthlyBudgetOverview } from "./analytics";
 
 beforeEach(async () => {
   await truncateAll();
@@ -39,13 +39,16 @@ async function approvedInvoice(opts: {
   const [requester] = await db.insert(users).values({
     name: "R", email: `r-${Math.random()}@hex.test`,
   }).returning();
-  const [supplier] = await db.insert(suppliers).values({ name: opts.supplierName }).returning();
-  const [cc] = await db.insert(costCenters).values({ name: opts.ccName }).returning();
-  await db.insert(budgets).values({
-    costCenterId: cc.id,
-    yearMonth: new Date().toISOString().slice(0, 7),
-    budgetedMinor: 10_000_000,
-  });
+  const supplier =
+    (await db.select().from(suppliers).where(eq(suppliers.name, opts.supplierName)))[0] ??
+    (await db.insert(suppliers).values({ name: opts.supplierName }).returning())[0];
+  const cc =
+    (await db.select().from(costCenters).where(eq(costCenters.name, opts.ccName)))[0] ??
+    (await db.insert(costCenters).values({ name: opts.ccName }).returning())[0];
+  await db
+    .insert(budgets)
+    .values({ costCenterId: cc.id, yearMonth: new Date().toISOString().slice(0, 7), budgetedMinor: 10_000_000 })
+    .onConflictDoNothing();
   await db.insert(approvalRules).values({
     sequence: 1, minMinor: 0, maxMinor: null, approverRole: "MANAGER", currency: "EUR",
   });
@@ -214,4 +217,19 @@ describe("analyticsSummary", () => {
 
 afterAll(async () => {
   await pool.end();
+});
+
+describe("monthlyBudgetOverview", () => {
+  it("ignores archived budgets in totals and in the featured cost center", async () => {
+    const [live, gone] = await db.insert(costCenters).values([{ name: "Live" }, { name: "Gone" }]).returning();
+    await db.insert(budgets).values([
+      { costCenterId: live.id, yearMonth: "2026-11", budgetedMinor: 1_000, currency: "EUR" },
+      { costCenterId: gone.id, yearMonth: "2026-11", budgetedMinor: 9_000, currency: "EUR", archivedAt: new Date() },
+    ]);
+
+    const overview = await monthlyBudgetOverview("2026-11");
+
+    expect(overview.totals).toEqual([{ currency: "EUR", budget_minor: "1000", reserved_minor: "0" }]);
+    expect(overview.featured).toEqual({ cc: "Live", currency: "EUR" });
+  });
 });

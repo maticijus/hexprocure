@@ -40,13 +40,17 @@ export const suppliers = pgTable("suppliers", {
   name: text("name").notNull(),
   email: text("email"),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
-});
+}, (t) => [
+  uniqueIndex("suppliers_active_name_uq").on(sql`lower(${t.name})`).where(sql`${t.archivedAt} IS NULL`),
+]);
 
 export const costCenters = pgTable("cost_centers", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
-});
+}, (t) => [
+  uniqueIndex("cost_centers_active_name_uq").on(sql`lower(${t.name})`).where(sql`${t.archivedAt} IS NULL`),
+]);
 
 export const approvalRules = pgTable("approval_rules", {
   id: uuid("id").primaryKey().defaultRandom(),

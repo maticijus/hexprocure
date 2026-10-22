@@ -1,4 +1,4 @@
-import { and, eq, lte, sql } from "drizzle-orm";
+import { and, eq, isNotNull, lte, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   auditEvents,
@@ -6,6 +6,8 @@ import {
   orderTemplates,
   requisitionLines,
   requisitions,
+  costCenters,
+  suppliers,
   users,
 } from "@/lib/db/schema";
 import { DomainError } from "./p2p";
@@ -74,6 +76,8 @@ export async function createOrderTemplate(input: CreateOrderTemplateInput) {
 
 export interface GenerationResult {
   created: number;
+  /** Due templates left untouched because their supplier or cost center is archived. */
+  skipped: { templateId: string; reason: string }[];
 }
 
 /** Generates DRAFT requisitions for all due active templates and advances their
@@ -90,9 +94,27 @@ export async function generateDueRequisitions(
       .where(and(eq(orderTemplates.active, true), lte(orderTemplates.nextRunDate, today)));
 
     let created = 0;
+    const skipped: GenerationResult["skipped"] = [];
     for (const template of due) {
       // serialize concurrent dispatchers per template
       await tx.execute(sql`SELECT id FROM order_templates WHERE id = ${template.id} FOR UPDATE`);
+
+      const [archivedSupplier] = await tx
+        .select({ id: suppliers.id })
+        .from(suppliers)
+        .where(and(eq(suppliers.id, template.supplierId), isNotNull(suppliers.archivedAt)));
+      const [archivedCostCenter] = await tx
+        .select({ id: costCenters.id })
+        .from(costCenters)
+        .where(and(eq(costCenters.id, template.costCenterId), isNotNull(costCenters.archivedAt)));
+      if (archivedSupplier || archivedCostCenter) {
+        const reason = `${archivedSupplier ? "supplier" : "cost center"} archived`;
+        console.warn(
+          `recurring: skipped template ${template.id} (${reason}) supplier=${template.supplierId} costCenter=${template.costCenterId}`,
+        );
+        skipped.push({ templateId: template.id, reason });
+        continue;
+      }
 
       const lines = await tx
         .select()
@@ -135,6 +157,6 @@ export async function generateDueRequisitions(
       });
       created++;
     }
-    return { created };
+    return { created, skipped };
   });
 }

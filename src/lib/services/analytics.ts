@@ -114,3 +114,29 @@ export async function analyticsSummary(): Promise<AnalyticsSummary> {
     topSuppliers,
   };
 }
+
+export interface MonthlyBudgetOverview {
+  totals: { currency: string; budget_minor: string; reserved_minor: string }[];
+  featured: { cc: string; currency: string } | undefined;
+}
+
+/** Active budgets of one month: totals per currency plus one cost center to feature. */
+export async function monthlyBudgetOverview(month: string): Promise<MonthlyBudgetOverview> {
+  const totals = (await db.execute(sql`
+    SELECT b.currency,
+           SUM(b.budgeted_minor) AS budget_minor,
+           COALESCE(SUM((SELECT SUM(br.amount_minor) FROM budget_reservations br WHERE br.budget_id = b.id)), 0) AS reserved_minor
+    FROM budgets b
+    WHERE b.year_month = ${month} AND b.archived_at IS NULL
+    GROUP BY b.currency
+    ORDER BY b.currency
+  `)).rows as MonthlyBudgetOverview["totals"];
+  const [featured] = (await db.execute(sql`
+    SELECT cc.name AS cc, b.currency
+    FROM budgets b JOIN cost_centers cc ON cc.id = b.cost_center_id
+    WHERE b.year_month = ${month} AND b.archived_at IS NULL
+    ORDER BY b.currency, cc.name
+    LIMIT 1
+  `)).rows as { cc: string; currency: string }[];
+  return { totals, featured };
+}

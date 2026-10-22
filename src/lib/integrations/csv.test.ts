@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, it, expect } from "vitest";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createCsvConnector, eventToCsvRows, poToCsv, invoiceToCsv } from "./csv";
+import { createCsvConnector, eventToCsvRows, poToCsv, invoiceToCsv, toCsv } from "./csv";
 
 describe("CSV connector", () => {
   const poEvent = {
@@ -127,5 +127,16 @@ describe("CSV file connector", () => {
   it("reports a write failure instead of delivering", async () => {
     const outcome = await createCsvConnector({ dir: join(dir, "missing", "x") }).deliver(event);
     expect(outcome.ok).toBe(false);
+  });
+
+  it.each(["=SUM(A1)", "+1+1", "-2+3", "@cmd"])("prefixes %s so a spreadsheet reads it as text", (name) => {
+    const csv = toCsv([{ supplier: name, cost_center: "IT" }]);
+    expect(csv.split("\n")[1]).toContain(`'${name}`);
+  });
+
+  it("leaves ordinary and numeric cells alone", () => {
+    const csv = toCsv([{ supplier: "Acme", total_minor: "-500", quantity: 3 }]);
+    expect(csv.split("\n")[1]).toContain("Acme");
+    expect(csv.split("\n")[1]).toContain("-500");
   });
 });

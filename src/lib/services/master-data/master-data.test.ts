@@ -188,3 +188,27 @@ describe("archived master data on new requisitions", () => {
     );
   });
 });
+
+describe("duplicate names under concurrency", () => {
+  it("lets exactly one of two simultaneous supplier creates win, case-insensitively", async () => {
+    const { requester } = await seedOrg();
+    const results = await Promise.allSettled([
+      createSupplier({ name: "Nord", email: null }, requester.id),
+      createSupplier({ name: "NORD", email: null }, requester.id),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const rejected = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
+    expect(rejected.reason).toMatchObject({ code: "INVALID_STATE" });
+  });
+
+  it("lets exactly one of two simultaneous cost center creates win", async () => {
+    const { requester } = await seedOrg();
+    const results = await Promise.allSettled([
+      createCostCenter({ name: "Ops" }, requester.id),
+      createCostCenter({ name: "ops" }, requester.id),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const rejected = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
+    expect(rejected.reason).toMatchObject({ code: "INVALID_STATE" });
+  });
+});

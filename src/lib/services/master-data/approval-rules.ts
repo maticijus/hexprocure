@@ -116,11 +116,13 @@ export async function updateApprovalRule(
   patch: Partial<ApprovalRuleInput>,
   actorUserId: string,
 ): Promise<ApprovalRuleRow> {
-  const current = await getApprovalRule(id);
-  if (current.archivedAt) throw new DomainError("INVALID_STATE", "Archived approval rules cannot be edited");
-  if (Object.keys(patch).length === 0) return current;
   return db.transaction(async (tx) => {
     await tx.execute(sql`LOCK TABLE approval_rules IN SHARE ROW EXCLUSIVE MODE`);
+    // Read under the lock: the row may have been edited or archived while this call waited.
+    const [current] = await tx.select().from(approvalRules).where(eq(approvalRules.id, id));
+    if (!current) throw new DomainError("NOT_FOUND", "Approval rule not found");
+    if (current.archivedAt) throw new DomainError("INVALID_STATE", "Archived approval rules cannot be edited");
+    if (Object.keys(patch).length === 0) return current;
     await assertFitsRuleSet(tx, { ...current, ...patch }, id);
     const [row] = await tx.update(approvalRules).set(patch).where(eq(approvalRules.id, id)).returning();
     await audit(tx, "approval_rule", id, "UPDATED", actorUserId, { fields: Object.keys(patch) });

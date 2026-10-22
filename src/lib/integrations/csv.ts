@@ -20,7 +20,9 @@ const COLUMNS = [
 ] as const;
 
 function escapeCell(value: string | number | undefined | null): string {
-  const s = value === undefined || value === null ? "" : String(value);
+  let s = value === undefined || value === null ? "" : String(value);
+  // Spreadsheets run cells that start with these as formulas; plain numbers stay numbers for the ERP importer.
+  if (/^[=+\-@]/.test(s) && !/^[+-]?\d+(\.\d+)?$/.test(s)) s = `'${s}`;
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

@@ -1,16 +1,11 @@
 import Link from "next/link";
 import { StatusPill } from "@/components/ui";
 import { formatMoney } from "@/lib/format";
-import { eq as eq_, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { monthlyBudgetOverview } from "@/lib/services/analytics";
 import { getCurrentUser } from "@/lib/session";
 import { QboStatusCard } from "@/components/QboStatusCard";
-import {
-
-
-  budgets,
-  costCenters,
-} from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -30,15 +25,7 @@ export default async function DashboardPage() {
     open_reqs: number; exception_invoices: number;
   }[];
 
-  const budgetRows = (await db.execute(sql`
-    SELECT b.currency,
-           SUM(b.budgeted_minor) AS budget_minor,
-           COALESCE(SUM((SELECT SUM(br.amount_minor) FROM budget_reservations br WHERE br.budget_id = b.id)), 0) AS reserved_minor
-    FROM budgets b
-    WHERE b.year_month = ${month}
-    GROUP BY b.currency
-    ORDER BY b.currency
-  `)).rows as { currency: string; budget_minor: string; reserved_minor: string }[];
+  const { totals: budgetRows, featured: budget } = await monthlyBudgetOverview(month);
 
   const recentReqs = (
     await db.execute(sql`
@@ -55,13 +42,6 @@ export default async function DashboardPage() {
   ).rows as {
     id: string; status: string; created_at: string; currency: string; supplier_name: string | null; total_minor: string;
   }[];
-
-  const [budget] = await db
-    .select({ cc: costCenters.name, currency: budgets.currency })
-    .from(budgets)
-    .innerJoin(costCenters, eq_(costCenters.id, budgets.costCenterId))
-    .where(sql`${budgets.yearMonth} = ${month}`)
-    .limit(1);
 
   const usage = budgetRows.find((b) => b.currency === budget?.currency);
   const usedPct =

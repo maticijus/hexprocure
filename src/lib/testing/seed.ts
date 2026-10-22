@@ -48,6 +48,15 @@ export async function truncateAll() {
 
 const uniqueEmail = (prefix: string) => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@hex.test`;
 
+/** Active names are unique, so a second seedOrg call without truncation gets a numbered name. */
+async function freeName(table: typeof suppliers | typeof costCenters, base: string): Promise<string> {
+  const [{ n }] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(table)
+    .where(sql`lower(${table.name}) like lower(${base}) || '%'`);
+  return n === 0 ? base : `${base} ${n + 1}`;
+}
+
 export async function seedOrg() {
   const [requester] = await db
     .insert(users)
@@ -61,8 +70,11 @@ export async function seedOrg() {
     .insert(users)
     .values({ name: "Finance Fiona", email: uniqueEmail("fiona"), role: "FINANCE" })
     .returning();
-  const [supplier] = await db.insert(suppliers).values({ name: "Acme GmbH", email: "orders@acme.test" }).returning();
-  const [cc] = await db.insert(costCenters).values({ name: "IT" }).returning();
+  const [supplier] = await db
+    .insert(suppliers)
+    .values({ name: await freeName(suppliers, "Acme GmbH"), email: "orders@acme.test" })
+    .returning();
+  const [cc] = await db.insert(costCenters).values({ name: await freeName(costCenters, "IT") }).returning();
   const yearMonth = new Date().toISOString().slice(0, 7);
   const [budget] = await db
     .insert(budgets)

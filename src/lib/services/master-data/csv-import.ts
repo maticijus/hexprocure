@@ -4,6 +4,8 @@ import { costCenters, suppliers } from "@/lib/db/schema";
 import { parseCsv } from "@/lib/csv";
 import { BodyReader } from "@/lib/api/validate";
 import { audit, DomainError, type Tx } from "@/lib/services/p2p/shared";
+import { nameConflict as supplierConflict } from "./suppliers";
+import { nameConflict as costCenterConflict } from "./cost-centers";
 
 export const MAX_IMPORT_BYTES = 1024 * 1024;
 export const MAX_IMPORT_ROWS = 2000;
@@ -71,8 +73,15 @@ export async function importSuppliers(text: string, actorUserId: string): Promis
     const matches = await activeByName(tx, suppliers, name!);
     if (matches.length > 1) throw new DomainError("VALIDATION", `More than one supplier is named "${name}"`);
     if (matches.length === 0) {
-      const [created] = await tx.insert(suppliers).values({ name: name!, email: email ?? null }).returning();
-      await audit(tx, "supplier", created.id, "CREATED", actorUserId, { source: "csv" });
+      try {
+        // savepoint: a lost race must not abort the whole import transaction
+        await tx.transaction(async (sp) => {
+          const [created] = await sp.insert(suppliers).values({ name: name!, email: email ?? null }).returning();
+          await audit(sp, "supplier", created.id, "CREATED", actorUserId, { source: "csv" });
+        });
+      } catch (error) {
+        throw supplierConflict(error, name!);
+      }
       return "created";
     }
     const [current] = await tx.select().from(suppliers).where(eq(suppliers.id, matches[0].id));
@@ -91,8 +100,14 @@ export async function importCostCenters(text: string, actorUserId: string): Prom
     reader.done();
     const matches = await activeByName(tx, costCenters, name!);
     if (matches.length > 0) return "skipped";
-    const [created] = await tx.insert(costCenters).values({ name: name! }).returning();
-    await audit(tx, "cost_center", created.id, "CREATED", actorUserId, { source: "csv" });
+    try {
+      await tx.transaction(async (sp) => {
+        const [created] = await sp.insert(costCenters).values({ name: name! }).returning();
+        await audit(sp, "cost_center", created.id, "CREATED", actorUserId, { source: "csv" });
+      });
+    } catch (error) {
+      throw costCenterConflict(error, name!);
+    }
     return "created";
   });
 }
