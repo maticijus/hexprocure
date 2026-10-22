@@ -49,6 +49,21 @@ function assertNoBoundedOverlap(rules: CompiledRule[]): void {
   }
 }
 
+/** Throws when the rule set mixes currencies, has max <= min, or has
+ *  overlapping bounded bands. Used at submit time and when rules are edited. */
+export function validateApprovalRules(rules: ApprovalRule[]): CompiledRule[] {
+  const currency = rules[0]?.minAmount.currency;
+  for (const r of rules) {
+    if (r.minAmount.currency !== currency ||
+        (r.maxAmount && r.maxAmount.currency !== currency)) {
+      throw new Error("All approval rules must share one currency");
+    }
+  }
+  const compiled = compile(rules);
+  assertNoBoundedOverlap(compiled);
+  return compiled;
+}
+
 export function resolveApprovalChain(
   amount: Money,
   rules: ApprovalRule[],
@@ -56,21 +71,13 @@ export function resolveApprovalChain(
   if (rules.length === 0) {
     throw new Error("No approval rules configured");
   }
+  const compiled = validateApprovalRules(rules);
   const currency = rules[0].minAmount.currency;
-  for (const r of rules) {
-    if (r.minAmount.currency !== currency ||
-        (r.maxAmount && r.maxAmount.currency !== currency)) {
-      throw new Error("All approval rules must share one currency");
-    }
-  }
   if (amount.currency !== currency) {
     throw new Error(
       `Currency mismatch: requisition ${amount.currency} vs rules ${currency}`,
     );
   }
-
-  const compiled = compile(rules);
-  assertNoBoundedOverlap(compiled);
 
   const bandRule = compiled
     .filter(

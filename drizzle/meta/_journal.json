@@ -85,6 +85,13 @@
       "when": 1792750000000,
       "tag": "0011_qbo_sync_map_vendor",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792750001000,
+      "tag": "0012_master_data_archive",
+      "breakpoints": true
     }
   ]
 }

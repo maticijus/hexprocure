@@ -56,6 +56,25 @@ A session cookie is accepted only while its `sessions` row exists, is not revoke
 - `GET /attachments/:id` - streamed download
 - `DELETE /attachments/:id` - uploader or ADMIN only
 
+### Master data
+Suppliers, cost centers, budgets and approval rules. Each resource has the same five routes; replace `:resource` with `suppliers`, `cost-centers`, `budgets` or `approval-rules`.
+- `GET /:resource?includeArchived=true` - any authenticated user. Lists active records; `includeArchived=true` adds archived ones. Response keys: `{ suppliers }`, `{ costCenters }`, `{ budgets }`, `{ approvalRules }`.
+- `GET /:resource/:id` - any authenticated user. 404 for an unknown or malformed id.
+- `POST /:resource` - create, 201 with the record. Roles in the AuthZ matrix.
+- `PATCH /:resource/:id` - edit the fields sent. 409 for an archived record.
+- `POST /:resource/:id/archive` - ADMIN only. Sets `archivedAt`; nothing is deleted. Archiving twice is a no-op.
+
+Bodies (all validation failures come back together as one 400 `VALIDATION`, messages joined with `; `):
+- Supplier: `{ name, email? }`. 409 when an active supplier has the same name (ignoring case).
+- Cost center: `{ name }`. Same duplicate rule.
+- Budget: `{ costCenterId, yearMonth: "YYYY-MM", budgetedMinor, currency }`; PATCH takes only `budgetedMinor`. One budget per cost center and month (409); creating it again over an archived one restores that row. The cost center must be active.
+- Approval rule: `{ minMinor, maxMinor?: number|null, approverRole: "MANAGER"|"FINANCE"|"ADMIN", currency, sequence? }`. `sequence` defaults to the next free step of that currency. The domain rule-set check runs over the active rules of the same currency: `maxMinor` must be above `minMinor`, and bounded bands may touch but not overlap (400 "This amount band overlaps step N").
+- `currency` is one of EUR, USD, GBP, CZK, PLN, CHF. Amounts are integer minor units.
+
+Archived suppliers and cost centers are left out of `GET /meta/options` and rejected by `POST /requisitions` (400). Archived approval rules are ignored when a requisition is submitted; an archived budget counts as no budget when ordering.
+
+- `POST /suppliers/import`, `POST /cost-centers/import` - ADMIN only. Body `text/csv`, at most 1 MB and 2,000 rows, header `name,email` (suppliers) or `name` (cost centers). Rows upsert by name among active records, ignoring case. Response `{ created, updated, skipped, errors: [{ row, message }] }`; `row` counts the header as line 1 and rejected rows are listed, not counted.
+
 ### Recurring order templates
 - `POST /order-templates` - `{ name, supplierId, costCenterId, cadence: MONTHLY|QUARTERLY|YEARLY, nextRunDate?, lines: [{ description, quantity, unitPriceMinor, kind? }] }`
 - `GET /order-templates`
@@ -73,14 +92,13 @@ A session cookie is accepted only while its `sessions` row exists, is not revoke
 - `GET /analytics/spend?groupBy=supplier|costCenter|month&from&to` - FINANCE/ADMIN. `groupBy` defaults to `supplier`.
 
 ### Meta and licence
-- `GET /meta/options` - suppliers and cost centers as `{ id, name }` lists. Any authenticated user.
+- `GET /meta/options` - active suppliers and cost centers as `{ id, name }` lists. Any authenticated user.
 - `GET /meta/entities?type=requisition|purchase_order|invoice` - latest 50 `{ id, label }` entries for the attachment picker. 400 without `type`.
 - `GET /license` - ADMIN only. Current licence tier and validity.
 
 ### Health
 - `GET /api/health` (outside `/api/v1`, public).
 
-Budgets and approval rules have no API route: they are configured in the database (seed script).
 
 ## Status machines
 
@@ -108,3 +126,7 @@ Invoice:     PENDING → MATCHED | EXCEPTION → APPROVED (from MATCHED only; EX
 | API tokens, QBO connect/disconnect, licence | – | – | – | ✓ |
 | Revoke a user's sessions | – | – | – | ✓ |
 | Delete attachment | own uploads | own uploads | own uploads | ✓ |
+| Read suppliers, cost centers, budgets, approval rules | ✓ | ✓ | ✓ | ✓ |
+| Create or edit suppliers and budgets | – | – | ✓ | ✓ |
+| Create or edit cost centers and approval rules | – | – | – | ✓ |
+| Archive any master data record, CSV import | – | – | – | ✓ |

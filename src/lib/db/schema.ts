@@ -39,11 +39,13 @@ export const suppliers = pgTable("suppliers", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   email: text("email"),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
 });
 
 export const costCenters = pgTable("cost_centers", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
 });
 
 export const approvalRules = pgTable("approval_rules", {
@@ -53,6 +55,7 @@ export const approvalRules = pgTable("approval_rules", {
   maxMinor: integer("max_minor"),
   approverRole: text("approver_role").notNull(),
   currency: text("currency").notNull().default("EUR"),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
 });
 
 export const budgets = pgTable(
@@ -65,6 +68,7 @@ export const budgets = pgTable(
     yearMonth: text("year_month").notNull(),
     budgetedMinor: integer("budgeted_minor").notNull(),
     currency: text("currency").notNull().default("EUR"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
   },
   (t) => [uniqueIndex("budget_cc_month_uq").on(t.costCenterId, t.yearMonth)],
 );

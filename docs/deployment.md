@@ -108,16 +108,36 @@ sudo -u postgres psql hexprocure \
 
    With Docker Compose use `docker compose exec db psql -U hexprocure hexprocure -c "..."` instead. Then log in at `/login`.
 
-3. As ADMIN: configure suppliers, cost centers, budgets and approval rules.
-   There is no create or edit UI or API for any of them yet (the suppliers pages are
-   read-only), so insert them with SQL.
-   Example ruleset:
+3. As ADMIN: configure suppliers, cost centers, budgets and approval rules on the
+   admin pages in the sidebar (`/admin/suppliers`, `/admin/cost-centers`,
+   `/admin/budgets`, `/admin/approval-rules`). A requisition needs at least one
+   supplier, one cost center and an approval rule in its currency; ordering it needs
+   a budget for that cost center and month. A typical ruleset: from 0 up to 500 EUR
+   approved by a manager, then from 500 EUR with no upper limit approved by Finance.
 
-```sql
-INSERT INTO approval_rules (sequence, min_minor, max_minor, approver_role) VALUES
-  (1, 0,      50000,   'MANAGER'),
-  (2, 50000,  NULL,    'FINANCE');
+   To load existing lists in bulk, upload a CSV on the suppliers and cost centers
+   pages, or post it to the import endpoints with an ADMIN API token:
+
+```bash
+curl -X POST https://procure.yourcompany.com/api/v1/suppliers/import \
+  -H "authorization: Bearer $HEXPROCURE_TOKEN" \
+  -H "content-type: text/csv" \
+  --data-binary @suppliers.csv     # header: name,email
+
+curl -X POST https://procure.yourcompany.com/api/v1/cost-centers/import \
+  -H "authorization: Bearer $HEXPROCURE_TOKEN" \
+  -H "content-type: text/csv" \
+  --data-binary @cost-centers.csv  # header: name
 ```
+
+   Rows are matched by name, so a file can be uploaded again after edits. The
+   response lists `{ created, updated, skipped, errors }` with the line number of
+   each rejected row.
+
+   Fallback when the app is not reachable: the tables can still be filled with SQL,
+   for example
+   `INSERT INTO approval_rules (sequence, min_minor, max_minor, approver_role) VALUES (1, 0, 50000, 'MANAGER'), (2, 50000, NULL, 'FINANCE');`.
+   SQL skips the overlap and currency checks the admin pages run.
 
 4. Register the other users the same way (new accounts are REQUESTER; promote team
    leads to MANAGER, accounting to FINANCE). Once everyone is registered, remove

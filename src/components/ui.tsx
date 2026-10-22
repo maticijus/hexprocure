@@ -45,3 +45,13 @@ export function Fact({ label, children }: { label: string; children: React.React
 export function ErrorNote({ message }: { message: string | null }) {
   return message ? <p className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{message}</p> : null;
 }
+
+export function ActivePill({ archived }: { archived: boolean }) {
+  return (
+    <span
+      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${archived ? "bg-gray-100 text-gray-500" : "bg-green-50 text-green-700"}`}
+    >
+      {archived ? "Archived" : "Active"}
+    </span>
+  );
+}

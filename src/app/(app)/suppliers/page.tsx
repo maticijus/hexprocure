@@ -1,16 +1,28 @@
 import Link from "next/link";
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { ActivePill } from "@/components/ui";
 import { getCurrentUser } from "@/lib/session";
 
 export default async function SuppliersPage() {
-  await getCurrentUser();
-  const rows = (await db.execute(sql`SELECT id, name, email FROM suppliers ORDER BY name`)).rows as {
-    id: string; name: string; email: string | null;
+  const user = await getCurrentUser();
+  const canManage = user?.role === "ADMIN" || user?.role === "FINANCE";
+  const rows = (await db.execute(sql`SELECT id, name, email, archived_at FROM suppliers ORDER BY name`)).rows as {
+    id: string; name: string; email: string | null; archived_at: string | null;
   }[];
   return (
     <div>
-      <h1 className="text-xl font-bold mb-6">Suppliers</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl font-bold">Suppliers</h1>
+        {canManage && (
+          <Link
+            href="/admin/suppliers"
+            className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--brand-dark)]"
+          >
+            Add or edit suppliers
+          </Link>
+        )}
+      </div>
       <div className="rounded-xl bg-white shadow-sm border border-gray-100 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
@@ -28,7 +40,7 @@ export default async function SuppliersPage() {
                 </td>
                 <td className="px-5 py-3 text-gray-500">{s.email ?? "-"}</td>
                 <td className="px-5 py-3">
-                  <span className="inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold bg-green-50 text-green-700">ACTIVE</span>
+                  <ActivePill archived={!!s.archived_at} />
                 </td>
               </tr>
             ))}

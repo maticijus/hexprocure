@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { currencySymbol, formatMoney, toMinorUnits } from "./format";
+import { currencySymbol, formatMoney, toMinorUnits, toMajorUnitsInput } from "./format";
 
 const plain = (s: string) => s.replace(/ /g, " ");
 
@@ -44,5 +44,12 @@ describe("currencySymbol", () => {
   it("returns the symbol for the currency", () => {
     expect(currencySymbol("EUR")).toBe("€");
     expect(currencySymbol("USD")).toBe("$");
+  });
+});
+
+describe("toMajorUnitsInput", () => {
+  it("renders minor units with the currency's decimals", () => {
+    expect(toMajorUnitsInput(12345, "EUR")).toBe("123.45");
+    expect(toMajorUnitsInput(500, "JPY")).toBe("500");
   });
 });
