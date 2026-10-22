@@ -10,6 +10,7 @@
     "test:qbo-live": "vitest run --config vitest.live.config.ts",
     "test:e2e": "next build && playwright test",
     "test:e2e:only": "playwright test",
+    "mcp:test": "npm --prefix services/mcp test",
     "license:keygen": "tsx scripts/license-keygen.ts",
     "license:sign": "tsx scripts/license-sign.ts"
   },

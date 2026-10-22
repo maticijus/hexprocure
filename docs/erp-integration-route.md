@@ -23,6 +23,8 @@ HexProcure ───────────────────────
 
 ### 2.1 HexProcure MCP server (outbound capability)
 
+**Status:** built read-only on 2026-10-22 in `services/mcp` (seven read tools and both resources; `get_budget_status` waits for a budgets read route). Writes pending token scopes.
+
 A standalone process in `services/mcp/` (TypeScript, official MCP SDK) that
 authenticates with a HexProcure API token (`hxp_…`, scoped) and exposes:
 

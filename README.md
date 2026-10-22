@@ -78,6 +78,35 @@ Failed retryable deliveries stay `PENDING` with attempt counts and last error. T
 
 You can also set `INTEGRATION_DISPATCH_INTERVAL_MS` (e.g. `60000`) to run dispatch from an in-process scheduler. The scheduler rebuilds the connector registry on every run, so it delivers in a fresh process and the cron call is optional. It is single-instance, so only one app container should run it.
 
+#### MCP server
+
+`services/mcp` is a standalone, read-only [MCP](https://modelcontextprotocol.io) server (stdio) that lets an agent such as Claude Desktop, Claude Code or Cursor read procurement state through the REST API. It never touches the database. Tools: `list_requisitions`, `get_requisition`, `list_purchase_orders`, `get_purchase_order`, `list_invoices`, `get_invoice` (with match exceptions) and `spend_summary`; resources `hexprocure://po/{id}` and `hexprocure://invoice/{id}`. Amounts come back as minor units plus a formatted string in the row currency. The server acts with the role of the token's user, so `spend_summary` needs a FINANCE or ADMIN token.
+
+| Variable | Meaning |
+|---|---|
+| `HEXPROCURE_URL` | Base URL of the app (required) |
+| `HEXPROCURE_TOKEN` | API token `hxp_...` from `POST /api/v1/auth/tokens` (required) |
+| `HEXPROCURE_TIMEOUT_MS` | Per-request timeout, default `10000` |
+
+Build with `cd services/mcp && npm install --ignore-scripts && npm run build`, then register it, for example in the Claude Desktop config:
+
+```json
+{
+  "mcpServers": {
+    "hexprocure": {
+      "command": "node",
+      "args": ["/path/to/hexprocure/services/mcp/dist/index.js"],
+      "env": {
+        "HEXPROCURE_URL": "https://hexprocure.example.com",
+        "HEXPROCURE_TOKEN": "hxp_replace_with_your_token"
+      }
+    }
+  }
+}
+```
+
+Read-only today: writes and approvals are not exposed.
+
 ## AI functionality
 
 HexProcure includes an **AI-assisted invoice intake pipeline** that turns unstructured invoice documents into reviewable drafts:
