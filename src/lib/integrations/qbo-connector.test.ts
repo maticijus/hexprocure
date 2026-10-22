@@ -191,6 +191,69 @@ describe("createQboConnector", () => {
     expect(callsTo(create, "/purchaseorder")).toHaveLength(0);
   });
 
+  it("fails non-retryable, without the name, when a legacy event matches several suppliers", async () => {
+    const fetchMock = qboRouter({ queryVendors: [{ Id: "V-x" }] });
+    const { event, supplier } = await seedConnectionAndEvent("PO_CREATED");
+    delete (event.payload as Record<string, unknown>).supplierId;
+    await db.insert(suppliers).values({ name: supplier.name });
+
+    const result = await createQboConnector({ fetchImpl: fetchMock }).deliver(event);
+    expect(result).toMatchObject({ ok: false, retryable: false });
+    expect(!result.ok && result.error).not.toContain(supplier.name);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("uses the mapping another dispatcher inserted first, not the id this attempt created", async () => {
+    const { event, supplier } = await seedConnectionAndEvent("PO_CREATED");
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes("/query")) return new Response("{}", { status: 200 });
+      if (url.endsWith("/vendor")) {
+        await db.insert(qboSyncMap).values({ entityType: "VENDOR", localEntityId: supplier.id, qboEntityId: "A" });
+        return new Response(JSON.stringify({ Vendor: { Id: "B" } }), { status: 200 });
+      }
+      return qboOk("77");
+    }) as unknown as typeof fetch & ReturnType<typeof vi.fn>;
+
+    expect((await createQboConnector({ fetchImpl: fetchMock }).deliver(event)).ok).toBe(true);
+    expect(JSON.parse(callsTo(fetchMock, "/purchaseorder")[0][1].body).VendorRef.value).toBe("A");
+    const rows = await db.select().from(qboSyncMap).where(eq(qboSyncMap.entityType, "VENDOR"));
+    expect(rows.map((r) => r.qboEntityId)).toEqual(["A"]);
+  });
+
+  it("re-queries after a create 4xx and uses the vendor that now exists (duplicate DisplayName)", async () => {
+    const { event, supplier } = await seedConnectionAndEvent("PO_CREATED");
+    let queries = 0;
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes("/query")) {
+        return new Response(JSON.stringify({ QueryResponse: ++queries > 1 ? { Vendor: [{ Id: "C" }] } : {} }), { status: 200 });
+      }
+      if (url.endsWith("/vendor")) {
+        return new Response('{"Fault":{"Error":[{"code":"6240"}]}}', { status: 400 });
+      }
+      return qboOk("77");
+    }) as unknown as typeof fetch & ReturnType<typeof vi.fn>;
+
+    expect((await createQboConnector({ fetchImpl: fetchMock }).deliver(event)).ok).toBe(true);
+    expect(JSON.parse(callsTo(fetchMock, "/purchaseorder")[0][1].body).VendorRef.value).toBe("C");
+    const [row] = await db.select().from(qboSyncMap).where(eq(qboSyncMap.entityType, "VENDOR"));
+    expect(row).toMatchObject({ localEntityId: supplier.id, qboEntityId: "C" });
+  });
+
+  it("keeps supplier names out of the error stored on the event", async () => {
+    const { event, supplier } = await seedConnectionAndEvent("PO_CREATED");
+    await db
+      .update(integrationEvents)
+      .set({ payload: { ...event.payload, supplierId: crypto.randomUUID() } })
+      .where(eq(integrationEvents.id, event.id));
+    clearConnectors();
+    registerConnector(createQboConnector({ fetchImpl: qboRouter() }));
+
+    await dispatchPendingEvents();
+    const [after] = await db.select().from(integrationEvents).where(eq(integrationEvents.id, event.id));
+    expect(after.lastError).toBeTruthy();
+    expect(after.lastError).not.toContain(supplier.name);
+  });
+
   it("records a sync-map row so a second delivery is skipped (idempotent)", async () => {
     const fetchMock = qboRouter({ queryVendors: [{ Id: "V1" }] });
     const connector = createQboConnector({ fetchImpl: fetchMock });
