@@ -69,4 +69,21 @@ describe("/api/v1/approval-rules", () => {
       "minMinor must be a whole number of at least 0; approverRole must be one of MANAGER, FINANCE, ADMIN; currency must be one of EUR, USD, GBP, CZK, PLN, CHF",
     );
   });
+
+  it("rejects a patch that puts max below the stored min, and two patches that only clash once merged", async () => {
+    const admin = await sessionCookie("ADMIN");
+    const rule = await (await create(apiRequest(admin, "POST", band(100, 1000)))).json();
+
+    const low = await patch(apiRequest(admin, "PATCH", { maxMinor: 50 }), idParams(rule.id));
+    expect(low.status).toBe(400);
+    expect((await low.json()).error.message).toBe("maxMinor must be greater than minMinor");
+
+    const [a, b] = await Promise.all([
+      patch(apiRequest(admin, "PATCH", { minMinor: 600 }), idParams(rule.id)),
+      patch(apiRequest(admin, "PATCH", { maxMinor: 500 }), idParams(rule.id)),
+    ]);
+    expect([a.status, b.status].sort()).toEqual([200, 400]);
+    const stored = (await (await list(apiRequest(admin))).json()).approvalRules[0];
+    expect(stored.minMinor).toBeLessThan(stored.maxMinor);
+  });
 });
