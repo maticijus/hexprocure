@@ -15,16 +15,23 @@ import { POST as submit } from "@/app/api/v1/requisitions/[id]/submit/route";
 import { POST as decide } from "@/app/api/v1/approvals/[id]/decide/route";
 import { POST as order } from "@/app/api/v1/requisitions/[id]/order/route";
 import { POST as addReceiptRoute } from "@/app/api/v1/purchase-orders/[id]/receipts/route";
+import { POST as cancelPoRoute } from "@/app/api/v1/purchase-orders/[id]/cancel/route";
+import { POST as sendPoRoute } from "@/app/api/v1/purchase-orders/[id]/send/route";
 import { POST as createInvoiceRoute } from "@/app/api/v1/invoices/route";
 import {
   errorToResponse,
   getActor,
 } from "@/lib/api/helpers";
+import { getAuthSecret } from "@/lib/auth-secret";
 import { hashPassword, createSessionToken } from "@/lib/auth";
+import { startSession } from "@/lib/services/sessions";
 
-const SECRET = process.env.AUTH_SECRET ?? "dev-secret-change-me";
-const authCookie = (userId: string) =>
-  `hexprocure_session=${createSessionToken(userId, SECRET)}`;
+const SECRET = getAuthSecret();
+const sessionTokens = new Map<string, string>();
+const authCookie = (userId: string) => `hexprocure_session=${sessionTokens.get(userId)}`;
+const openSession = async (userId: string) => {
+  sessionTokens.set(userId, await startSession(userId));
+};
 
 const req = (url: string, init?: RequestInit) => new Request(url, init);
 
@@ -51,12 +58,30 @@ async function seed() {
     approverRole: "MANAGER",
     currency: "EUR",
   });
+  await openSession(requester.id);
+  await openSession(manager.id);
   return { requester, manager, supplier, cc };
 }
 
 beforeEach(async () => {
   await truncateAll();
 });
+
+function postWith(
+  s: { requester: { id: string }; supplier: { id: string }; cc: { id: string } },
+  extra: Record<string, unknown>,
+) {
+  return req("http://localhost/api/v1/requisitions", {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie: authCookie(s.requester.id) },
+    body: JSON.stringify({
+      supplierId: s.supplier.id,
+      costCenterId: s.cc.id,
+      lines: [{ description: "Chairs", quantity: 5, unitPriceMinor: 8900 }],
+      ...extra,
+    }),
+  });
+}
 
 describe("POST /api/v1/requisitions", () => {
   it("creates a requisition (201) with valid body and actor header", async () => {
@@ -75,6 +100,22 @@ describe("POST /api/v1/requisitions", () => {
     expect(res.status).toBe(201);
     const data = await res.json();
     expect(data.status).toBe("DRAFT");
+  });
+
+  it("stores a supported non-EUR currency", async () => {
+    const s = await seed();
+    const res = await createRequisition(postWith(s, { currency: "USD" }));
+    expect(res.status).toBe(201);
+    const { id } = await res.json();
+    const row = (await db.execute(sql`SELECT currency FROM requisitions WHERE id = ${id}`)).rows[0];
+    expect(row).toMatchObject({ currency: "USD" });
+  });
+
+  it.each(["JPY", "eur", "EU", "EURO", 5])("rejects currency %j with 400", async (currency) => {
+    const s = await seed();
+    const res = await createRequisition(postWith(s, { currency }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.message).toMatch(/currency/);
   });
 
   it("rejects missing actor header with 403", async () => {
@@ -132,7 +173,7 @@ describe("full HTTP flow: create → submit → decide → order", () => {
       { params: Promise.resolve({ id: approval.id }) } as never,
     );
     const ordered = await order(
-      req("http://x", { method: "POST", headers: { cookie: authCookie(s.requester.id) } }),
+      req("http://x", { method: "POST", headers: { cookie: authCookie(s.manager.id) } }),
       { params: Promise.resolve({ id }) } as never,
     );
     const { purchaseOrderId } = (await ordered.json()) as { purchaseOrderId: string };
@@ -174,11 +215,32 @@ describe("full HTTP flow: create → submit → decide → order", () => {
     expect((await decided.json()).requisitionStatus).toBe("APPROVED");
 
     const ordered = await order(
-      req("http://localhost/x", { method: "POST", headers: { "cookie": authCookie(s.requester.id) } }),
+      req("http://localhost/x", { method: "POST", headers: { "cookie": authCookie(s.manager.id) } }),
       { params: Promise.resolve({ id }) } as never,
     );
     expect(ordered.status).toBe(201);
     expect((await ordered.json()).totalMinor).toBe(50000);
+  });
+
+  it("rejects a plain requester ordering with 403", async () => {
+    const s = await seed();
+    const created = await createRequisition(
+      req("http://localhost/api/v1/requisitions", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: authCookie(s.requester.id) },
+        body: JSON.stringify({
+          supplierId: s.supplier.id,
+          costCenterId: s.cc.id,
+          lines: [{ description: "Desks", quantity: 1, unitPriceMinor: 1000 }],
+        }),
+      }),
+    );
+    const { id } = await created.json();
+    const ordered = await order(
+      req("http://x", { method: "POST", headers: { cookie: authCookie(s.requester.id) } }),
+      { params: Promise.resolve({ id }) } as never,
+    );
+    expect(ordered.status).toBe(403);
   });
 
   it("maps domain errors to 422 for budget overrun", async () => {
@@ -211,13 +273,66 @@ describe("full HTTP flow: create → submit → decide → order", () => {
     );
 
     const ordered = await order(
-      req("http://x", { method: "POST", headers: { "cookie": authCookie(s.requester.id) } }),
+      req("http://x", { method: "POST", headers: { "cookie": authCookie(s.manager.id) } }),
       { params: Promise.resolve({ id }) } as never,
     );
     expect(ordered.status).toBe(422);
     const err = await ordered.json();
     expect(err.error.code).toBe("BUDGET_EXCEEDED");
   });
+
+describe("POST /api/v1/purchase-orders/[id]/cancel", () => {
+  const cancelAs = (userId: string, id: string) =>
+    cancelPoRoute(
+      req("http://localhost/x", { method: "POST", headers: { cookie: authCookie(userId) } }),
+      { params: Promise.resolve({ id }) } as never,
+    );
+
+  it("lets a manager cancel an OPEN PO", async () => {
+    const { s, purchaseOrderId } = await orderToOpenPo();
+    const res = await cancelAs(s.manager.id, purchaseOrderId);
+    expect(res.status).toBe(200);
+    expect((await res.json()).status).toBe("CANCELLED");
+  });
+
+  it("rejects a plain requester with 403", async () => {
+    const { s, purchaseOrderId } = await orderToOpenPo();
+    expect((await cancelAs(s.requester.id, purchaseOrderId)).status).toBe(403);
+  });
+
+  it("returns 404 for a malformed id", async () => {
+    const { s } = await orderToOpenPo();
+    expect((await cancelAs(s.manager.id, "not-a-uuid")).status).toBe(404);
+  });
+
+  it("returns 409 when the PO is already cancelled", async () => {
+    const { s, purchaseOrderId } = await orderToOpenPo();
+    await cancelAs(s.manager.id, purchaseOrderId);
+    expect((await cancelAs(s.manager.id, purchaseOrderId)).status).toBe(409);
+  });
+});
+
+describe("POST /api/v1/purchase-orders/[id]/send", () => {
+  const sendAs = (userId: string, id: string) =>
+    sendPoRoute(
+      req("http://localhost/x", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: authCookie(userId) },
+        body: JSON.stringify({ to: "someone@example.com" }),
+      }),
+      { params: Promise.resolve({ id }) } as never,
+    );
+
+  it("rejects a plain requester with 403", async () => {
+    const { s, purchaseOrderId } = await orderToOpenPo();
+    expect((await sendAs(s.requester.id, purchaseOrderId)).status).toBe(403);
+  });
+
+  it("returns 404 for a malformed id", async () => {
+    const { s } = await orderToOpenPo();
+    expect((await sendAs(s.manager.id, "not-a-uuid")).status).toBe(404);
+  });
+});
 
 describe("POST /api/v1/purchase-orders/[id]/receipts", () => {
   it("records a receipt against an OPEN PO and closes it when fully received", async () => {

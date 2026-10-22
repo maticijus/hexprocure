@@ -6,10 +6,11 @@ const svcScenario = (): MatchContext => ({
   receivedQtyByPoLine: { "svc-1": 0 },
   previouslyInvoicedQtyByPoLine: {},
   previouslyInvoicedAmountByPoLine: {},
+  acceptedAmountByPoLine: { "svc-1": 1_000_000 },
 });
 
 describe("SERVICE lines (amount-only matching)", () => {
-  it("matches without any receipt when the amount fits", () => {
+  it("matches without goods receipt when accepted and the amount fits", () => {
     const r = matchInvoice(svcScenario(), [
       { poLineId: "svc-1", quantity: 1, unitPriceMinor: 0, amountMinor: 1_000_000 },
     ]);
@@ -59,6 +60,7 @@ describe("SERVICE lines (amount-only matching)", () => {
       receivedQtyByPoLine: { g1: 0 },
       previouslyInvoicedQtyByPoLine: {},
       previouslyInvoicedAmountByPoLine: {},
+      acceptedAmountByPoLine: { s1: 500_000 },
     };
     const r = matchInvoice(ctx, [
       { poLineId: "g1", quantity: 3, unitPriceMinor: 1000 },   // qty mismatch
@@ -68,6 +70,7 @@ describe("SERVICE lines (amount-only matching)", () => {
       "QUANTITY_MISMATCH",
       "OVER_INVOICED",
       "OVER_INVOICED_AMOUNT",
+      "SERVICE_NOT_ACCEPTED",
     ]);
   });
 });

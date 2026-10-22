@@ -1,12 +1,9 @@
-import { sql } from "drizzle-orm";
-import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
+import { formatMoney } from "@/lib/format";
+import { spendByGroup, type AnalyticsGroupBy } from "@/lib/services/analytics";
 
 export const dynamic = "force-dynamic";
 
-function eur(minor: number) {
-  return `€${(minor / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })}`;
-}
 
 export default async function AnalyticsPage({
   searchParams,
@@ -28,23 +25,14 @@ export default async function AnalyticsPage({
   const { by = "supplier" } = await searchParams;
   const validBy = ["supplier", "costCenter", "month"].includes(by) ? by : "supplier";
 
-  const rows = (
-    await db.execute(sql`
-      SELECT ${sql.raw(validBy === "supplier" ? "s.name" : validBy === "costCenter" ? "cc.name" : "to_char(i.created_at,'YYYY-MM')")} AS key,
-             COALESCE(SUM(il.quantity * il.unit_price_minor),0)::int AS total_minor,
-             COUNT(DISTINCT i.id)::int AS document_count
-      FROM invoices i
-      LEFT JOIN suppliers s ON s.id = i.supplier_id
-      LEFT JOIN purchase_orders po ON po.id = i.purchase_order_id
-      LEFT JOIN cost_centers cc ON cc.id = po.cost_center_id
-      LEFT JOIN invoice_lines il ON il.invoice_id = i.id
-      WHERE i.status = 'APPROVED'
-      GROUP BY 1
-      ORDER BY total_minor DESC
-    `)
-  ).rows as { key: string; total_minor: number; document_count: number }[];
+  const rows = (await spendByGroup({ groupBy: validBy as AnalyticsGroupBy })).sort(
+    (x, y) => x.currency.localeCompare(y.currency) || y.totalMinor - x.totalMinor,
+  );
 
-  const max = Math.max(1, ...rows.map((r) => Number(r.total_minor)));
+  const maxByCurrency = new Map<string, number>();
+  for (const r of rows) {
+    maxByCurrency.set(r.currency, Math.max(maxByCurrency.get(r.currency) ?? 1, r.totalMinor));
+  }
   const label = validBy === "supplier" ? "Supplier" : validBy === "costCenter" ? "Cost center" : "Month";
   const link = (b: string, label: string) => (
     <a
@@ -68,17 +56,17 @@ export default async function AnalyticsPage({
 
       <div className="rounded-xl bg-white shadow-sm border border-gray-100 p-5 space-y-3">
         {rows.map((r) => (
-          <div key={r.key}>
+          <div key={`${r.key}|${r.currency}`}>
             <div className="flex justify-between text-sm mb-1">
               <span className="font-medium">{r.key}</span>
               <span className="text-gray-500">
-                {eur(Number(r.total_minor))} · {r.document_count} inv
+                {formatMoney(r.totalMinor, r.currency)} · {r.documentCount} inv
               </span>
             </div>
             <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
               <div
                 className="h-full rounded-full bg-[var(--brand)]"
-                style={{ width: `${(Number(r.total_minor) / max) * 100}%` }}
+                style={{ width: `${(r.totalMinor / (maxByCurrency.get(r.currency) ?? 1)) * 100}%` }}
               />
             </div>
           </div>
@@ -98,10 +86,10 @@ export default async function AnalyticsPage({
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.key} className="border-t border-gray-50">
+            <tr key={`${r.key}|${r.currency}`} className="border-t border-gray-50">
               <td className="px-5 py-3 font-medium">{r.key}</td>
-              <td className="px-5 py-3">{eur(Number(r.total_minor))}</td>
-              <td className="px-5 py-3">{r.document_count}</td>
+              <td className="px-5 py-3">{formatMoney(r.totalMinor, r.currency)}</td>
+              <td className="px-5 py-3">{r.documentCount}</td>
             </tr>
           ))}
         </tbody>

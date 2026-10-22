@@ -5,6 +5,7 @@ import {
   budgets,
   approvals,
   invoices,
+  users,
   integrationEvents as integrationEventsTable,
 } from "@/lib/db/schema";
 import { seedOrg, createRequisitionWithLine, truncateAll } from "@/lib/testing/seed";
@@ -281,6 +282,84 @@ describe("authorization and state guards", () => {
     await expect(createPurchaseOrder(req2.id, s.manager.id)).resolves.toMatchObject({
       totalMinor: 7500,
     });
+  });
+});
+
+describe("cancelPurchaseOrder downstream guard", () => {
+  async function openPo() {
+    const s = await seedOrg();
+    const req = await createRequisitionWithLine(s.requester.id, s.supplier.id, s.cc.id, 10, 1999);
+    await submitRequisition(req.id, s.requester.id);
+    const [approval] = await db.select().from(approvals);
+    await decideApproval(approval.id, s.manager.id, "approve");
+    const po = await createPurchaseOrder(req.id, s.manager.id);
+    const [poLine] = (
+      await db.execute(sql`SELECT id FROM po_lines WHERE purchase_order_id = ${po.purchaseOrderId}`)
+    ).rows as { id: string }[];
+    return { s, po, poLine };
+  }
+
+  it("blocks cancelling a PO that already has receipt lines", async () => {
+    const { s, po, poLine } = await openPo();
+    await addReceipt(po.purchaseOrderId, [{ poLineId: poLine.id, quantityReceived: 3 }], s.requester.id);
+    await expect(cancelPurchaseOrder(po.purchaseOrderId, s.manager.id)).rejects.toMatchObject({
+      code: "INVALID_STATE",
+    });
+  });
+
+  it("blocks cancelling a PO that already has an invoice", async () => {
+    const { s, po, poLine } = await openPo();
+    await createInvoice(
+      {
+        supplierId: s.supplier.id,
+        purchaseOrderId: po.purchaseOrderId,
+        number: "INV-CANCEL-1",
+        lines: [{ poLineId: poLine.id, quantity: 10, unitPriceMinor: 1999 }],
+      },
+      s.finance.id,
+    );
+    await expect(cancelPurchaseOrder(po.purchaseOrderId, s.manager.id)).rejects.toMatchObject({
+      code: "INVALID_STATE",
+    });
+  });
+});
+
+describe("submitRequisition actor guard", () => {
+  it("forbids a user other than the requester from submitting", async () => {
+    const s = await seedOrg();
+    const req = await createRequisitionWithLine(s.requester.id, s.supplier.id, s.cc.id, 1, 1999);
+    await expect(submitRequisition(req.id, s.manager.id)).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("lets an ADMIN submit someone else's draft", async () => {
+    const s = await seedOrg();
+    const [admin] = await db
+      .insert(users)
+      .values({ name: "Admin Ada", email: `ada-${Date.now()}@hex.test`, role: "ADMIN" })
+      .returning();
+    const req = await createRequisitionWithLine(s.requester.id, s.supplier.id, s.cc.id, 1, 1999);
+    await expect(submitRequisition(req.id, admin.id)).resolves.toMatchObject({ status: "SUBMITTED" });
+  });
+});
+
+describe("createPurchaseOrder role guard", () => {
+  async function approvedReq() {
+    const s = await seedOrg();
+    const req = await createRequisitionWithLine(s.requester.id, s.supplier.id, s.cc.id, 1, 1999);
+    await submitRequisition(req.id, s.requester.id);
+    const [approval] = await db.select().from(approvals);
+    await decideApproval(approval.id, s.manager.id, "approve");
+    return { s, req };
+  }
+
+  it("forbids a REQUESTER from creating a purchase order", async () => {
+    const { s, req } = await approvedReq();
+    await expect(createPurchaseOrder(req.id, s.requester.id)).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("lets FINANCE create a purchase order", async () => {
+    const { s, req } = await approvedReq();
+    await expect(createPurchaseOrder(req.id, s.finance.id)).resolves.toMatchObject({ totalMinor: 1999 });
   });
 });
 

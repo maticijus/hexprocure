@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+import { sql } from "drizzle-orm";
+import { decryptSecret, loadKeySetFromEnv } from "@/lib/security/token-crypto";
 import { db } from "@/lib/db";
-import { integrationsConnections } from "@/lib/db/schema";
+import { integrationEvents, integrationsConnections, users } from "@/lib/db/schema";
 import { seedOrg, truncateAll } from "@/lib/testing/seed";
 import {
   upsertQboConnection,
@@ -26,7 +28,7 @@ function tokenResponse(access: string, expiresIn = 3600, refresh = "refresh-new"
 }
 
 describe("upsertQboConnection", () => {
-  it("stores only ciphertext — plaintext tokens never touch the database", async () => {
+  it("stores only ciphertext - plaintext tokens never touch the database", async () => {
     const s = await seedOrg();
     await upsertQboConnection({
       realmId: "realm-1",
@@ -40,6 +42,15 @@ describe("upsertQboConnection", () => {
     expect(row.provider).toBe("qbo");
     expect(JSON.stringify(row)).not.toContain("PLAINTEXT-ACCESS-123");
     expect(row.accessTokenEnc.startsWith("v1:")).toBe(true);
+
+    const raw = await db.execute(
+      sql`select access_token_enc, refresh_token_enc from integrations_connections`,
+    );
+    expect(raw.rows).toHaveLength(1);
+    for (const value of Object.values(raw.rows[0] as Record<string, string>)) {
+      expect(value.startsWith("v1:")).toBe(true);
+      expect(value).not.toContain("PLAINTEXT");
+    }
 
     const back = await getValidAccessToken();
     expect(back.accessToken).toBe("PLAINTEXT-ACCESS-123");
@@ -70,17 +81,22 @@ describe("getValidAccessToken", () => {
       accessExpiresIn: 60, userId: s.requester.id,
     });
 
+    const [before] = await db.select().from(integrationsConnections);
+    await new Promise((r) => setTimeout(r, 5));
+
     const result = await getValidAccessToken(fetchMock as unknown as typeof fetch);
 
     expect(result.accessToken).toBe("access-v2");
     expect(fetchMock).toHaveBeenCalledOnce();
-    const [row] = await db.select().from(integrationsConnections);
+    const [after] = await db.select().from(integrationsConnections);
+    expect(after.refreshTokenEnc).not.toBe(before.refreshTokenEnc);
+    expect(after.accessTokenEnc).not.toBe(before.accessTokenEnc);
+    expect(decryptSecret(after.refreshTokenEnc, loadKeySetFromEnv()).plain).toBe("refresh-v2");
+    expect(after.updatedAt.getTime()).toBeGreaterThan(before.updatedAt.getTime());
+    expect(after.accessExpiresAt.getTime()).toBeGreaterThan(Date.now() + 50 * 60 * 1000);
     expect(await getValidAccessToken(vi.fn() as unknown as typeof fetch)).toMatchObject({
       accessToken: "access-v2",
     });
-    // rotation actually persisted
-    const raw = JSON.stringify(row);
-    expect(raw).not.toContain("old-refresh");
     delete process.env.QBO_CLIENT_ID;
     delete process.env.QBO_CLIENT_SECRET;
   });
@@ -127,5 +143,86 @@ describe("revocation", () => {
     expect(row.status).toBe("REVOKED");
     await expect(getValidAccessToken()).rejects.toThrow();
     expect(JSON.stringify(row)).not.toContain("live-secret");
+  });
+});
+
+async function seedAdminAndFinance() {
+  const s = await seedOrg();
+  const [admin] = await db
+    .insert(users)
+    .values({ name: "Admin Ada", email: `ada-${crypto.randomUUID()}@example.test`, role: "ADMIN" })
+    .returning();
+  return { s, admin };
+}
+
+async function errorNotifications() {
+  const rows = await db.select().from(integrationEvents);
+  return rows.filter((e) => e.eventType === "INTEGRATION_ERROR");
+}
+
+describe("connection problem notifications", () => {
+  it("markRevoked emits one INTEGRATION_ERROR addressed to FINANCE and ADMIN users", async () => {
+    const { s, admin } = await seedAdminAndFinance();
+    await upsertQboConnection({
+      realmId: "r", accessToken: "a", refreshToken: "r",
+      accessExpiresIn: 3600, userId: s.requester.id,
+    });
+
+    await markRevoked("Intuit rejected request: HTTP 401");
+
+    const events = await errorNotifications();
+    expect(events).toHaveLength(1);
+    expect(events[0].status).toBe("PENDING");
+    const payload = events[0].payload as { to: string[]; status: string; reason: string };
+    expect([...payload.to].sort()).toEqual([s.finance.email, admin.email].sort());
+    expect(payload.status).toBe("REVOKED");
+    expect(payload.reason).toContain("401");
+  });
+
+  it("a failed refresh marks EXPIRED and notifies FINANCE and ADMIN", async () => {
+    process.env.QBO_CLIENT_ID = "cid";
+    process.env.QBO_CLIENT_SECRET = "csec";
+    const { s, admin } = await seedAdminAndFinance();
+    await upsertQboConnection({
+      realmId: "r", accessToken: "a", refreshToken: "broken",
+      accessExpiresIn: 10, userId: s.requester.id,
+    });
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status: 400 }));
+
+    await expect(getValidAccessToken(fetchMock as unknown as typeof fetch)).rejects.toThrow(/re-auth/i);
+
+    const events = await errorNotifications();
+    expect(events).toHaveLength(1);
+    const payload = events[0].payload as { to: string[]; status: string };
+    expect([...payload.to].sort()).toEqual([s.finance.email, admin.email].sort());
+    expect(payload.status).toBe("EXPIRED");
+    delete process.env.QBO_CLIENT_ID;
+    delete process.env.QBO_CLIENT_SECRET;
+  });
+
+  it("an expired refresh token marks EXPIRED once and does not re-notify on later calls", async () => {
+    const { s } = await seedAdminAndFinance();
+    await upsertQboConnection({
+      realmId: "r", accessToken: "a", refreshToken: "r",
+      accessExpiresIn: 3600, userId: s.requester.id,
+    });
+    await db
+      .update(integrationsConnections)
+      .set({ refreshExpiresAt: new Date(Date.now() - 1000) });
+
+    await expect(getValidAccessToken()).rejects.toThrow(/re-auth/i);
+    await expect(getValidAccessToken()).rejects.toThrow();
+
+    const [row] = await db.select().from(integrationsConnections);
+    expect(row.status).toBe("EXPIRED");
+    expect(await errorNotifications()).toHaveLength(1);
+  });
+
+  it("emits no event when nobody holds FINANCE or ADMIN", async () => {
+    await upsertQboConnection({
+      realmId: "r", accessToken: "a", refreshToken: "r", accessExpiresIn: 3600,
+    });
+    await markRevoked("401");
+    expect(await errorNotifications()).toHaveLength(0);
   });
 });

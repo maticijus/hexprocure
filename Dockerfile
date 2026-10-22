@@ -20,7 +20,7 @@ ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     DATA_DIR=/app/.data/uploads
 RUN addgroup -S hexprocure && adduser -S hexprocure -G hexprocure \
-    && mkdir -p /app/.data/uploads && chown -R hexprocure:hexprocure /app/.data
+    && mkdir -p /app/.data/uploads /app/.data/csv && chown -R hexprocure:hexprocure /app/.data
 COPY --from=builder --chown=hexprocure:hexprocure /app/.next/standalone ./
 COPY --from=builder --chown=hexprocure:hexprocure /app/.next/static ./.next/static
 COPY --from=builder --chown=hexprocure:hexprocure /app/public ./public

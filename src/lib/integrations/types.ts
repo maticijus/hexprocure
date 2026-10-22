@@ -6,7 +6,8 @@ export interface IntegrationEvent {
     | "INVOICE_APPROVED"
     | "APPROVAL_REQUESTED"
     | "REQUISITION_DECIDED"
-    | "INVOICE_EXCEPTION";
+    | "INVOICE_EXCEPTION"
+    | "INTEGRATION_ERROR";
   payload: Record<string, unknown>;
 }
 

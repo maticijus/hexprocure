@@ -16,6 +16,7 @@ import {
   invoiceLines,
 } from "@/lib/db/schema";
 import { truncateAll } from "@/lib/testing/seed";
+import { errorToResponse } from "@/lib/api/helpers";
 import { spendByGroup, analyticsSummary } from "./analytics";
 
 beforeEach(async () => {
@@ -33,6 +34,7 @@ async function approvedInvoice(opts: {
   ccName: string;
   amountMinor: number;
   monthsAgo?: number;
+  currency?: string;
 }) {
   const [requester] = await db.insert(users).values({
     name: "R", email: `r-${Math.random()}@hex.test`,
@@ -50,6 +52,7 @@ async function approvedInvoice(opts: {
 
   const [req] = await db.insert(requisitions).values({
     requesterId: requester.id, supplierId: supplier.id, costCenterId: cc.id,
+    currency: opts.currency ?? "EUR",
   }).returning();
   await db.insert(requisitionLines).values({
     requisitionId: req.id, description: "x", quantity: 1,
@@ -63,6 +66,7 @@ async function approvedInvoice(opts: {
 
   const [po] = await db.insert(purchaseOrders).values({
     requisitionId: req.id, supplierId: supplier.id, costCenterId: cc.id,
+    currency: opts.currency ?? "EUR",
   }).returning();
   await db.insert(poLines).values({
     purchaseOrderId: po.id, description: "x", quantityOrdered: 1,
@@ -138,13 +142,73 @@ describe("spendByGroup", () => {
   });
 });
 
+describe("spendByGroup multi-currency", () => {
+  it("never sums across currencies: one row per key and currency", async () => {
+    await approvedInvoice({ supplierName: "Acme", ccName: "IT", amountMinor: 100_000 });
+    await approvedInvoice({ supplierName: "Acme", ccName: "IT", amountMinor: 70_000, currency: "USD" });
+    await approvedInvoice({ supplierName: "Acme", ccName: "IT", amountMinor: 30_000 });
+
+    const rows = (await spendByGroup({ groupBy: "supplier" })).filter((r) => r.key === "Acme");
+    expect(rows).toHaveLength(2);
+    expect(rows.find((r) => r.currency === "EUR")).toMatchObject({ totalMinor: 130_000, documentCount: 2 });
+    expect(rows.find((r) => r.currency === "USD")).toMatchObject({ totalMinor: 70_000, documentCount: 1 });
+  });
+});
+
+describe("spendByGroup date validation", () => {
+  const bad = [
+    "2026-01-01'; DROP TABLE invoices; --",
+    "2026-01-01' OR '1'='1",
+    "2026-02-31",
+    "2026-13-01",
+    "01/02/2026",
+    "",
+  ];
+
+  it.each(bad)("rejects from=%j with VALIDATION (HTTP 400)", async (value) => {
+    const err = await spendByGroup({ groupBy: "supplier", from: value }).catch((e) => e);
+    expect(err).toMatchObject({ code: "VALIDATION" });
+    expect(errorToResponse(err).status).toBe(400);
+  });
+
+  it("rejects a stacked-statement payload in to", async () => {
+    await expect(
+      spendByGroup({ groupBy: "month", to: "2026-01-01'; DELETE FROM invoices; --" }),
+    ).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
+  it("rejects an unknown groupBy", async () => {
+    await expect(
+      spendByGroup({ groupBy: "s.name; DROP TABLE x" as never }),
+    ).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
+  it("still accepts valid dates", async () => {
+    await approvedInvoice({ supplierName: "A", ccName: "IT", amountMinor: 1_000 });
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = await spendByGroup({ groupBy: "supplier", from: "2020-01-01", to: today });
+    expect(rows[0]).toMatchObject({ key: "A", totalMinor: 1_000 });
+  });
+});
+
 describe("analyticsSummary", () => {
   it("returns KPI block", async () => {
     await approvedInvoice({ supplierName: "Acme", ccName: "IT", amountMinor: 250_000 });
     const s = await analyticsSummary();
-    expect(s.approvedTotalMinor).toBe(250_000);
-    expect(s.topSupplier!.key).toBe("Acme");
-    expect(typeof s.invoiceCount).toBe("number");
+    expect(s.totals).toEqual([{ currency: "EUR", totalMinor: 250_000, invoiceCount: 1 }]);
+    expect(s.topSuppliers).toEqual([{ key: "Acme", currency: "EUR", totalMinor: 250_000 }]);
+  });
+
+  it("returns one total per currency and never a cross-currency sum", async () => {
+    await approvedInvoice({ supplierName: "Acme", ccName: "IT", amountMinor: 250_000 });
+    await approvedInvoice({ supplierName: "Globex", ccName: "IT", amountMinor: 90_000, currency: "USD" });
+    const s = await analyticsSummary();
+    expect(s.totals).toEqual([
+      { currency: "EUR", totalMinor: 250_000, invoiceCount: 1 },
+      { currency: "USD", totalMinor: 90_000, invoiceCount: 1 },
+    ]);
+    expect(s.topSuppliers.map((t) => `${t.currency}:${t.key}`)).toEqual(["EUR:Acme", "USD:Globex"]);
+    expect(s).not.toHaveProperty("approvedTotalMinor");
   });
 });
 

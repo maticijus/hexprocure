@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAuthSecret } from "@/lib/auth-secret";
 import { verifyOAuthState, clearStateCookie } from "@/lib/integrations/oauth-state";
 import { upsertQboConnection } from "@/lib/integrations/qbo-connection";
 import { errorToResponse } from "@/lib/api/helpers";
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
     const code = url.searchParams.get("code");
     const realmId = url.searchParams.get("realmId");
     const state = url.searchParams.get("state");
-    const secret = process.env.AUTH_SECRET!;
+    const secret = getAuthSecret();
 
     if (!code || !realmId || !verifyOAuthState(state, request.headers.get("cookie"), secret)) {
       return NextResponse.json(

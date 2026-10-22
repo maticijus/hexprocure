@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/format";
 import type { Connector, IntegrationEvent } from "./types";
 
 export interface MailMessage {
@@ -8,22 +9,23 @@ export interface MailMessage {
 
 export type MailTransport = (message: MailMessage) => Promise<unknown>;
 
-const eur = (minor: unknown) =>
-  `€${(Number(minor ?? 0) / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })}`;
+const amount = (p: Record<string, unknown>) =>
+  formatMoney(Number(p.totalMinor ?? 0), String(p.currency ?? "EUR"), "de-DE");
 
 type NotificationEvent = Extract<
   IntegrationEvent["type"],
-  "APPROVAL_REQUESTED" | "REQUISITION_DECIDED" | "INVOICE_EXCEPTION"
+  "APPROVAL_REQUESTED" | "REQUISITION_DECIDED" | "INVOICE_EXCEPTION" | "INTEGRATION_ERROR"
 >;
 
 const NOTIFICATION_TYPES: NotificationEvent[] = [
   "APPROVAL_REQUESTED",
   "REQUISITION_DECIDED",
   "INVOICE_EXCEPTION",
+  "INTEGRATION_ERROR",
 ];
 
 /** Renders a notification event into a mail message.
- *  Returns null when there are no recipients — nothing to deliver. */
+ *  Returns null when there are no recipients - nothing to deliver. */
 export function renderNotification(event: IntegrationEvent): MailMessage | null {
   if (!NOTIFICATION_TYPES.includes(event.type as NotificationEvent)) {
     throw new Error(`Unsupported notification event type: ${event.type}`);
@@ -36,9 +38,9 @@ export function renderNotification(event: IntegrationEvent): MailMessage | null 
     case "APPROVAL_REQUESTED":
       return {
         to,
-        subject: `Approval needed: ${p.supplier ?? "requisition"} ${eur(p.totalMinor)}`,
+        subject: `Approval needed: ${p.supplier ?? "requisition"} ${amount(p)}`,
         text:
-          `A requisition from ${p.supplier ?? "a supplier"} for ${eur(p.totalMinor)} ` +
+          `A requisition from ${p.supplier ?? "a supplier"} for ${amount(p)} ` +
           `is waiting for your approval.\n` +
           `Open it in HexProcure → Approvals (requisition ${p.requisitionId}).`,
       };
@@ -63,6 +65,14 @@ export function renderNotification(event: IntegrationEvent): MailMessage | null 
           `Open it in HexProcure → Invoices.`,
       };
     }
+    case "INTEGRATION_ERROR":
+      return {
+        to,
+        subject: `QuickBooks connection needs attention (${String(p.status ?? "ERROR")})`,
+        text:
+          `The QuickBooks Online connection is ${String(p.status ?? "unavailable")}: ${String(p.reason ?? "no detail")}.\n` +
+          `Queued events stay pending until an admin reconnects in HexProcure → Integrations.`,
+      };
     default:
       throw new Error(`Unsupported notification event type: ${event.type}`);
   }

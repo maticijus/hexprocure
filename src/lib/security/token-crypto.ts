@@ -3,7 +3,7 @@ import { createDecipheriv, createCipheriv, randomBytes } from "node:crypto";
 /** AES-256-GCM envelope encryption for OAuth tokens.
  *  Envelope format: "v1:<nonce_b64>:<ciphertext+authTag_b64>".
  *
- *  Key material lives in INTEGRATION_ENC_KEY (base64, 32 bytes) — deliberately
+ *  Key material lives in INTEGRATION_ENC_KEY (base64, 32 bytes) - deliberately
  *  separate from the session-signing secret so a session-secret leak cannot
  *  decrypt stored OAuth tokens. INTEGRATION_ENC_KEY_PREVIOUS enables rotation:
  *  reads try current then previous; writes always use current. */

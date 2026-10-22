@@ -1,6 +1,9 @@
+import { appendFile, stat } from "node:fs/promises";
+import { join } from "node:path";
 import type { Connector, IntegrationEvent } from "./types";
 
 const COLUMNS = [
+  "event_id",
   "record_type",
   "reference",
   "line_number",
@@ -18,12 +21,16 @@ const COLUMNS = [
 
 function escapeCell(value: string | number | undefined | null): string {
   const s = value === undefined || value === null ? "" : String(value);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 type Row = Partial<Record<(typeof COLUMNS)[number], string | number | undefined>>;
 
 export function eventToCsvRows(event: IntegrationEvent): Row[] {
+  return rowsFor(event).map((row) => ({ ...row, event_id: event.id }));
+}
+
+function rowsFor(event: IntegrationEvent): Row[] {
   switch (event.type) {
     case "PO_CREATED":
       return poRows(event.payload);
@@ -87,16 +94,29 @@ export function invoiceToCsv(event: IntegrationEvent): string {
   return toCsv(eventToCsvRows(event));
 }
 
-/** Universal CSV connector: renders events as ERP-importable flat files. */
-export const csvConnector: Connector = {
-  name: "csv",
-  handles: ["PO_CREATED", "INVOICE_APPROVED"],
-  async deliver(event) {
-    try {
-      const csv = toCsv(eventToCsvRows(event));
-      return { ok: true, response: { bytes: csv.length } };
-    } catch (error) {
-      return { ok: false, error: String(error), retryable: false };
-    }
-  },
-};
+export interface CsvConnectorOptions {
+  dir: string;
+  now?: () => Date;
+}
+
+/** CSV connector: appends rows to one file per UTC day and event type
+ *  (header written once) for ERP file import. Every row carries the event id
+ *  so an importer can dedupe a replayed file. */
+export function createCsvConnector({ dir, now = () => new Date() }: CsvConnectorOptions): Connector {
+  return {
+    name: "csv",
+    handles: ["PO_CREATED", "INVOICE_APPROVED"],
+    async deliver(event) {
+      try {
+        const rows = eventToCsvRows(event);
+        const file = join(dir, `${event.type}-${now().toISOString().slice(0, 10)}.csv`);
+        const isNew = !(await stat(file).catch(() => null));
+        const csv = toCsv(rows);
+        await appendFile(file, isNew ? csv : csv.slice(csv.indexOf("\n") + 1));
+        return { ok: true, response: { file, bytes: csv.length } };
+      } catch (error) {
+        return { ok: false, error: String(error), retryable: true };
+      }
+    },
+  };
+}

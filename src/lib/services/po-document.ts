@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import React from "react";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { db } from "@/lib/db";
+import { formatMoney } from "@/lib/format";
 import { DomainError } from "./p2p";
 import {
   auditEvents,
@@ -83,8 +84,7 @@ export async function toPdfData(poId: string, forSupplier: boolean): Promise<PoP
   };
 }
 
-const eur = (minor: number) =>
-  `${(minor / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €`;
+const money = (data: PoPdfData, minor: number) => formatMoney(minor, data.currency, "de-DE");
 
 async function renderPdf(data: PoPdfData): Promise<Buffer> {
   const { Document, Page, Text, View, StyleSheet } = await import(
@@ -143,12 +143,12 @@ async function renderPdf(data: PoPdfData): Promise<Buffer> {
           React.createElement(
             Text,
             { style: styles.colNum },
-            eur(line.unitPriceMinor),
+            money(data, line.unitPriceMinor),
           ),
-          React.createElement(Text, { style: styles.colNum }, eur(line.totalMinor)),
+          React.createElement(Text, { style: styles.colNum }, money(data, line.totalMinor)),
         ),
       ),
-      React.createElement(Text, { style: styles.total }, `Total: ${eur(data.totalMinor)}`),
+      React.createElement(Text, { style: styles.total }, `Total: ${money(data, data.totalMinor)}`),
       React.createElement(
         Text,
         { style: styles.footer },
@@ -239,7 +239,7 @@ export async function sendPurchaseOrder(
 
     await transport({
       to: [recipient],
-      subject: `Purchase Order ${poId.slice(0, 8)} — HexProcure`,
+      subject: `Purchase Order ${poId.slice(0, 8)} - HexProcure`,
       text:
         `Please find purchase order ${poId.slice(0, 8)} attached (PDF).\n\n` +
         `HexProcure on behalf of your customer.`,

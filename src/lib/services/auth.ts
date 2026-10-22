@@ -1,24 +1,28 @@
+import { randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
-import { hashPassword, verifyPassword, createSessionToken } from "@/lib/auth";
+import { hashPassword, verifyPassword } from "@/lib/auth";
+import { startSession, purgeExpiredSessions } from "@/lib/services/sessions";
 import { DomainError } from "@/lib/services/p2p";
+
+/** Verified against when no account matches, so unknown and known emails do
+ *  the same scrypt work and timing does not reveal which accounts exist. */
+const DUMMY_PASSWORD_HASH = hashPassword(randomBytes(32).toString("hex"));
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function requireSecret(): string {
-  const secret = process.env.AUTH_SECRET;
-  if (!secret || secret.length < 8) {
-    throw new Error("AUTH_SECRET must be set (min 8 chars)");
-  }
-  return secret;
+/** Production must opt in explicitly; elsewhere registration is open unless disabled. */
+export function selfRegistrationAllowed(): boolean {
+  const flag = process.env.ALLOW_SELF_REGISTRATION;
+  if (process.env.NODE_ENV === "production") return flag === "true";
+  return flag !== "false";
 }
 
 export async function registerUser(input: {
   name?: string;
   email?: string;
   password?: string;
-  role?: "REQUESTER" | "MANAGER" | "FINANCE" | "ADMIN";
 }) {
   if (!input.email || !EMAIL_RE.test(input.email)) {
     throw new DomainError("INVALID_STATE", "A valid email is required");
@@ -36,19 +40,25 @@ export async function registerUser(input: {
       name: input.name?.trim() || input.email.split("@")[0],
       email: input.email.toLowerCase(),
       passwordHash: hashPassword(input.password),
-      role: input.role ?? "REQUESTER",
+      role: "REQUESTER",
     })
     .returning();
   return user;
 }
 
-export async function login(email: string | undefined, password: string | undefined): Promise<string> {
+export async function login(
+  email: string | undefined,
+  password: string | undefined,
+  userAgent?: string | null,
+): Promise<string> {
   if (!email || !password) {
     throw new DomainError("FORBIDDEN", "Email and password are required");
   }
   const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
-  if (!user?.passwordHash || !verifyPassword(password, user.passwordHash)) {
+  const verified = verifyPassword(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
+  if (!user?.passwordHash || !verified) {
     throw new DomainError("FORBIDDEN", "Invalid credentials");
   }
-  return createSessionToken(user.id, requireSecret());
+  await purgeExpiredSessions();
+  return startSession(user.id, userAgent);
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { qboStatusLabel } from "@/lib/ui-text";
 
 interface QboStatus {
   connected: boolean;
@@ -51,7 +52,7 @@ export function QboStatusCard({ isAdmin }: { isAdmin: boolean }) {
           {status?.connected ? (
             <span className="text-green-700 font-semibold">Connected</span>
           ) : (
-            <span className="text-gray-500">{status?.status ?? "Not connected"}</span>
+            <span className="text-gray-500">{qboStatusLabel(status?.status ?? "NEVER_CONNECTED")}</span>
           )}
         </div>
         {status?.connected && status.refreshExpiresAt && (

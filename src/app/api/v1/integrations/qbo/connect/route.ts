@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAuthSecret } from "@/lib/auth-secret";
 import { createOAuthState } from "@/lib/integrations/oauth-state";
 import { DomainError } from "@/lib/services/p2p";
 import { errorToResponse, getActor } from "@/lib/api/helpers";
@@ -16,7 +17,7 @@ export async function GET(request: Request) {
         { status: 501 },
       );
     }
-    const secret = process.env.AUTH_SECRET!;
+    const secret = getAuthSecret();
     const { state, cookie } = createOAuthState(secret);
     const url = new URL("https://appcenter.intuit.com/connect/oauth2");
     url.searchParams.set("client_id", clientId);

@@ -1,3 +1,5 @@
+import { parseAmount } from "@/domain/invoice-lines";
+
 export interface InvoiceDraft {
   invoiceNumber: string | null;
   issueDate: string | null;
@@ -16,19 +18,6 @@ const LABELED_TOTAL_RES = [
   /(?:grand\s+total|total\s+amount|amount\s+due|gesamtbetrag|gesamt)\s*[:]?\s*(?:EUR|USD|GBP)?\s*([\d.,]+)/i,
   /\btota?l\b\s*[:]?\s*(?:EUR|USD|GBP)?\s*([\d.,]+)/i,
 ];
-
-function parseAmount(raw: string): number | null {
-  const s = raw.trim();
-  const commaLast = /\d,\d{2}$/.test(s);
-  let cleaned: string;
-  if (commaLast) {
-    cleaned = s.replace(/\./g, "").replace(",", ".");
-  } else {
-    cleaned = s.replace(/,/g, "");
-  }
-  if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null;
-  return Math.round(parseFloat(cleaned) * 100);
-}
 
 function findTotal(text: string): number | null {
   for (const re of LABELED_TOTAL_RES) {

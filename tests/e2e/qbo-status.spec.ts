@@ -8,7 +8,7 @@ test("QBO status card renders disconnected and offers no connect for FINANCE", a
   const card = page.locator("div.rounded-xl").filter({ hasText: "QuickBooks Online" });
   await expect(card).toBeVisible();
   await expect(
-    card.getByText(/NEVER_CONNECTED|Not connected/),
+    card.getByText("Never connected"),
   ).toBeVisible();
   await expect(card.getByRole("button", { name: "Disconnect" })).toBeHidden();
 });

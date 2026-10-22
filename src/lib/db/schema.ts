@@ -1,15 +1,5 @@
 import { sql } from "drizzle-orm";
-import {
-  boolean,
-  integer,
-  jsonb,
-  pgEnum,
-  pgTable,
-  text,
-  timestamp,
-  uniqueIndex,
-  uuid,
-} from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 export const userRole = pgEnum("user_role", [
   "REQUESTER",
@@ -23,6 +13,7 @@ export const requisitionStatus = pgEnum("requisition_status", [
   "SUBMITTED",
   "APPROVED",
   "REJECTED",
+  "ORDERED",
 ]);
 
 export const poStatus = pgEnum("po_status", ["OPEN", "CLOSED", "CANCELLED"]);
@@ -130,21 +121,29 @@ export const approvals = pgTable("approvals", {
   decidedAt: timestamp("decided_at", { withTimezone: true }),
 });
 
-export const purchaseOrders = pgTable("purchase_orders", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  requisitionId: uuid("requisition_id").references(() => requisitions.id),
-  supplierId: uuid("supplier_id")
-    .notNull()
-    .references(() => suppliers.id),
-  costCenterId: uuid("cost_center_id")
-    .notNull()
-    .references(() => costCenters.id),
-  status: poStatus("status").notNull().default("OPEN"),
-  currency: text("currency").notNull().default("EUR"),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const purchaseOrders = pgTable(
+  "purchase_orders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    requisitionId: uuid("requisition_id").references(() => requisitions.id),
+    supplierId: uuid("supplier_id")
+      .notNull()
+      .references(() => suppliers.id),
+    costCenterId: uuid("cost_center_id")
+      .notNull()
+      .references(() => costCenters.id),
+    status: poStatus("status").notNull().default("OPEN"),
+    currency: text("currency").notNull().default("EUR"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("purchase_order_requisition_uq")
+      .on(t.requisitionId)
+      .where(sql`${t.requisitionId} IS NOT NULL AND ${t.status} <> 'CANCELLED'`),
+  ],
+);
 
 export const poLines = pgTable("po_lines", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -222,6 +221,18 @@ export const apiTokens = pgTable("api_tokens", {
   lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
 });
+
+export const sessions = pgTable("sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  userAgent: text("user_agent"),
+}, (t) => [index("sessions_expires_at_idx").on(t.expiresAt)]);
 
 export const orderCadence = pgEnum("order_cadence", [
   "MONTHLY",
@@ -335,8 +346,21 @@ export const integrationEvents = pgTable("integration_events", {
   status: integrationEventStatus("status").notNull().default("PENDING"),
   attempts: integer("attempts").notNull().default(0),
   lastError: text("last_error"),
+  deliveredConnectors: jsonb("delivered_connectors").$type<string[]>().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
   deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+});
+
+export const llmUsage = pgTable("llm_usage", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  purpose: text("purpose").notNull(),
+  model: text("model").notNull(),
+  inputTokens: integer("input_tokens").notNull(),
+  outputTokens: integer("output_tokens").notNull(),
+  durationMs: integer("duration_ms").notNull(),
+  actorUserId: uuid("actor_user_id").references(() => users.id),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

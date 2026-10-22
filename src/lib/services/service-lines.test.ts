@@ -28,7 +28,7 @@ async function seededServicePo(opts?: { mixed?: boolean }) {
     .values({ requesterId: s.requester.id, supplierId: s.supplier.id, costCenterId: s.cc.id })
     .returning();
   await db.insert(requisitionLines).values([
-    { requisitionId: req.id, description: "Consulting — Phase 1", quantity: 1, unitPriceMinor: 500_000, kind: "SERVICE" },
+    { requisitionId: req.id, description: "Consulting - Phase 1", quantity: 1, unitPriceMinor: 500_000, kind: "SERVICE" },
     ...(opts?.mixed
       ? [{ requisitionId: req.id, description: "Cables", quantity: 10, unitPriceMinor: 500 }]
       : []),
@@ -38,7 +38,7 @@ async function seededServicePo(opts?: { mixed?: boolean }) {
     const decider = a.approverRole === "FINANCE" ? s.finance : a.approverRole === "MANAGER" ? s.manager : s.finance;
     await decideApproval(a.id, decider.id, "approve");
   }
-  const po = await createPurchaseOrder(req.id, s.requester.id);
+  const po = await createPurchaseOrder(req.id, s.manager.id);
   const lines = (await db.execute(sql`SELECT id, kind FROM po_lines WHERE purchase_order_id = ${po.purchaseOrderId} ORDER BY description`)).rows as { id: string; kind: string }[];
   return { s, req, poId: po.purchaseOrderId, lines };
 }
@@ -82,9 +82,10 @@ describe("service line acceptance", () => {
 });
 
 describe("service invoice matching end-to-end", () => {
-  it("MATCHES an amount-fitting invoice with zero receipts; flags OVER_INVOICED_AMOUNT beyond ordered", async () => {
+  it("MATCHES an amount-fitting invoice once accepted; flags OVER_INVOICED_AMOUNT beyond ordered", async () => {
     const { s, poId, lines } = await seededServicePo();
     const svc = lines.find((l) => l.kind === "SERVICE")!;
+    await addReceipt(poId, [{ poLineId: svc.id, quantityReceived: 0, accepted: true }], s.requester.id);
 
     const mkInvoice = async (number: string, amountMinor: number) => {
       const [inv] = await db

@@ -31,7 +31,7 @@ export interface QboConnectorDeps {
 }
 
 /** QBO connector: consumes PO/invoice events and creates the corresponding
- *  documents in QuickBooks Online. Idempotent via qbo_sync_map — an event is
+ *  documents in QuickBooks Online. Idempotent via qbo_sync_map - an event is
  *  delivered to QBO at most once even across repeated dispatch runs. */
 export function createQboConnector(deps: QboConnectorDeps = {}): Connector {
   const fetchImpl = deps.fetchImpl ?? fetch;
@@ -41,7 +41,7 @@ export function createQboConnector(deps: QboConnectorDeps = {}): Connector {
     async deliver(event): Promise<DeliveryStatus> {
       const healthy = await hasHealthyQboConnection();
       if (!healthy) {
-        return { ok: true, response: { skipped: true } };
+        return { ok: false, error: "QBO connection is not active; reconnect to resume sync", retryable: true };
       }
 
       const [already] = await db
