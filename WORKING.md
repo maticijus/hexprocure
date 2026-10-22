@@ -6,14 +6,6 @@ Protocol: ~/.claude/rules/common/parallel-sessions.md
 ## Active claims
 <!-- newest first; empty when the repo is free -->
 
-- **owner:** claude-fable (ee-license worktree session, trial clause + sign-off memo)
-  **machine:** local-mac
-  **scope:** branch `maticijus/ee-license` — ee/LICENSE section 4 trial, ee/README.md
-  **started:** 2026-10-22T07:15:00Z
-  **heartbeat:** 2026-10-22T07:15:00Z
-  **next:** add 30-day trial key clause, commit, release
-
-
 - **owner:** claude-fable (Orca coordinator session, review + AI roadmap + first build lane)
   **machine:** local-mac
   **scope:** branch `feat/ai-roadmap` — docs/ (review, functional spec, AI roadmap, implementation spec) + first AI lane under src/lib/integrations and src/domain
