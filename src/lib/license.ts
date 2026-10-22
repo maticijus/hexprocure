@@ -26,16 +26,19 @@ const COMMUNITY: License = { tier: "community", licensee: "community", expiresAt
 
 const decodeJson = (part: string): unknown => JSON.parse(Buffer.from(part, "base64url").toString("utf8"));
 
-function toLicense(claims: unknown, now: Date): License | null {
+function toLicense(claims: unknown): License | null {
   if (typeof claims !== "object" || claims === null) return null;
   const { tier, licensee, exp } = claims as Record<string, unknown>;
   if (typeof tier !== "string" || !Object.hasOwn(TIER_RANK, tier)) return null;
   if (typeof licensee !== "string" || licensee === "") return null;
-  if (typeof exp !== "number" || !Number.isFinite(exp) || exp * 1000 <= now.getTime()) return null;
+  if (typeof exp !== "number" || !Number.isFinite(exp)) return null;
   return { tier: tier as Tier, licensee, expiresAt: new Date(exp * 1000).toISOString() };
 }
 
-export function parseLicense(token: string, publicKeyPem: string, now: Date = new Date()): License | null {
+const isExpired = (license: License, now: Date): boolean => new Date(license.expiresAt).getTime() <= now.getTime();
+
+/** Signature and claim shape only; the caller decides what an expired licence means. */
+function verifyToken(token: string, publicKeyPem: string): License | null {
   try {
     const parts = token.split(".");
     if (parts.length !== 3) return null;
@@ -44,13 +47,19 @@ export function parseLicense(token: string, publicKeyPem: string, now: Date = ne
     if (header.alg !== "EdDSA") return null;
     const key = createPublicKey(publicKeyPem);
     if (key.asymmetricKeyType !== "ed25519") return null;
+    // RFC 7515: unpadded base64url only, and exactly one encoding per signature.
     const signature = Buffer.from(s, "base64url");
     if (signature.length !== 64 || signature.toString("base64url") !== s) return null;
     if (!verify(null, Buffer.from(`${h}.${p}`), key, signature)) return null;
-    return toLicense(decodeJson(p), now);
+    return toLicense(decodeJson(p));
   } catch {
     return null;
   }
+}
+
+export function parseLicense(token: string, publicKeyPem: string, now: Date = new Date()): License | null {
+  const license = verifyToken(token, publicKeyPem);
+  return license && !isExpired(license, now) ? license : null;
 }
 
 function verifyingKey(): string {
@@ -59,41 +68,39 @@ function verifyingKey(): string {
 }
 
 let cached: License | null = null;
-let status: LicenseStatus = "none";
+let cachedStatus: LicenseStatus = "none";
 let expiredWarned = false;
 
 export function resetLicenseCache(): void {
   cached = null;
-  status = "none";
+  cachedStatus = "none";
   expiredWarned = false;
 }
 
-export function getLicense(): License {
+export function getLicenseState(): { license: License; status: LicenseStatus } {
   if (!cached) {
     const token = process.env.HEXPROCURE_LICENSE?.trim();
-    const parsed = token ? parseLicense(token, verifyingKey()) : null;
-    if (token && !parsed) {
-      console.warn("HEXPROCURE_LICENSE is set but invalid or expired; running as Community");
+    const verified = token ? verifyToken(token, verifyingKey()) : null;
+    if (token && !verified) {
+      console.warn("HEXPROCURE_LICENSE is set but invalid; running as Community");
     }
-    cached = parsed ?? COMMUNITY;
-    status = parsed ? "active" : token ? "invalid" : "none";
+    cached = verified ?? COMMUNITY;
+    cachedStatus = verified ? "active" : token ? "invalid" : "none";
   }
-  // The parsed token is cached, but expiry is re-checked on every call.
-  if (cached !== COMMUNITY && new Date(cached.expiresAt).getTime() <= Date.now()) {
-    status = "expired";
+  // The verified token is cached, but expiry is re-checked on every call.
+  if (cached !== COMMUNITY && isExpired(cached, new Date())) {
     if (!expiredWarned) {
       expiredWarned = true;
       console.warn("HEXPROCURE_LICENSE has expired; running as Community");
     }
-    return COMMUNITY;
+    return { license: COMMUNITY, status: "expired" };
   }
-  return cached;
+  return { license: cached, status: cachedStatus };
 }
 
-export function getLicenseStatus(): LicenseStatus {
-  getLicense();
-  return status;
-}
+export const getLicense = (): License => getLicenseState().license;
+
+export const getLicenseStatus = (): LicenseStatus => getLicenseState().status;
 
 export function hasTier(license: License, required: Tier): boolean {
   return TIER_RANK[license.tier] >= TIER_RANK[required];
