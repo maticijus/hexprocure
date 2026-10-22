@@ -5,6 +5,7 @@ import {
   integrationsConnections,
   integrationEvents,
   qboSyncMap,
+  suppliers,
 } from "@/lib/db/schema";
 import { seedOrg, truncateAll } from "@/lib/testing/seed";
 import { upsertQboConnection } from "./qbo-connection";
@@ -27,7 +28,7 @@ function qboOk(qboId: string) {
 
 /** Routes by URL like the QBO API: vendor query, vendor create, document create. */
 function qboRouter(opts: { queryVendors?: { Id: string }[]; createdVendorId?: string; createStatus?: number } = {}) {
-  return vi.fn(async (url: string, init?: RequestInit) => {
+  return vi.fn(async (url: string) => {
     if (url.includes("/query")) {
       return new Response(JSON.stringify({ QueryResponse: opts.queryVendors?.length ? { Vendor: opts.queryVendors } : {} }), { status: 200 });
     }
@@ -123,7 +124,7 @@ describe("createQboConnector", () => {
   it("escapes single quotes in the DisplayName query", async () => {
     const fetchMock = qboRouter({ queryVendors: [{ Id: "V-q" }] });
     const { event } = await seedConnectionAndEvent("PO_CREATED");
-    (event.payload as Record<string, unknown>).supplier = "O'Neil & Sons";
+    await db.update(suppliers).set({ name: "O'Neil & Sons" });
 
     await createQboConnector({ fetchImpl: fetchMock }).deliver(event);
     const [query] = callsTo(fetchMock, "/query");

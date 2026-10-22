@@ -116,7 +116,7 @@ async function approvedEvents() {
   const { rows } = await db.execute(
     sql`SELECT payload FROM integration_events WHERE event_type = 'INVOICE_APPROVED'`,
   );
-  return rows as { payload: { currency: string; totalMinor: unknown } }[];
+  return rows as { payload: { currency: string; totalMinor: unknown; supplierId: string } }[];
 }
 
 describe("B1 requisition can be ordered once", () => {
@@ -216,6 +216,11 @@ describe("B3 INVOICE_APPROVED carries PO currency and the billed total", () => {
     const [event] = await approvedEvents();
     expect(event.payload.currency).toBe("CZK");
     expect(event.payload.totalMinor).toBe(42_000);
+    expect(event.payload.supplierId).toBe(s.supplier.id);
+    const { rows: poEvents } = await db.execute(
+      sql`SELECT payload FROM integration_events WHERE event_type = 'PO_CREATED'`,
+    );
+    expect((poEvents[0] as { payload: { supplierId: string } }).payload.supplierId).toBe(s.supplier.id);
   });
 });
 
