@@ -6,6 +6,13 @@ Protocol: ~/.claude/rules/common/parallel-sessions.md
 ## Active claims
 <!-- newest first; empty when the repo is free -->
 
+- **owner:** claude-fable (ee-license worktree session, merge main)
+  **machine:** local-mac
+  **scope:** branch `maticijus/ee-license` — merge origin/main (221 commits) to clear the next 16.3.2 advisory; conflicts in .env.example, README.md, WORKING.md, ee/README.md
+  **started:** 2026-10-22T07:30:00Z
+  **heartbeat:** 2026-10-22T07:30:00Z
+  **next:** resolve, gate, push
+
 - **owner:** claude-fable (Orca coordinator session, review + AI roadmap + first build lane)
   **machine:** local-mac
   **scope:** branch `feat/ai-roadmap` — docs/ (review, functional spec, AI roadmap, implementation spec) + first AI lane under src/lib/integrations and src/domain
