@@ -23,7 +23,7 @@ describe("QBO sandbox contract smoke", () => {
     if (process.env.QBO_SANDBOX === "false") throw new Error("Refusing to run the smoke against live QBO");
   });
 
-  it("refreshes the stored token, pushes a PO once and skips the second dispatch", async () => {
+  it("refreshes the stored token, resolves the vendor, pushes a PO once and skips the second dispatch", async () => {
     await truncateAll();
     const s = await seedOrg();
     await upsertQboConnection({
@@ -39,7 +39,8 @@ describe("QBO sandbox contract smoke", () => {
         eventType: "PO_CREATED",
         payload: {
           purchaseOrderId: crypto.randomUUID(),
-          supplier: process.env.QBO_LIVE_VENDOR_ID ?? "1",
+          supplier: s.supplier.name,
+          supplierId: s.supplier.id,
           costCenter: "IT",
           currency: "USD",
           issuedOn: new Date().toISOString().slice(0, 10),
@@ -55,6 +56,7 @@ describe("QBO sandbox contract smoke", () => {
     expect(first).toMatchObject({ ok: true });
     const second = await connector.deliver(event);
     expect(second).toMatchObject({ ok: true, response: { skipped: true } });
-    expect(await db.select().from(qboSyncMap)).toHaveLength(1);
+    const rows = await db.select().from(qboSyncMap);
+    expect(rows.map((r) => r.entityType).sort()).toEqual(["PO", "VENDOR"]);
   });
 });
